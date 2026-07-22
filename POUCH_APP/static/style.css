@@ -1,0 +1,720 @@
+/* ========================================
+   POUCH System Overview - Global Styles
+   ======================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-dark: #07121d;
+    --bg-card: #0f2030;
+    --bg-subcomponent: #142b3f;
+    --border-color: #2f6d84;
+    --text-primary: #f5fbff;
+    --text-label: #8fd8ff;
+    --text-secondary: #7bc7e8;
+    --color-on: #2fe39b;
+    --color-off: #c94c4c;
+    --color-neutral: #2f7eb8;
+    --color-warning: #f1b100;
+    --color-gray: #5a7d8f;
+}
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* ========================================
+   Layout
+   ======================================== */
+
+.container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.dashboard {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    grid-auto-rows: auto;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+
+.header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    align-items: center;
+    background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-subcomponent) 100%);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    padding: 12px 20px;
+    margin-bottom: 16px;
+}
+
+.header-left h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.header-center {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-label);
+    font-weight: 600;
+}
+
+.header-right {
+    text-align: right;
+    font-size: 13px;
+}
+
+#connection-text {
+    color: var(--text-label);
+}
+
+.header-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding: 0 0 8px 0;
+}
+
+/* ========================================
+   Cards
+   ======================================== */
+
+.card {
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.system-card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+}
+
+.vnodes-card {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+}
+
+.admin-card {
+    grid-column: 3;
+    grid-row: 1;
+}
+
+.vibration-card {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+.card h2 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-label);
+    margin: 12px 0 8px 0;
+}
+
+.card h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* ========================================
+   System Card
+   ======================================== */
+
+.control-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.btn {
+    padding: 10px 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-start {
+    background: var(--color-on);
+    color: #000;
+}
+
+.btn-stop {
+    background: var(--color-off);
+    color: #fff;
+}
+
+.btn-pause {
+    background: var(--color-neutral);
+    color: #fff;
+}
+
+.manifold-section {
+    margin: 8px 0;
+}
+
+.gauge-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+}
+
+.gauge {
+    width: 70px;
+    height: 70px;
+    flex-shrink: 0;
+}
+
+.gauge-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.status-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    margin: 6px 0;
+    padding: 6px 8px;
+    background: var(--bg-subcomponent);
+    border-radius: 6px;
+}
+
+.status-badge {
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.status-on {
+    color: var(--color-on);
+}
+
+.status-off {
+    color: var(--color-off);
+}
+
+.valves-section {
+    margin-top: 10px;
+}
+
+.valve-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.valve-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    padding: 6px 8px;
+    background: var(--bg-subcomponent);
+    border-radius: 6px;
+}
+
+.valve-name {
+    color: var(--text-label);
+    font-weight: 600;
+}
+
+.valve-indicator {
+    font-size: 14px;
+}
+
+.valve-indicator.on {
+    color: var(--color-on);
+}
+
+.valve-indicator.off {
+    color: var(--color-off);
+}
+
+/* ========================================
+   V-Nodes Card
+   ======================================== */
+
+.vnodes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vnode-item {
+    background: var(--bg-subcomponent);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px;
+}
+
+.vnode-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.vnode-icon {
+    flex-shrink: 0;
+}
+
+.vnode-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 11px;
+}
+
+.vnode-control label {
+    color: var(--text-label);
+    white-space: nowrap;
+}
+
+.target-input {
+    width: 50px;
+    padding: 4px 6px;
+    background: #1a3a4f;
+    border: 1px solid var(--color-neutral);
+    border-radius: 4px;
+    color: #2fd7ff;
+    font-weight: 600;
+    text-align: center;
+    font-size: 11px;
+}
+
+.target-input:focus {
+    outline: none;
+    border-color: var(--color-on);
+}
+
+.unit {
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+
+.vnode-data {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.vnode-data strong {
+    color: #2fd7ff;
+    font-weight: 600;
+}
+
+.fsr-data {
+    font-size: 9px;
+}
+
+/* ========================================
+   Admin Card
+   ======================================== */
+
+.admin-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-admin {
+    background: var(--bg-subcomponent);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-admin:hover {
+    border-color: var(--text-label);
+    background: var(--border-color);
+}
+
+.btn-desc {
+    font-size: 9px;
+    color: var(--text-secondary);
+    margin: -6px 0 0 0;
+    padding: 0 8px 8px 8px;
+}
+
+/* ========================================
+   Vibration Card - Table
+   ======================================== */
+
+.vibration-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.vibration-table th {
+    background: var(--bg-subcomponent);
+    color: var(--text-label);
+    padding: 6px 4px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 10px;
+}
+
+.vibration-table td {
+    padding: 6px 4px;
+    border-bottom: 1px solid rgba(47, 109, 132, 0.2);
+}
+
+.vibration-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.level-buttons {
+    display: flex;
+    gap: 3px;
+    justify-content: flex-start;
+}
+
+.btn-level {
+    width: 24px;
+    height: 22px;
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-level-active {
+    background: var(--color-on);
+    color: #000;
+    box-shadow: 0 0 6px rgba(47, 227, 155, 0.4);
+}
+
+.btn-level-inactive {
+    background: var(--color-gray);
+    color: #fff;
+}
+
+.btn-level:hover {
+    transform: scale(1.05);
+}
+
+.time-left {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+
+@media (max-width: 1200px) {
+    .dashboard {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .system-card {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    
+    .vnodes-card {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    
+    .admin-card {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+    
+    .vibration-card {
+        grid-column: 1 / -1;
+        grid-row: 3;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .system-card,
+    .vnodes-card,
+    .admin-card,
+    .vibration-card {
+        grid-column: 1;
+    }
+    
+    .header {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .header-center,
+    .header-right {
+        text-align: left;
+    }
+}
+
+    color: #000;
+    width: 100%;
+}
+
+.btn-start:hover {
+    background: #25d189;
+}
+
+.btn-stop {
+    background: var(--color-off);
+    color: #fff;
+    width: 100%;
+}
+
+.btn-stop:hover {
+    background: #d94545;
+}
+
+.btn-emergency {
+    background: #ff6b6b;
+    color: #fff;
+    width: 100%;
+}
+
+.btn-emergency:hover {
+    background: #ff5252;
+}
+
+.btn-primary {
+    background: var(--color-neutral);
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-primary:hover {
+    background: #3a8fc5;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.btn-admin {
+    background: var(--bg-subcomponent);
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+}
+
+.btn-admin:hover {
+    border-color: var(--text-label);
+}
+
+.btn-danger {
+    border-color: var(--color-off) !important;
+    color: var(--color-off) !important;
+}
+
+.btn-danger:hover {
+    background: var(--color-off);
+    color: #fff !important;
+}
+
+.btn-info {
+    border-color: var(--color-neutral) !important;
+    color: var(--color-neutral) !important;
+}
+
+.btn-info:hover {
+    background: var(--color-neutral);
+    color: #fff !important;
+}
+
+.btn-secondary {
+    border-color: var(--text-label) !important;
+    color: var(--text-label) !important;
+}
+
+.btn-secondary:hover {
+    background: var(--text-label);
+    color: var(--bg-card) !important;
+}
+
+/* ========================================
+   Notifications
+   ======================================== */
+
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    animation: slideIn 0.3s ease;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.notification-success {
+    background: var(--color-on);
+    color: #000;
+}
+
+.notification-error {
+    background: var(--color-off);
+    color: #fff;
+}
+
+.notification-warning {
+    background: var(--color-warning);
+    color: #000;
+}
+
+.notification-info {
+    background: var(--color-neutral);
+    color: #fff;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+
+@media (max-width: 1400px) {
+    .main-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .right-stack {
+        flex-direction: row;
+    }
+    
+    .admin-card {
+        flex: 1;
+    }
+    
+    .vibration-card {
+        flex: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .header-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .header h1 {
+        font-size: 24px;
+    }
+    
+    .header-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .vibration-zone {
+        flex-wrap: wrap;
+    }
+    
+    .vibration-zone label {
+        width: 100%;
+    }
+    
+    .level-buttons {
+        width: 100%;
+    }
+    
+    .card {
+        padding: 16px;
+    }
+    
+    .card h2 {
+        font-size: 18px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .header {
+        padding: 15px;
+    }
+    
+    .btn {
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+}

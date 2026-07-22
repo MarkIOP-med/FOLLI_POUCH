@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POUCH System Overview</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-left">
+                <h1>POUCH SYSTEM OVERVIEW v2.4.1</h1>
+            </div>
+            <div class="header-center">
+                <span id="time-display">LOCALIZED TIME: --:--:--</span>
+            </div>
+            <div class="header-right">
+                <span id="connection-text">BLE: ⚫ Disconnected</span>
+            </div>
+        </div>
+
+        <div class="header-info">
+            <span id="session-runtime">Session Runtime: 00:00:00</span>
+            <span id="console-display">CONSOLE: Disconnected</span>
+        </div>
+
+        <!-- MAIN 3-COLUMN LAYOUT -->
+        <div class="dashboard">
+            <!-- LEFT COLUMN: SYSTEM CARD -->
+            <div class="card system-card">
+                <h2>System Telemetry and Hardware</h2>
+                
+                <div class="control-buttons">
+                    <button id="btn-start" class="btn btn-start">▶ START</button>
+                    <button id="btn-stop" class="btn btn-stop">● STOP ALL</button>
+                    <button id="btn-pause" class="btn btn-pause">║ PAUSE</button>
+                </div>
+
+                <div class="manifold-section">
+                    <h3>Manifold Diagnostic</h3>
+                    
+                    <!-- Gauge 1 -->
+                    <div class="gauge-container">
+                        <svg class="gauge" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#2f6d84" stroke-width="2"/>
+                            <circle cx="60" cy="60" r="45" fill="none" stroke="#365c74" stroke-width="1" stroke-dasharray="5,5"/>
+                            <text x="60" y="75" text-anchor="middle" font-size="18" fill="#f5fbff" font-weight="bold">100</text>
+                        </svg>
+                        <div class="gauge-label">Manifold Target</div>
+                    </div>
+
+                    <div class="status-line">
+                        <span>Pump:</span>
+                        <span class="status-badge status-on" id="pump-status">● ON (75% Duty)</span>
+                    </div>
+
+                    <!-- Gauge 2 -->
+                    <div class="gauge-container">
+                        <svg class="gauge" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50" fill="none" stroke="#2f6d84" stroke-width="2"/>
+                            <circle cx="60" cy="60" r="45" fill="none" stroke="#365c74" stroke-width="1" stroke-dasharray="5,5"/>
+                            <text x="60" y="75" text-anchor="middle" font-size="18" fill="#f5fbff" font-weight="bold">100</text>
+                        </svg>
+                        <div class="gauge-label">Actual Target</div>
+                    </div>
+
+                    <div class="status-line">
+                        <span>Purge Valve:</span>
+                        <span class="status-badge status-off" id="purge-status">● CLOSED</span>
+                    </div>
+
+                    <div class="status-line">
+                        <span>Pump:</span>
+                        <span class="status-badge status-off">● CLOSED</span>
+                    </div>
+                </div>
+
+                <div class="valves-section">
+                    <h3>Valves:</h3>
+                    <div class="valve-list">
+                        <div class="valve-item">
+                            <span class="valve-name">FRONT</span>
+                            <span class="valve-indicator on" id="valve-front">●</span>
+                        </div>
+                        <div class="valve-item">
+                            <span class="valve-name">TEMPLE</span>
+                            <span class="valve-indicator off" id="valve-temple">●</span>
+                        </div>
+                        <div class="valve-item">
+                            <span class="valve-name">EAR</span>
+                            <span class="valve-indicator on" id="valve-ear">●</span>
+                        </div>
+                        <div class="valve-item">
+                            <span class="valve-name">BACK</span>
+                            <span class="valve-indicator on" id="valve-back">●</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE COLUMN: VNODES CARD -->
+            <div class="card vnodes-card">
+                <h2>V-Nodes Telemetry Array</h2>
+                
+                <div class="vnodes-list">
+                    <!-- FRONT PAIR -->
+                    <div class="vnode-item">
+                        <div class="vnode-header">
+                            <svg class="vnode-icon" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="6" r="3" fill="#8fd8ff"/>
+                                <path d="M 12 10 L 8 14 L 6 16 L 6 24 L 10 24 L 10 18 L 14 18 L 14 24 L 18 24 L 18 16 L 16 14 L 12 10 Z" fill="#8fd8ff"/>
+                            </svg>
+                            <h4>FRONT PAIR</h4>
+                        </div>
+                        <div class="vnode-control">
+                            <label>Target:</label>
+                            <input type="number" id="target-0" class="target-input" min="0" max="200" value="100">
+                            <span class="unit">mmHg</span>
+                        </div>
+                        <div class="vnode-data">
+                            <span>Actual: <strong id="actual-0">98 mmHg</strong></span>
+                            <span class="fsr-data">L FSR: <strong id="fsr-0">1.4 N</strong> (420mV) | R FSR: <strong id="fsr-1">1.6 N</strong> (480mV)</span>
+                        </div>
+                    </div>
+
+                    <!-- TEMPLE PAIR -->
+                    <div class="vnode-item">
+                        <div class="vnode-header">
+                            <svg class="vnode-icon" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="6" r="3" fill="#8fd8ff"/>
+                                <path d="M 12 10 L 8 14 L 6 16 L 6 24 L 10 24 L 10 18 L 14 18 L 14 24 L 18 24 L 18 16 L 16 14 L 12 10 Z" fill="#8fd8ff"/>
+                            </svg>
+                            <h4>TEMPLE PAIR</h4>
+                        </div>
+                        <div class="vnode-control">
+                            <label>Target:</label>
+                            <input type="number" id="target-1" class="target-input" min="0" max="200" value="100">
+                            <span class="unit">mmHg</span>
+                        </div>
+                        <div class="vnode-data">
+                            <span>Actual: <strong id="actual-1">97 mmHg</strong></span>
+                            <span class="fsr-data">L FSR: <strong id="fsr-2">1.4 N</strong> (420mV) | R FSR: <strong id="fsr-3">1.6 N</strong> (480mV)</span>
+                        </div>
+                    </div>
+
+                    <!-- EAR PAIR -->
+                    <div class="vnode-item">
+                        <div class="vnode-header">
+                            <svg class="vnode-icon" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="6" r="3" fill="#8fd8ff"/>
+                                <path d="M 12 10 L 8 14 L 6 16 L 6 24 L 10 24 L 10 18 L 14 18 L 14 24 L 18 24 L 18 16 L 16 14 L 12 10 Z" fill="#8fd8ff"/>
+                            </svg>
+                            <h4>EAR PAIR</h4>
+                        </div>
+                        <div class="vnode-control">
+                            <label>Target:</label>
+                            <input type="number" id="target-2" class="target-input" min="0" max="200" value="100">
+                            <span class="unit">mmHg</span>
+                        </div>
+                        <div class="vnode-data">
+                            <span>Actual: <strong id="actual-2">97 mmHg</strong></span>
+                            <span class="fsr-data">L FSR: <strong id="fsr-4">1.4 N</strong> (420mV) | R FSR: <strong id="fsr-5">1.6 N</strong> (480mV)</span>
+                        </div>
+                    </div>
+
+                    <!-- BACK PAIR -->
+                    <div class="vnode-item">
+                        <div class="vnode-header">
+                            <svg class="vnode-icon" viewBox="0 0 24 24" width="20" height="20">
+                                <circle cx="12" cy="6" r="3" fill="#8fd8ff"/>
+                                <path d="M 12 10 L 8 14 L 6 16 L 6 24 L 10 24 L 10 18 L 14 18 L 14 24 L 18 24 L 18 16 L 16 14 L 12 10 Z" fill="#8fd8ff"/>
+                            </svg>
+                            <h4>BACK PAIR</h4>
+                        </div>
+                        <div class="vnode-control">
+                            <label>Target:</label>
+                            <input type="number" id="target-3" class="target-input" min="0" max="200" value="100">
+                            <span class="unit">mmHg</span>
+                        </div>
+                        <div class="vnode-data">
+                            <span>Actual: <strong id="actual-3">9.5 mmHg</strong></span>
+                            <span class="fsr-data">L FSR: <strong id="fsr-6">1.4 N</strong> (420mV) | R FSR: <strong id="fsr-7">1.6 N</strong> (480mV)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: TOP ADMIN CARD -->
+            <div class="card admin-card">
+                <h2>Admin Actions</h2>
+                <div class="admin-buttons">
+                    <button class="btn btn-admin">RESET ALL DEFAULTS</button>
+                    <div class="btn-desc">Reset administrative function</div>
+                    
+                    <button class="btn btn-admin">SET CURRENT AS DEFAULT</button>
+                    <div class="btn-desc">Set current calibrative functions</div>
+                    
+                    <button class="btn btn-admin">SET VIBRATION LEVELS MODAL</button>
+                    <div class="btn-desc">Set vibration levels modal</div>
+                    
+                    <button class="btn btn-admin">CHANGE DEFAULT VALUES MODAL</button>
+                    <div class="btn-desc">Change default values modal</div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: BOTTOM VIBRATION CARD -->
+            <div class="card vibration-card">
+                <h2>Vibration Level Assignment</h2>
+                
+                <table class="vibration-table">
+                    <thead>
+                        <tr>
+                            <th>Zone Pair</th>
+                            <th>Levels</th>
+                            <th>Time Left</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>FRONT</td>
+                            <td class="level-buttons">
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(0, 0)">0</button>
+                                <button class="btn-level btn-level-active" onclick="setVibration(0, 1)">1</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(0, 2)">2</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(0, 3)">3</button>
+                            </td>
+                            <td class="time-left">[ 20 sec ]</td>
+                        </tr>
+                        <tr>
+                            <td>TEMPLE</td>
+                            <td class="level-buttons">
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(1, 0)">0</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(1, 1)">1</button>
+                                <button class="btn-level btn-level-active" onclick="setVibration(1, 2)">2</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(1, 3)">3</button>
+                            </td>
+                            <td class="time-left">[ 15 sec ]</td>
+                        </tr>
+                        <tr>
+                            <td>EAR</td>
+                            <td class="level-buttons">
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(2, 0)">0</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(2, 1)">1</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(2, 2)">2</button>
+                                <button class="btn-level btn-level-active" onclick="setVibration(2, 3)">3</button>
+                            </td>
+                            <td class="time-left">[ 25 sec ]</td>
+                        </tr>
+                        <tr>
+                            <td>BACK</td>
+                            <td class="level-buttons">
+                                <button class="btn-level btn-level-active" onclick="setVibration(3, 0)">0</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(3, 1)">1</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(3, 2)">2</button>
+                                <button class="btn-level btn-level-inactive" onclick="setVibration(3, 3)">3</button>
+                            </td>
+                            <td class="time-left">[ 30 sec ]</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
