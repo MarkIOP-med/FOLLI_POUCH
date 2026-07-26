@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-FOLLI_POUCH ("FOLLISAVE") is a pneumatic headband pressure controller. The repo has three parts:
+FOLLI_POUCH ("FOLLISAVE") is a pneumatic headband pressure controller. The repo has four parts:
 
 - **`POUCH_ESP_GEN4/`** — current-generation Arduino/ESP firmware (active development target).
 - **`POUCH_APP/`** — a Flask + vanilla JS web dashboard that talks to the firmware over USB serial.
+- **`FOLLI_CONSOLE/`** — the patient-facing Android kiosk app (React Native / Expo, TypeScript). Talks to the pouch over BLE per `FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md`; has its own `package.json` and jest suite.
 - **`LEGACY_ARDUINO/`** — superseded firmware generations (Gen1–Gen3, plus unrelated older `kasda*` sensor-calibration sketches). Kept for reference only; do not modify unless explicitly asked to port something forward.
 
-There is no build system, package.json, or test suite in this repo — firmware is compiled/flashed via the Arduino IDE (`.ino` + `config.h`), and the web app is run directly with Python.
+Outside `FOLLI_CONSOLE/` there is no build system, package.json, or test suite — firmware is compiled/flashed via the Arduino IDE (`.ino` + `config.h`), and the web app is run directly with Python.
+
+**Protocol gap to know about:** the console app implements the BLE GATT protocol from `FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md` (4-byte commands / 6-byte telemetry, service `4fafc201-…`), but Gen4 firmware currently speaks only the USB-serial text protocol below — it has no BLE server. Until BLE is added to the firmware (or a serial transport to the app), the two cannot talk to each other.
 
 ## Running things
 
@@ -22,6 +25,15 @@ python app.py
 Serial port is hardcoded at `app.py:19` (`SERIAL_PORT = "COM3"`) — update it to match the actual device port before running. Server listens on `0.0.0.0:5000` and auto-connects to serial on startup; if that fails it still serves the UI and you can connect manually via `/api/connect`.
 
 **Firmware**: open `POUCH_ESP_GEN4/POUCH_ESP_GEN4.ino` in the Arduino IDE (needs `Adafruit_SH110X` and `Adafruit_NeoPixel` libraries) and flash to the Mega/ESP32. Serial monitor / dashboard must use 9600 baud.
+
+**Console app** (from `FOLLI_CONSOLE/`, needs Node 20+):
+```bash
+npm install
+npx expo start --web   # fastest look: runs in browser against a mock BLE pouch
+npm test               # jest suite (codec, viewmodel, screens, kiosk)
+npx expo run:android   # real device build (needs JDK 17 + Android SDK + USB debugging)
+```
+Android kiosk lock-task setup and the `android/` regeneration caveat are documented in `FOLLI_CONSOLE/native/android/README_KIOSK.md`.
 
 ## Firmware architecture (`POUCH_ESP_GEN4/`)
 

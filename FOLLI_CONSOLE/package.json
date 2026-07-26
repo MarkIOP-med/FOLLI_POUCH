@@ -1,0 +1,46 @@
+{
+  "name": "folli_console",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@react-native-community/slider": "5.2.0",
+    "expo": "^57.0.0",
+    "expo-keep-awake": "~57.0.1",
+    "expo-linear-gradient": "~57.0.1",
+    "expo-navigation-bar": "~57.0.2",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-ble-plx": "^3.5.0",
+    "react-native-svg": "^15.14.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@react-native/jest-preset": "^0.86.0",
+    "@testing-library/react-native": "^13.2.0",
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.2.2",
+    "jest": "^29.7.0",
+    "jest-expo": "~57.0.0",
+    "react-test-renderer": "19.2.3",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|react-native-ble-plx|expo-linear-gradient))"
+    ]
+  },
+  "private": true
+}
