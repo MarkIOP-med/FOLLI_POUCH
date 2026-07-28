@@ -1,0 +1,39 @@
+.gauge {
+  text-align: center;
+
+  &__track {
+    fill: none;
+    stroke: #1b2c42;
+    stroke-width: 8;
+    stroke-linecap: round;
+  }
+
+  &__fill {
+    fill: none;
+    stroke: $accent;
+    stroke-width: 8;
+    stroke-linecap: round;
+  }
+
+  &__needle {
+    stroke: #cfe0f2;
+    stroke-width: 2;
+  }
+
+  &__hub { fill: #cfe0f2; }
+
+  &__value {
+    fill: $text;
+    font-size: $fs-md;
+    font-weight: 600;
+  }
+
+  &__label {
+    margin-top: 2px;
+    color: $muted;
+    font-size: $fs-xs;
+  }
+
+  &--fault &__value { fill: $fault; }
+  &--fault &__needle { stroke: $fault; }
+}

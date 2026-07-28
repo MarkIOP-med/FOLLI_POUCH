@@ -1,0 +1,80 @@
+// Reusable patterns. Auto-injected alongside tokens — do not @use directly.
+//
+// @use scopes are per-file, so this sheet needs its own reference to the tokens
+// even though every consumer also receives them. Sass de-duplicates the load.
+@use './tokens' as *;
+
+@mixin card($padding: $s-5) {
+  background: rgba($surface, 0.8);
+  border: 1px solid $border;
+  border-radius: $r-xl;
+  padding: $padding;
+}
+
+/// Panel with a centred, bordered caption bar — the column headers in the
+/// POUCH SYSTEM OVERVIEW layout.
+@mixin panel {
+  background: rgba($surface, 0.8);
+  border: 1px solid $border;
+  border-radius: $r-xl;
+  padding: 0 $s-4 $s-4;
+}
+
+@mixin panel-title {
+  margin: 0 (-$s-4) $s-4;
+  padding: 9px $s-4;
+  background: rgba($panel-head, 0.8);
+  border-bottom: 1px solid $border;
+  border-radius: $r-xl $r-xl 0 0;
+  color: $text-dim;
+  font-size: $fs-sm;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@mixin label {
+  color: $muted;
+  font-size: $fs-sm;
+}
+
+@mixin caption {
+  color: $muted;
+  font-size: $fs-sm;
+  line-height: 1.45;
+}
+
+@mixin mono {
+  font-family: $font-mono;
+}
+
+/// Status dot with an optional glow when live.
+@mixin dot($size: 10px) {
+  display: inline-block;
+  width: $size;
+  height: $size;
+  border-radius: 50%;
+}
+
+@mixin focus-ring($colour: $accent) {
+  &:focus-visible {
+    outline: 2px solid $colour;
+    outline-offset: 2px;
+  }
+}
+
+@mixin scroll-panel($max: 220px) {
+  max-height: $max;
+  overflow: auto;
+  background: $surface-deep;
+  border: 1px solid $border;
+  border-radius: $r-sm;
+  padding: $s-4;
+}
+
+@mixin respond-below($bp) {
+  @media (max-width: $bp) {
+    @content;
+  }
+}

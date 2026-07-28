@@ -1,0 +1,271 @@
+{
+  "app": {
+    "brand": "FOLLI",
+    "title": "FOLLI — Pouch Console",
+    "nav": {
+      "board": "Board",
+      "patients": "Patients",
+      "settings": "Settings"
+    }
+  },
+
+  "common": {
+    "cancel": "cancel",
+    "save": "SAVE",
+    "saved": "saved",
+    "delete": "DELETE",
+    "remove": "remove",
+    "edit": "edit",
+    "load": "load",
+    "add": "+ ADD",
+    "back": "← Board",
+    "backToPatients": "← Patients",
+    "loading": "Loading…",
+    "none": "none",
+    "notAvailable": "n/a",
+    "notReported": "not reported",
+    "unknown": "unknown",
+    "emDash": "—",
+    "mmhg": "mmHg",
+    "seconds": "s",
+    "secondsLong": "sec",
+    "percent": "%",
+    "hz": "Hz"
+  },
+
+  "units": {
+    "pressure": "{{value}} mmHg",
+    "duration": "[ {{value}} sec ]",
+    "rate": "{{value}} Hz",
+    "signedPercent": "{{sign}}{{value}}%"
+  },
+
+  "zones": {
+    "FRONT": "FRONT",
+    "TEMPLE": "TEMPLE",
+    "EAR": "EAR",
+    "BACK": "BACK",
+    "titles": {
+      "FRONT": "FRONT PAIR",
+      "TEMPLE": "TEMPLE PAIR",
+      "EAR": "EAR",
+      "BACK": "BACK"
+    },
+    "padAlt": "{{zone}} pad location"
+  },
+
+  "status": {
+    "OK": "OK",
+    "SETTLING": "settling",
+    "OUT_OF_BAND": "out of band",
+    "SENSOR_FAULT": "sensor fault",
+    "NO_DATA": "no data",
+    "fsrFault": "⚠ fault"
+  },
+
+  "board": {
+    "heading": "FOLLI Board",
+    "summary": "{{count}} pouches · {{inSession}} in session",
+    "noPatient": "— no patient —",
+    "serviceMode": "SERVICE MODE",
+    "alerts_one": "⚠ {{count}} alert",
+    "alerts_other": "⚠ {{count}} alerts",
+    "open": "OPEN",
+    "connect": "CONNECT",
+    "disconnect": "DISCONNECT",
+    "offline": "offline",
+    "empty": "No pouches registered. Add one in Settings.",
+    "emptyLink": "Settings",
+    "zoneTooltip": "{{zone}}: {{status}}"
+  },
+
+  "device": {
+    "title": "POUCH SYSTEM OVERVIEW",
+    "localizedTime": "LOCALIZED TIME: {{time}}",
+    "link": "LINK",
+    "serial": "SERIAL",
+    "connectedWith": "Connected ({{transport}}, {{rate}} Hz)",
+    "disconnected": "Disconnected",
+    "sessionRuntime": "Session Runtime: {{value}}",
+    "console": "CONSOLE:",
+    "consoleNonePaired": "none paired",
+    "firmware": "FW: {{version}}",
+    "connecting": "Connecting to {{id}}…",
+    "streamInterrupted": "stream interrupted — reconnecting",
+    "linkError": "link: {{message}}",
+
+    "hardware": {
+      "title": "System Telemetry and Hardware",
+      "start": "▶ START",
+      "stopAll": "⬤ STOP ALL",
+      "pause": "❚❚ PAUSE",
+      "manifoldDiagnostic": "Manifold Diagnostic",
+      "manifoldTarget": "Manifold Target",
+      "manifoldActual": "Manifold Actual",
+      "pump": "Pump",
+      "pumpDuty": "{{state}} ({{duty}}% duty)",
+      "purgeValve": "Purge Valve",
+      "valves": "Valves",
+      "rezero": "RE-ZERO SENSORS",
+      "emergency": "⛔ EMERGENCY RELIEF",
+      "manifoldFault": "⚠ Manifold sensor flat at 0 since boot — suspect open circuit. The pump charges the manifold until this reads target; with no reading it never stops.",
+      "notReportedNote": "Pump and valve state are not in the telemetry stream — the firmware does not report them. Shown as unknown rather than inferred.",
+      "valveUnknownTitle": "not reported by firmware"
+    },
+
+    "vnodes": {
+      "title": "V-Nodes Telemetry Array",
+      "target": "Target:",
+      "setpoint": "Setpoint:",
+      "actual": "Actual:",
+      "trim": "Trim:",
+      "effective": "Effective:",
+      "belowDeadband": "below deadband",
+      "fsrLeft": "L FSR:",
+      "fsrRight": "R FSR:"
+    },
+
+    "admin": {
+      "title": "Admin Actions",
+      "resetDefaults": "RESET ALL DEFAULTS",
+      "resetDefaultsHint": "Set every zone to 0 mmHg and clear the patient trim",
+      "setCurrentDefault": "SET CURRENT AS DEFAULT",
+      "setCurrentDefaultHint": "Promote effective pressures to the prescription",
+      "setVibration": "SET VIBRATION LEVELS",
+      "setVibrationHint": "Massage level and duration per zone",
+      "changeDefaults": "CHANGE DEFAULT VALUES",
+      "changeDefaultsHint": "Edit this patient's stored prescription",
+      "confirmReset": "Reset all four zones to 0 mmHg and clear the patient's trim?",
+      "confirmResetAction": "RESET",
+      "confirmPromoteLead": "This writes the current <1>effective</1> pressures into the prescription and resets the trim to 0%.",
+      "confirmPromoteNote": "Repeating this each session compounds the patient's trim into the prescription (40 → 44 → 48.4 …). It is recorded in the audit log.",
+      "confirmPromoteAction": "PROMOTE"
+    },
+
+    "vibration": {
+      "title": "Vibration Level Assignment",
+      "zonePair": "Zone Pair",
+      "levels": "Levels",
+      "duration": "Duration",
+      "note": "Configured duration, not a live countdown — the firmware does not report remaining vibration time. Also note `vib:` is listed in the protocol but is not yet parsed in serial.ino, so these levels are stored, not sent."
+    },
+
+    "technical": {
+      "toggle": "TECHNICAL / SERVICE",
+      "manifold": "Manifold",
+      "manifoldFaultShort": "⚠ flat at 0 — suspect open circuit",
+      "transport": "Transport",
+      "linkRate": "Link rate",
+      "firmware": "Firmware",
+      "firmwareUnknown": "unknown — no `v` command in firmware",
+      "serialLog": "Serial log",
+      "serialLogEmpty": "(no log lines yet)",
+      "rawFrame": "Raw frame"
+    },
+
+    "patientBand": {
+      "mrn": "MRN {{mrn}}",
+      "nationalId": "ID {{value}}",
+      "session": "Session {{elapsed}}",
+      "change": "CHANGE",
+      "release": "RELEASE",
+      "serviceMode": "SERVICE MODE",
+      "serviceModeBody": "— no patient loaded. Direct setpoint entry, clamped to {{ceiling}} mmHg. Nothing is written to any prescription.",
+      "endServiceSession": "END SERVICE SESSION",
+      "noPatient": "No patient loaded on this pouch.",
+      "loadPatient": "LOAD PATIENT"
+    },
+
+    "session": {
+      "none": "No session running on this pouch.",
+      "loadPatient": "LOAD PATIENT",
+      "serviceMode": "SERVICE MODE",
+      "pickerTitle": "Load patient",
+      "pickerEmpty": "No patients yet — create one.",
+      "pickerEmptyLink": "create one"
+    },
+
+    "alerts": {
+      "title": "⚠ Alerts",
+      "ack": "ack"
+    },
+
+    "busy": {
+      "applying": "applying",
+      "stopping": "stopping",
+      "pausing": "pausing",
+      "venting": "venting",
+      "rezeroing": "re-zeroing",
+      "settingTarget": "setting target",
+      "settingVibration": "setting vibration",
+      "resetting": "resetting",
+      "promoting": "promoting",
+      "endingSession": "ending session",
+      "startingService": "starting service mode",
+      "loadingPatient": "loading patient",
+      "acking": "acknowledging"
+    },
+
+    "notConnected": "Pouch not connected",
+    "rezeroNote": "Firmware has no re-zero command yet — this vents instead. The baseline is captured 500 ms after boot, before the sensors settle."
+  },
+
+  "patients": {
+    "heading": "Patients",
+    "search": "search name or MRN…",
+    "new": "+ NEW PATIENT",
+    "newName": "NEW PATIENT",
+    "empty": "No patients yet.",
+    "columns": {
+      "mrn": "MRN",
+      "name": "Name",
+      "nationalId": "National ID",
+      "zoneDefaults": "Zone defaults"
+    },
+    "reveal": "reveal",
+
+    "detail": {
+      "mrn": "MRN {{mrn}}",
+      "fullName": "Full name",
+      "nationalId": "National ID",
+      "nationalIdPlaceholder": "optional",
+      "nationalIdValid": "✓ valid check digit",
+      "nationalIdInvalid": "✗ invalid check digit",
+      "nationalIdNote": "Optional. Israeli teudat zehut, check-digit validated — the internal MRN is the key, not this. Leave blank if not applicable.",
+      "zoneDefaults": "Zone defaults",
+      "ceiling": "ceiling {{value}} mmHg",
+      "columns": {
+        "zone": "Zone",
+        "pressure": "Pressure",
+        "massageLevel": "Massage level",
+        "duration": "Duration",
+        "patientTrim": "Patient trim"
+      },
+      "zoneOff": "zone off",
+      "sessionHistory": "Session history",
+      "noSessions": "No sessions yet.",
+      "sessionRunning": "running",
+      "sessionEvents": "{{count}} events"
+    }
+  },
+
+  "settings": {
+    "heading": "Settings",
+    "clinical": "Clinical",
+    "maxPressure": "Max pressure",
+    "maxPressureNote": "Clamps every pressure input app-wide. This is a convenience limit — the authoritative clamp must also exist in firmware, so the device stays safe with this app switched off.",
+    "trimRange": "Trim range",
+    "defaultMassage": "Default massage",
+    "devices": "Devices",
+    "deviceId": "id",
+    "deviceLabel": "label",
+    "devicePort": "— port —",
+    "firmwareShort": "fw {{version}}",
+    "detectedPorts": "Detected ports: {{ports}}",
+    "firmwareNote": "Firmware version reads unknown until the firmware gains a `v` command — Gen4 is a byte-for-byte copy of Gen3 and prints the Gen3 banner, so a board currently cannot identify itself.",
+    "transport": {
+      "serial": "serial",
+      "mock": "mock"
+    }
+  }
+}

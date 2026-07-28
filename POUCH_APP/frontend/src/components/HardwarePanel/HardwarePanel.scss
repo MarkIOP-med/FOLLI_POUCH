@@ -1,0 +1,126 @@
+.hardware {
+  @include panel;
+
+  &__title { @include panel-title; }
+
+  &__action {
+    display: block;
+    width: 100%;
+    margin-bottom: $s-3;
+    padding: $s-4;
+    border-radius: $r-md;
+    background: transparent;
+    color: $text;
+    font-size: $fs-lg;
+    font-weight: 600;
+    cursor: pointer;
+    @include focus-ring;
+
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    &--start {
+      background: rgba($start-bg, 0.5);
+      border: 1px solid $start-border;
+      color: $start-text;
+    }
+
+    &--stop {
+      background: rgba($stop-bg, 0.5);
+      border: 1px solid $stop-border;
+      color: $stop-text;
+    }
+
+    &--pause {
+      background: rgba($pause-bg, 0.5);
+      border: 1px solid $pause-border;
+      color: $pause-text;
+    }
+  }
+
+  &__diag { margin-top: $s-5; }
+
+  &__diag-title {
+    margin: 0 0 $s-2;
+    color: $muted;
+    font-size: $fs-sm;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  &__gauges {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  &__list {
+    margin: $s-4 0 $s-3;
+
+    > div {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+
+    dt { @include label; }
+
+    dd {
+      margin: 0;
+      font-size: $fs-sm;
+    }
+  }
+
+  // Absent data is styled as absent — never as a plausible reading.
+  &__unreported {
+    color: $muted-deep;
+    font-style: italic;
+  }
+
+  &__valves { margin-top: $s-3; }
+
+  &__valves-label {
+    display: block;
+    margin-bottom: $s-1;
+    @include label;
+  }
+
+  &__valve {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0;
+
+    &-name { @include label; }
+
+    &-led {
+      @include dot;
+      background: transparent;
+      border: 1px dashed #46586e;
+    }
+  }
+
+  &__fault-note {
+    @include caption;
+    margin: $s-3 0 0;
+    color: $fault;
+  }
+
+  &__busy {
+    @include caption;
+    margin: $s-3 0 0;
+    color: $accent;
+  }
+
+  &__warn {
+    @include caption;
+    margin: $s-3 0 0;
+    color: $band;
+  }
+
+  hr {
+    margin: $s-4 0;
+    border: none;
+    border-top: 1px solid $border;
+  }
+
+  .btn--wide { margin-top: $s-2; }
+}

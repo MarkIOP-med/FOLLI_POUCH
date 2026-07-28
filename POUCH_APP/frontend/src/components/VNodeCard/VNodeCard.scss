@@ -1,0 +1,70 @@
+.vnode {
+  display: flex;
+  gap: $s-4;
+  align-items: flex-start;
+  margin-bottom: $s-3;
+  padding: $s-4;
+  background: rgba($surface-alt, 0.67);
+  border: 1px solid $border;
+  border-radius: $r-lg;
+
+  &.is-band     { border-color: $band; }
+  &.is-fault    { border-color: $fault; }
+  &.is-settling { border-color: #5a4a1e; }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: $s-2;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: $fs-lg;
+    font-weight: 600;
+  }
+
+  &__line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    align-items: center;
+    padding: 3px 0;
+    font-size: $fs-md;
+
+    &--sub,
+    &--fsr {
+      margin-top: $s-1;
+      padding-top: $s-2;
+      border-top: 1px solid $border-soft;
+    }
+
+    &--fsr { font-size: $fs-sm; }
+  }
+
+  &__label { @include label; }
+  &__sep   { color: #2a3d55; }
+
+  &__input {
+    width: 70px;
+    font-size: $fs-lg;
+    text-align: center;
+  }
+
+  &__actual    { font-weight: 600; }
+  &__effective { color: $accent; font-weight: 600; }
+  &__trim--muted { color: $muted; }
+}
+
+// FSR readouts. A railed sensor never renders as a number.
+.fsr {
+  &--ok    { @include mono; color: $text; }
+  &--fault { color: $fault; }
+  &--none  { color: $muted; }
+}
