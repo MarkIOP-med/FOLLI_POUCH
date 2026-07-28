@@ -1,0 +1,23 @@
+# Personal architecture scratch notes — thinking in progress, not a spec.
+/NOTES_ARCHITECTURE_SCRATCH.md
+/POUCH_APP/DEVICE_SCREEN_DESIGN.md
+/POUCH_APP/SCREENS_DESIGN.md
+
+# NOTE: FOLLI_CONSOLE/assets/buttons/ is a synced mirror of SHARED_ASSETS/buttons/
+# (Metro cannot reference assets above the Expo project root — see
+# SHARED_ASSETS/README.md). It is deliberately COMMITTED rather than ignored,
+# because CLAUDE.md documents `npx expo start --web` / `npx expo run:android`, which
+# bypass the npm pre* hooks that would otherwise generate it. A fresh clone must work
+# without running the sync first.
+#     Edit the originals in SHARED_ASSETS/buttons/ — never the mirror.
+#     `node SHARED_ASSETS/sync.mjs --check` fails if the two have drifted.
+
+# Build artefacts and local state — never commit these.
+node_modules/
+dist/
+__pycache__/
+*.pyc
+POUCH_APP/backend/folli.db
+POUCH_APP/backend/folli.db-*
+POUCH_APP/backend/server.log
+POUCH_APP/frontend/vite.log

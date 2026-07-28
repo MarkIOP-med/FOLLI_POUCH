@@ -1,0 +1,79 @@
+.device-screen {
+  display: flex;
+  flex-direction: column;
+  gap: $s-4;
+
+  // Three columns, as in the handoff mock: hardware | v-nodes | admin.
+  &__grid {
+    display: grid;
+    grid-template-columns: $col-left 1fr $col-right;
+    gap: $s-4;
+    align-items: start;
+  }
+
+  &__vnodes { @include panel; }
+
+  &__vnodes-title { @include panel-title; }
+
+  &__side {
+    display: flex;
+    flex-direction: column;
+    gap: $s-4;
+  }
+
+  @include respond-below($bp-wide) {
+    &__grid { grid-template-columns: 1fr 1fr; }
+
+    &__side {
+      grid-column: 1 / -1;
+      flex-direction: row;
+
+      > * { flex: 1; }
+    }
+  }
+
+  @include respond-below($bp-narrow) {
+    &__grid { grid-template-columns: 1fr; }
+    &__side { flex-direction: column; }
+  }
+}
+
+.session-bar {
+  @include card;
+  display: flex;
+  gap: $s-6;
+  align-items: center;
+  flex-wrap: wrap;
+
+  &__actions {
+    display: flex;
+    gap: $s-3;
+  }
+}
+
+.patient-picker {
+  @include card;
+
+  &__title {
+    margin: 0 0 $s-4;
+    color: $muted;
+    font-size: $fs-md;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  &__list {
+    margin: 0 0 $s-4;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $s-2 0;
+    border-bottom: 1px solid $border;
+  }
+}

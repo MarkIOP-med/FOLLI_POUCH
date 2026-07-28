@@ -1,0 +1,87 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Design tokens. Single source of truth for colour, spacing, type and radius.
+// Auto-injected into every .scss file via vite.config.ts, so never @use this
+// directly from a component stylesheet.
+//
+// Palette matches FOLLI_CONSOLE so the clinician and patient surfaces read as
+// one product (see FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md, section 4).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Surfaces
+$bg-top:        #010813;
+$bg-bottom:     #050e1d;
+$surface:       #0b1524;
+$surface-alt:   #0a1421;
+$surface-sunk:  #08111e;
+$surface-deep:  #060d18;
+$panel-head:    #0d1927;
+
+// Lines
+$border:        #1a2c42;
+$border-soft:   #13202f;
+$border-strong: #2c4160;
+
+// Text
+$text:          #dbe7f5;
+$text-dim:      #9fb6cf;
+$muted:         #7d93ad;
+$muted-deep:    #6d8299;
+
+// Brand + semantic
+$accent:        #2f81f7;
+$ok:            #2ecc71;
+$settling:      #d7a63a;
+$band:          #e8873a;
+$fault:         #e5484d;
+
+// Semantic button fills
+$start-bg:      #0e2a1a;
+$start-border:  #2e7d4f;
+$start-text:    #6ee79b;
+$stop-bg:       #2a0e0e;
+$stop-border:   #8b2f2f;
+$stop-text:     #ff9b9d;
+$pause-bg:      #0e1c2a;
+$pause-border:  #2a5f9e;
+$pause-text:    #8cc2ff;
+$danger-bg:     #451214;
+$danger-border: #8b2226;
+$danger-text:   #ff9ea0;
+
+// Spacing scale
+$s-1:  4px;
+$s-2:  6px;
+$s-3:  8px;
+$s-4:  12px;
+$s-5:  16px;
+$s-6:  20px;
+$s-7:  28px;
+
+// Radius
+$r-sm: 8px;
+$r-md: 10px;
+$r-lg: 12px;
+$r-xl: 16px;
+$r-pill: 999px;
+
+// Type
+$font-ui:   "Segoe UI", system-ui, -apple-system, sans-serif;
+$font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+$fs-xs:  11px;
+$fs-sm:  12px;
+$fs-md:  13px;
+$fs-base: 14px;
+$fs-lg:  15px;
+$fs-xl:  19px;
+$fs-2xl: 20px;
+
+// Layout
+$content-max: 1400px;
+$col-left:    300px;
+$col-right:   320px;
+
+// Breakpoints
+$bp-wide:   1250px;
+$bp-mid:    900px;
+$bp-narrow: 820px;
