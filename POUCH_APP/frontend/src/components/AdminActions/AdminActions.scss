@@ -1,0 +1,54 @@
+.admin {
+  @include panel;
+
+  &__title { @include panel-title; }
+
+  &__action {
+    display: block;
+    width: 100%;
+    margin-bottom: 9px;
+    padding: 9px $s-3;
+    border: 1px solid $border-strong;
+    border-radius: $r-sm;
+    background: transparent;
+    color: $text;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    text-align: center;
+    cursor: pointer;
+    @include focus-ring;
+
+    &:hover:not(:disabled) { border-color: $accent; }
+    &:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    small {
+      display: block;
+      margin-top: 3px;
+      color: $muted;
+      font-size: $fs-xs;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+  }
+
+  &__confirm {
+    margin-top: $s-3;
+    padding: $s-4;
+    border: 1px solid $border;
+    border-radius: $r-md;
+    background: #0d1827;
+    font-size: 12.5px;
+
+    // The ratchet warning gets the caution border — this action is the one that
+    // can quietly walk a prescription upward across sessions.
+    &--warn { border-color: $band; }
+
+    p { margin: 0 0 $s-3; }
+  }
+
+  &__confirm-actions {
+    display: flex;
+    gap: $s-3;
+  }
+}

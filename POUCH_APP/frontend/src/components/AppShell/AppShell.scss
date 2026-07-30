@@ -1,0 +1,35 @@
+.app-shell {
+  max-width: $content-max;
+  margin: 0 auto;
+  padding: $s-5;
+
+  &__nav {
+    display: flex;
+    gap: $s-6;
+    align-items: center;
+    margin-bottom: $s-5;
+    padding: $s-4 $s-5;
+    background: rgba($surface, 0.8);
+    border: 1px solid $border;
+    border-radius: $r-xl;
+  }
+
+  &__brand {
+    color: $accent;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+
+  &__link {
+    color: $muted;
+    text-decoration: none;
+    @include focus-ring;
+
+    &:hover { color: $text; }
+
+    &.active {
+      color: $text;
+      border-bottom: 2px solid $accent;
+    }
+  }
+}

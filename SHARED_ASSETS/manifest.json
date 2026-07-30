@@ -1,0 +1,46 @@
+{
+  "$comment": "Shared asset language for FOLLI_CONSOLE and POUCH_APP. Paths are relative to SHARED_ASSETS/. Zone keys are the canonical firmware zone map (index = firmware channel).",
+  "zones": {
+    "FRONT": {
+      "channel": 0,
+      "tile": "buttons/head_zones_front.png",
+      "on": "buttons/front_on.png",
+      "off": "buttons/front_off.png"
+    },
+    "TEMPLE": {
+      "channel": 1,
+      "tile": "buttons/head_zones_temples.png",
+      "on": "buttons/temples_on.png",
+      "off": "buttons/temples_off.png"
+    },
+    "EAR": {
+      "channel": 2,
+      "tile": "buttons/head_zones_ears.png",
+      "on": "buttons/ears_on.png",
+      "off": "buttons/ears_off.png"
+    },
+    "BACK": {
+      "channel": 3,
+      "tile": "buttons/head_zones_back.png",
+      "on": "buttons/back_on.png",
+      "off": "buttons/back_off.png"
+    }
+  },
+  "controls": {
+    "start_on": "buttons/start_on.png",
+    "start_off": "buttons/start_off.png",
+    "stop_on": "buttons/stop_on.png",
+    "stop_off": "buttons/stop_off.png",
+    "set_on": "buttons/set_on.png",
+    "set_off": "buttons/set_off.png",
+    "plus": "buttons/plus.png",
+    "minus": "buttons/minus.png",
+    "slider_track": "buttons/slider_01.png",
+    "slider_thumb": "buttons/slider_mark.png"
+  },
+  "head": {
+    "all_zones": "head/head_zones_all.png",
+    "hero": "head/head-hero.png",
+    "render_3d": "head/head-3d.png"
+  }
+}

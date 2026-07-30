@@ -27,6 +27,12 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "sync-assets": "node ../SHARED_ASSETS/sync.mjs",
+    "prestart": "npm run sync-assets",
+    "preandroid": "npm run sync-assets",
+    "preios": "npm run sync-assets",
+    "preweb": "npm run sync-assets",
+    "pretest": "npm run sync-assets",
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
