@@ -1,0 +1,191 @@
+// Header band — border box x 24 -> 1897, y 61 -> 264, 3px rule. Its bottom rule
+// is shared with the icon rail's top rule.
+//
+// The three groups are placed against measured ink positions rather than laid
+// out in a grid: the mockup's columns do not share a baseline (the left column
+// runs at 32px, the right at 46px) and the middle pair sits on its own rhythm,
+// so any single grid ends up compromising one of them.
+//
+// Offsets below are relative to the band's padding box, which starts 3px in at
+// canvas x=27 / y=64. Ink positions measured off the 8000x5000 render:
+//
+//   title            ink x=54,  centre y=100
+//   User: label      ink x=57,  centre y=183      dropdown 156..403 x 162..199
+//   ID: row          ink x=56,  centre y=225.5
+//   pouch group      ink x=689, battery icon x=766..818
+//   console group    ink x=1002, battery icon x=1079..1131
+//   link state       dot 1676..1704 x 78..107, text ends x=1873
+//   User: <name>     ink centre y=154.5, ends x=1875
+//   Session Runtime  ink centre y=219,   ends x=1874
+
+.header-band {
+  position: absolute;
+  top: $header-y;
+  left: $header-x;
+  width: $header-w;
+  height: $header-h;
+  @include framed;
+  color: $text;
+
+  // ── title (top left) ──────────────────────────────────────────────────────
+  &__title {
+    position: absolute;
+    left: 25px;
+    top: 18px;
+    margin: 0;
+    font-size: 42px;
+    font-weight: $fw-label;
+    line-height: 42px;
+    white-space: nowrap;
+  }
+
+  &__version {
+    margin-left: 12px;
+    font-size: $fs-small;
+  }
+
+  // ── link state (top right) ────────────────────────────────────────────────
+  &__link {
+    position: absolute;
+    right: 19px;
+    top: 11.5px;
+    display: flex;
+    align-items: center;
+    gap: 17px;
+    font-size: $fs-large;
+    line-height: 36px;
+    white-space: nowrap;
+  }
+
+  // A flat 29px disc. The supplied Green_Dot_01.png is #80c41c, which is not
+  // the colour the design actually renders here.
+  &__dot {
+    width: 29px;
+    height: 29px;
+    border-radius: 50%;
+    background: $ok-green;
+
+    &--off { background: $alert-red-deep; }
+  }
+
+  // ── identity (left) ───────────────────────────────────────────────────────
+  &__user-label {
+    position: absolute;
+    left: 29px;
+    top: 105px;
+    font-size: $fs-body;
+    font-weight: $fw-label;
+    line-height: 32px;
+  }
+
+  &__select {
+    position: absolute;
+    left: 129px;
+    top: 98px;
+    width: 248px;
+    height: 38px;
+    padding: 0 34px 0 10px;
+    background: $select-bg;
+    border: $bw-hairline solid $border;
+    border-radius: 3px;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-medium;
+    appearance: none;
+    // The mockup draws a solid caret; the native one is suppressed above.
+    background-image:
+      linear-gradient(45deg, transparent 50%, #{$text} 50%),
+      linear-gradient(135deg, #{$text} 50%, transparent 50%);
+    background-position:
+      calc(100% - 22px) calc(50% + 2px),
+      calc(100% - 12px) calc(50% + 2px);
+    background-size: 10px 10px, 10px 10px;
+    background-repeat: no-repeat;
+  }
+
+  &__id {
+    position: absolute;
+    left: 29px;
+    top: 147.5px;
+    display: flex;
+    gap: 43px;
+    font-size: $fs-body;
+    line-height: 32px;
+    white-space: nowrap;
+
+    > span:first-child { font-weight: $fw-label; }
+  }
+
+  // ── batteries (middle) ────────────────────────────────────────────────────
+  &__unit {
+    position: absolute;
+    font-size: $fs-body;
+    white-space: nowrap;
+
+    &--pouch   { left: 662px; }
+    &--console { left: 975px; }
+  }
+
+  &__level {
+    position: absolute;
+    top: 105px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    line-height: 32px;
+  }
+
+  &__id-line {
+    position: absolute;
+    top: 148px;
+    line-height: 32px;
+  }
+
+  &__battery-icon {
+    width: 52px;
+    height: 26px;
+    object-fit: contain;
+  }
+
+  // No firmware battery telemetry: an empty cell of the same footprint as the
+  // artwork, never a plausible level.
+  &__battery-none {
+    display: inline-block;
+    width: 52px;
+    height: 26px;
+    border: 2px solid $text-muted;
+    border-radius: 4px;
+    opacity: 0.45;
+  }
+
+  &__muted { color: $text-muted; }
+
+  // ── status (right) ────────────────────────────────────────────────────────
+  &__user-large {
+    position: absolute;
+    right: 19px;
+    top: 70px;
+    max-width: 700px;
+    overflow: hidden;
+    font-size: 46px;
+    line-height: 46px;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    span {
+      font-size: $fs-large;
+      color: $text-dim;
+    }
+  }
+
+  &__runtime {
+    position: absolute;
+    right: 19px;
+    top: 134.5px;
+    font-size: 46px;
+    line-height: 46px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}

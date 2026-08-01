@@ -1,0 +1,84 @@
+// Left rail — border box x 24 -> 102, y 261 -> 1176, 3px rule. Its top rule is
+// the same 3px the header band ends on, so the two boxes overlap by one border
+// width rather than sitting 3px apart.
+.icon-rail {
+  position: absolute;
+  top: $rail-y;
+  left: $rail-x;
+  width: $rail-w;
+  height: $rail-h;
+  @include surface;
+  border: $bw-frame solid $border;
+  border-radius: $radius-md;
+
+  &__item {
+    position: absolute;
+    // Icon centres sit at x=65 on a 99.33px vertical pitch from y=346. Absolute
+    // placement rather than flex + gap: the four source PNGs have different
+    // aspect ratios (the clipboard is 0.81, the gear is 1.00), so centring each
+    // one on its own measured point is the only way they line up with the
+    // mockup at every position.
+    // Offsets are relative to the rail's padding box, so the 3px rule comes off
+    // both the icon centre and the marker's left edge. The button is given a
+    // real height and the glyph centred inside it — a zero-height button clips
+    // the overflow rather than letting it straddle the anchor point.
+    left: 0;
+    top: calc(
+      #{$rail-icon-cy} - #{$rail-y} - #{$bw-frame} - 30px +
+        var(--rail-index) * #{$rail-icon-pitch}
+    );
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 60px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+
+    &:hover .icon-rail__icon { background-color: #c8c8c8; }
+
+    &.is-active .icon-rail__icon { background-color: $rail-icon-active; }
+
+    // Selected-page marker: 9px bar hard against the inside of the rail's left
+    // rule, 58px tall, centred on the icon.
+    &.is-active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: $rail-marker-w;
+      height: $rail-marker-h;
+      background: $select-bg;
+      transform: translateY(-50%);
+    }
+  }
+
+  // The source icons are black-on-transparent PNGs, so they are used as masks
+  // and painted with the designer's greys. Tinting with a filter cannot reach an
+  // exact #999999 / #ffffff pair from black.
+  &__icon {
+    // Nudged 2px right of the rail's centre line, as drawn: a 4px left margin
+    // in a centring grid displaces the glyph by half of it.
+    margin-left: 4px;
+    background-color: $rail-icon-idle;
+    transition: background-color 0.15s ease;
+    // The artwork has no transparent margin, so the box IS the glyph and the
+    // mask is stretched to fill it. `contain` would letterbox instead, leaving
+    // each icon a pixel or two short of its measured size.
+    mask-position: center;
+    mask-repeat: no-repeat;
+    mask-size: 100% 100%;
+    -webkit-mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+  }
+
+  // Measured glyph boxes, which differ per icon — the clipboard is drawn much
+  // taller than the square ones and the mockup keeps that, rather than fitting
+  // all four to one size.
+  &__item[data-icon='home'] &__icon        { width: 45px; height: 45px; }
+  &__item[data-icon='diagnostics'] &__icon { width: 44px; height: 43px; }
+  &__item[data-icon='users'] &__icon       { width: 44px; height: 54px; }
+  &__item[data-icon='settings'] &__icon    { width: 43px; height: 43px; }
+}

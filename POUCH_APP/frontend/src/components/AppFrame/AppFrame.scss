@@ -1,0 +1,41 @@
+.app-frame {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: $page-grad-to;
+
+  // The canvas is always laid out at design size; only the transform changes.
+  // Nothing inside it ever needs a media query.
+  // Absolutely centred then scaled about its own centre. `place-items` alone is
+  // unreliable here: transform does not affect layout size, so the grid centres
+  // the unscaled 1920x1200 box and the scaled result lands off-centre.
+  &__canvas {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: #{$canvas-w}px;
+    height: #{$canvas-h}px;
+    // The margin outside the frame carries a darker copy of the same ramp.
+    background-image: linear-gradient(90deg, $page-grad-from 0%, $page-grad-to 100%);
+    transform: translate(-50%, -50%) scale(var(--canvas-scale, 1));
+    transform-origin: center center;
+  }
+
+  // Outer frame: border box x 11 -> 1910, y 11 -> 1190, 3px #4c6470. Measured by
+  // edge-detecting the 8000x5000 renders. Its fill is the lit interior the whole
+  // UI sits on, so it is a real element behind the screen rather than a
+  // pointer-events-none rule on top.
+  &__interior {
+    position: absolute;
+    top: $frame-inset;
+    left: $frame-inset;
+    width: $frame-w;
+    height: $frame-h;
+    @include surface;
+    border: $bw-frame solid $border;
+    border-radius: $radius-md;
+    pointer-events: none;
+  }
+}

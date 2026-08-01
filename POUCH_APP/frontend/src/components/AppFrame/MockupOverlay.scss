@@ -1,0 +1,15 @@
+// Dev-only comparison layer. Sits above everything on the canvas and never
+// takes pointer events, so the app stays usable while it is shown.
+.mockup-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  width: #{$canvas-w}px;
+  height: #{$canvas-h}px;
+  pointer-events: none;
+
+  &--diff {
+    mix-blend-mode: difference;
+  }
+}
