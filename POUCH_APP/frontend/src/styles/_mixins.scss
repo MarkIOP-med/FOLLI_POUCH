@@ -4,6 +4,24 @@
 // even though every consumer also receives them. Sass de-duplicates the load.
 @use './tokens' as *;
 
+/// The one fill used by every surface in the design.
+///
+/// The ramp is re-scaled to each element's own box rather than inherited from a
+/// parent, which is what the mockups actually do: the 78px icon rail and a
+/// 1282px table row each run the full #1a3445 -> #0f2735 sweep. Consequently
+/// nesting a surface inside a surface restarts the ramp — also what the design
+/// does, e.g. a V-node card inside the V-Nodes panel.
+@mixin surface {
+  background-image: linear-gradient(90deg, $grad-from 0%, $grad-to 100%);
+}
+
+/// Panel/card shell: gradient fill inside the standard 3px rule.
+@mixin framed($radius: $radius-md) {
+  @include surface;
+  border: $bw-frame solid $border;
+  border-radius: $radius;
+}
+
 @mixin card($padding: $s-5) {
   background: rgba($surface, 0.8);
   border: 1px solid $border;

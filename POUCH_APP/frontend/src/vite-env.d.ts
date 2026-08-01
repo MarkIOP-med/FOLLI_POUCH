@@ -6,3 +6,6 @@ declare module '@shared-assets/*.png' {
   const src: string;
   export default src;
 }
+
+/** Base URL of the designer's mockup renders — injected by vite.config.ts. */
+declare const __MOCKUP_DIR__: string;

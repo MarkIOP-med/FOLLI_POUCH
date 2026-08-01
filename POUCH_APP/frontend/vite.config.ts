@@ -8,6 +8,17 @@ const sharedAssets = fileURLToPath(new URL('../../SHARED_ASSETS', import.meta.ur
 export default defineConfig({
   plugins: [react()],
 
+  define: {
+    // Dev-only mockup overlay (see components/AppFrame/MockupOverlay.tsx).
+    // Served through Vite's /@fs route rather than imported, so the designer's
+    // 2MB renders are never emitted into a production build.
+    __MOCKUP_DIR__: JSON.stringify(
+      '/@fs/' +
+        sharedAssets.replace(/\\/g, '/') +
+        '/folli_images/diagnostic_images/interface',
+    ),
+  },
+
   resolve: {
     alias: {
       // Same artwork the console uses. Vite resolves straight out of SHARED_ASSETS —

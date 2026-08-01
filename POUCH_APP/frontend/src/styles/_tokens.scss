@@ -1,40 +1,193 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Design tokens. Single source of truth for colour, spacing, type and radius.
-// Auto-injected into every .scss file via vite.config.ts, so never @use this
-// directly from a component stylesheet.
+// Design tokens — extracted from the design firm's vector PDFs, not eyeballed.
 //
-// Palette matches FOLLI_CONSOLE so the clinician and patient surfaces read as
-// one product (see FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md, section 4).
+// Source: SHARED_ASSETS/FOLLI_IMAGES/DIAGNOSTIC_IMAGES/interface/
+//         diagnostics_ui_04_PAGE_03.pdf / PAGE_04.pdf
+//
+// Fills, strokes, stroke widths and geometry below are the recorded values from
+// the PDF content streams. The dark background family is sampled from the
+// 8000x5000 PNGs, because in the PDFs that layer is an embedded raster rather
+// than a vector fill.
+//
+// Auto-injected into every .scss file via vite.config.ts — never @use directly
+// from a component stylesheet.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Surfaces
-$bg-top:        #010813;
-$bg-bottom:     #050e1d;
-$surface:       #0b1524;
-$surface-alt:   #0a1421;
-$surface-sunk:  #08111e;
-$surface-deep:  #060d18;
-$panel-head:    #0d1927;
+// ── Canvas ──────────────────────────────────────────────────────────────────
+// The design is authored at exactly 1920x1200 (16:10) — which is also the
+// native resolution of a standard 10.1" Android tablet. Everything is laid out
+// at these coordinates and the whole canvas is scaled to fit the viewport, so
+// the result is proportionally identical on 1280x800 or 2000x1200.
+$canvas-w: 1920;
+$canvas-h: 1200;
 
-// Lines
-$border:        #1a2c42;
-$border-soft:   #13202f;
-$border-strong: #2c4160;
+// ── Surfaces ─────────────────────────────────────────────────────────────────
+// Every surface in the design — the frame interior, the header band, the icon
+// rail, every panel, card and table row — is filled with ONE left-to-right
+// ramp, re-scaled to that element's own bounding box. Sampling proves it: the
+// rail runs the full ramp across its 78px width, and a table row runs the same
+// ramp across its 1282px. Nothing is flat, and nothing is translucent.
+//
+// Use the `surface` mixin rather than these directly.
+$grad-from:      #1a3445;   // ramp start (left edge of any element)
+$grad-to:        #0f2735;   // ramp end   (right edge of any element)
 
-// Text
-$text:          #dbe7f5;
-$text-dim:      #9fb6cf;
-$muted:         #7d93ad;
-$muted-deep:    #6d8299;
+// The 11px margin outside the outer frame carries a darker copy of the ramp.
+$page-grad-from: #0e2230;
+$page-grad-to:   #08151d;
 
-// Brand + semantic
-$accent:        #2f81f7;
-$ok:            #2ecc71;
+// Flat fills — the only surfaces that are NOT gradient-filled.
+$panel-title-bg: #27475a;   // panel caption bars + table header row
+$input-bg:       #233a47;   // numeric entry fields
+$input-edge:     #77909b;   // their 2px outline — lighter than $border
+
+// Averages of the ramp, kept for the few places that need a single colour
+// (scrollbar thumbs, focus rings). Prefer the mixin.
+$page-bg:        #142d3d;
+
+// ── Vector fills (exact, from the PDF) ───────────────────────────────────────
+$select-bg:      #4f89ad;   // selected dropdown, highlighted row, rail marker
+$ok-green:       #28d35a;   // Connected dot, healthy state
+$alert-red:      #f83a30;   // Disconnected dot, low battery
+$alert-red-deep: #aa1111;
+
+// Rail icons ship as black-on-transparent PNGs, so they are painted with
+// `mask-image` and these two fills rather than tinted with a filter.
+$rail-icon-idle:   #999999;
+$rail-icon-active: #ffffff;
+
+// Button greys (SET / SAVE / RESET ALL / ENTER)
+$btn-face:       #999999;
+$btn-face-dark:  #333333;
+$btn-face-light: #f2f2f2;
+$btn-edge:       #b3b3b3;
+
+// Head-silhouette artwork palette — matched so inline SVG never clashes with
+// the supplied PNG profiles.
+$art-deep:       #33626e;
+$art-mid:        #4181a6;
+$art-light:      #80b9c1;
+$art-pale:       #bee7ea;
+$art-muted:      #7da2ac;
+
+// ── Lines (exact, from the PDF) ──────────────────────────────────────────────
+$border:         #4c6470;
+$bw-frame:       3px;       // outer frame, header band, rail, panel outlines
+$bw-panel-head:  2.76px;    // panel caption bars
+$bw-row:         2.27px;    // table rows
+$bw-hairline:    0.83px;    // dropdown outline
+
+// ── Text ─────────────────────────────────────────────────────────────────────
+$text:           #ffffff;
+$text-dim:       #b9ccd8;
+$text-muted:     #8fa6b6;
+
+// Design uses SourceSansVariable. Bundled locally rather than fetched — the
+// deployment target is an isolated network with no internet access, so a
+// webfont CDN would silently fall back to a system face.
+$font-ui: "Source Sans 3 Variable", "Source Sans 3", "Source Sans Pro",
+          "Segoe UI", system-ui, sans-serif;
+$font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+// The design is set in Source Sans 3 Light, not Regular. Measuring glyph runs
+// off the mockups against the variable font settles it: "Set front pair levels
+// modal" is 333px of ink on PAGE_04, which is weight 300 to within 0.1px —
+// Regular would be 350. Labels, captions, column headers and headings step up
+// to 400. Getting this wrong makes every value ~4% too wide, which reads as a
+// subtly different layout on every screen.
+$fw-body:  300;
+$fw-label: 400;
+
+// Type scale, in canvas px (the PDF records these as pt on a 1920x1200 page,
+// which maps 1:1).
+$fs-body:    32px;   // every body run on PAGE_03/04
+$fs-heading: 40px;   // screen headings, e.g. ADMIN ACTIONS
+$fs-title:   46.7px; // POUCH DIAGNOSTICS OVERVIEW
+$fs-large:   36px;
+$fs-medium:  30px;
+$fs-small:   26px;
+$fs-tiny:    24px;
+$fs-status:  21.7px; // top system bar
+
+// ── Geometry ─────────────────────────────────────────────────────────────────
+// Border-box coordinates recovered by edge-detecting the 8000x5000 renders and
+// dividing by 4.1667. Where two elements meet — header bottom / rail top — they
+// share the single 3px rule, so the boxes overlap by exactly one border width.
+$frame-inset:      11px;   // outer frame offset from the canvas edge
+$frame-w:          1899px; // border box: x 11 -> 1910
+$frame-h:          1179px; // border box: y 11 -> 1190
+
+$statusbar-h:      50px;   // frame top (14) to the header's top rule (64)
+
+$header-x:         24px;
+$header-y:         61px;
+$header-w:         1873px; // x 24 -> 1897
+$header-h:         203px;  // y 61 -> 264
+
+$rail-x:           24px;
+$rail-y:           261px;  // shares the header's bottom rule
+$rail-w:           78px;   // x 24 -> 102
+$rail-h:           915px;  // y 261 -> 1176
+
+// Icon centres sit at y 346 / 445.3 / 544.7 / 644 and x 65 — a 99.33px pitch,
+// nudged 2.5px right of the rail's own centre line.
+$rail-icon-cx:     65px;
+$rail-icon-cy:     346px;
+$rail-icon-pitch:  99.33px;
+$rail-icon-size:   45px;
+
+// Selected-page marker: a 9px bar hard against the inside of the rail's left
+// rule, 58px tall, centred on its icon.
+$rail-marker-w:    9px;
+$rail-marker-h:    58px;
+
+$panel-title-h:    50px;   // right-hand panels
+$panel-caption-h:  58px;   // table header row: y 356 -> 414
+
+$content-x:        148.3px;  // left edge of the content column
+$content-w:        1282.3px;
+
+$row-h:            69.9px;
+$row-pitch:        72.5px;
+
+$dropdown-w:       248.8px;
+$dropdown-h:       39.8px;
+
+$radius-sm:        6px;
+$radius-md:        10px;
+$radius-lg:        16px;
+$radius-pill:      999px;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSITIONAL ALIASES
+//
+// The pre-redesign screens still reference these names. They are remapped onto
+// the designer palette so the app keeps building while screens are migrated one
+// at a time, rather than the whole frontend breaking at once.
+//
+// DELETE THIS BLOCK once every component .scss uses the tokens above. Nothing
+// new should reference anything below this line.
+// ─────────────────────────────────────────────────────────────────────────────
+$bg-top:        $page-bg;
+$bg-bottom:     #0d222f;
+$surface:       $page-bg;
+$surface-alt:   $page-bg;
+$surface-sunk:  $input-bg;
+$surface-deep:  #0d2230;
+$panel-head:    $panel-title-bg;
+
+$border-soft:   #1d3849;
+$border-strong: $border;
+
+$muted:         $text-muted;
+$muted-deep:    #7691a3;
+
+$accent:        $select-bg;
+$ok:            $ok-green;
 $settling:      #d7a63a;
 $band:          #e8873a;
-$fault:         #e5484d;
+$fault:         $alert-red;
 
-// Semantic button fills
 $start-bg:      #0e2a1a;
 $start-border:  #2e7d4f;
 $start-text:    #6ee79b;
@@ -48,7 +201,6 @@ $danger-bg:     #451214;
 $danger-border: #8b2226;
 $danger-text:   #ff9ea0;
 
-// Spacing scale
 $s-1:  4px;
 $s-2:  6px;
 $s-3:  8px;
@@ -57,31 +209,24 @@ $s-5:  16px;
 $s-6:  20px;
 $s-7:  28px;
 
-// Radius
-$r-sm: 8px;
-$r-md: 10px;
-$r-lg: 12px;
-$r-xl: 16px;
+$r-sm:   8px;
+$r-md:   10px;
+$r-lg:   12px;
+$r-xl:   16px;
 $r-pill: 999px;
 
-// Type
-$font-ui:   "Segoe UI", system-ui, -apple-system, sans-serif;
-$font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
-
-$fs-xs:  11px;
-$fs-sm:  12px;
-$fs-md:  13px;
+$fs-xs:   11px;
+$fs-sm:   12px;
+$fs-md:   13px;
 $fs-base: 14px;
-$fs-lg:  15px;
-$fs-xl:  19px;
-$fs-2xl: 20px;
+$fs-lg:   15px;
+$fs-xl:   19px;
+$fs-2xl:  20px;
 
-// Layout
 $content-max: 1400px;
 $col-left:    300px;
 $col-right:   320px;
 
-// Breakpoints
 $bp-wide:   1250px;
 $bp-mid:    900px;
 $bp-narrow: 820px;
