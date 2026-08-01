@@ -31,17 +31,20 @@ def _mask_national_id(value: str | None) -> str | None:
 
 
 def _patient_summary(conn: sqlite3.Connection, patient_id: int) -> dict | None:
-    row = conn.execute(
-        "SELECT id, mrn, full_name, national_id FROM patients WHERE id = ?",
-        (patient_id,),
-    ).fetchone()
-    if row is None:
+    full = patients_repo.get(conn, patient_id)
+    if full is None:
         return None
     return {
-        "id": row["id"],
-        "mrn": row["mrn"],
-        "full_name": row["full_name"],
-        "national_id_masked": _mask_national_id(row["national_id"]),
+        "id": full["id"],
+        "mrn": full["mrn"],
+        "full_name": full["full_name"],
+        "national_id_masked": _mask_national_id(full["national_id"]),
+        # The redesigned header and User Regime panel display these directly.
+        "gender": full["gender"],
+        "age": full["age"],
+        "protocol": full["protocol"],
+        "treatment_start_date": full["treatment_start_date"],
+        "treatment_number": full["treatment_number"],
     }
 
 

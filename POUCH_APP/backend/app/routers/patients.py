@@ -56,6 +56,9 @@ def create_patient(
     ceiling = app_settings.get(db).max_pressure_mmhg
 
     patient_id = repo.create(db, body.full_name, body.national_id)
+    repo.update_identity(
+        db, patient_id, body.full_name, body.national_id, body.demographics()
+    )
     repo.write_prescriptions(db, patient_id, body.prescriptions, ceiling)
     audit.record(db, "create", f"patient:{patient_id}", None, body.model_dump())
     db.commit()
@@ -71,7 +74,9 @@ def update_patient(
     before = _load(db, patient_id)
     ceiling = app_settings.get(db).max_pressure_mmhg
 
-    repo.update_identity(db, patient_id, body.full_name, body.national_id)
+    repo.update_identity(
+        db, patient_id, body.full_name, body.national_id, body.demographics()
+    )
     repo.write_prescriptions(db, patient_id, body.prescriptions, ceiling)
 
     after = _load(db, patient_id)

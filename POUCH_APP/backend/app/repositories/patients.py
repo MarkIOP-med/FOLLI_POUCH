@@ -17,6 +17,10 @@ _BLANK_RX = {
 }
 
 
+def _current_year() -> int:
+    return time.gmtime().tm_year
+
+
 def get(conn: sqlite3.Connection, patient_id: int) -> dict | None:
     row = conn.execute("SELECT * FROM patients WHERE id = ?", (patient_id,)).fetchone()
     if row is None:
@@ -31,12 +35,20 @@ def get(conn: sqlite3.Connection, patient_id: int) -> dict | None:
         ).fetchall()
     }
 
+    birth_year = row["birth_year"]
     return {
         "id": row["id"],
         "mrn": row["mrn"],
         "full_name": row["full_name"],
         "national_id": row["national_id"],
         "created_at": row["created_at"],
+        "gender": row["gender"],
+        "birth_year": birth_year,
+        # Derived rather than stored, so it cannot go stale in the record.
+        "age": (_current_year() - birth_year) if birth_year else None,
+        "protocol": row["protocol"],
+        "treatment_start_date": row["treatment_start_date"],
+        "treatment_number": row["treatment_number"],
         # Always four zones, in canonical order, even if a row is missing.
         "prescriptions": [
             {**_BLANK_RX, **stored.get(zone, {}), "zone": zone} for zone in ZONES
@@ -74,12 +86,30 @@ def create(conn: sqlite3.Connection, full_name: str, national_id: str | None) ->
 
 
 def update_identity(
-    conn: sqlite3.Connection, patient_id: int, full_name: str, national_id: str | None
+    conn: sqlite3.Connection,
+    patient_id: int,
+    full_name: str,
+    national_id: str | None,
+    demographics: dict | None = None,
 ) -> None:
     conn.execute(
         "UPDATE patients SET full_name = ?, national_id = ? WHERE id = ?",
         (full_name.strip(), national_id or None, patient_id),
     )
+    if not demographics:
+        return
+
+    # Only the keys actually supplied are written, so a partial update from one
+    # screen cannot blank fields owned by another.
+    allowed = ("gender", "birth_year", "protocol", "treatment_start_date",
+               "treatment_number")
+    updates = {k: v for k, v in demographics.items() if k in allowed}
+    if updates:
+        assignments = ", ".join(f"{k} = ?" for k in updates)
+        conn.execute(
+            f"UPDATE patients SET {assignments} WHERE id = ?",
+            (*updates.values(), patient_id),
+        )
 
 
 def delete(conn: sqlite3.Connection, patient_id: int) -> None:

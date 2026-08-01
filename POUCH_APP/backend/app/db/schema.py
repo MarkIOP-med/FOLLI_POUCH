@@ -102,3 +102,19 @@ DEFAULT_SETTINGS = {
     "trim_range_pct": "10",
     "default_massage_seconds": "30",
 }
+
+# Idempotent ALTER TABLE migrations, applied in order on every startup.
+#
+# Fields required by the 2026-07 redesign (diagnostics_ui_04 PAGE_01/03/04):
+# the User Info and User Overview panels display them, so the screens cannot
+# render without them. All nullable — existing records stay valid.
+MIGRATIONS: list[tuple[str, str, str]] = [
+    # (table, column, DDL)
+    ("patients", "gender", "TEXT"),
+    ("patients", "birth_year", "INTEGER"),
+    ("patients", "protocol", "TEXT"),
+    ("patients", "treatment_start_date", "REAL"),
+    ("patients", "treatment_number", "INTEGER"),
+    ("sessions", "planned_duration_s", "INTEGER"),
+    ("sessions", "console_id", "TEXT"),
+]
