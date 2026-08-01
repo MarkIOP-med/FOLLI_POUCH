@@ -48,8 +48,8 @@
     "titles": {
       "FRONT": "FRONT PAIR",
       "TEMPLE": "TEMPLE PAIR",
-      "EAR": "EAR",
-      "BACK": "BACK"
+      "EAR": "EAR PAIR",
+      "BACK": "BACK PAIR"
     },
     "padAlt": "{{zone}} pad location"
   },
@@ -102,10 +102,10 @@
       "manifoldDiagnostic": "Manifold Diagnostic",
       "manifoldTarget": "Manifold Target",
       "manifoldActual": "Manifold Actual",
-      "pump": "Pump",
+      "pump": "Pump:",
       "pumpDuty": "{{state}} ({{duty}}% duty)",
-      "purgeValve": "Purge Valve",
-      "valves": "Valves",
+      "purgeValve": "Relief Valve:",
+      "valves": "Valves:",
       "rezero": "RE-ZERO SENSORS",
       "emergency": "⛔ EMERGENCY RELIEF",
       "manifoldFault": "⚠ Manifold sensor flat at 0 since boot — suspect open circuit. The pump charges the manifold until this reads target; with no reading it never stops.",
@@ -208,6 +208,95 @@
 
     "notConnected": "Pouch not connected",
     "rezeroNote": "Firmware has no re-zero command yet — this vents instead. The baseline is captured 500 ms after boot, before the sensors settle."
+  },
+
+  "diagnostics": {
+    "title": "POUCH DIAGNOSTICS OVERVIEW",
+    "version": "v{{version}}",
+    "rail": {
+      "label": "Sections",
+      "home": "Home",
+      "diagnostics": "Diagnostics",
+      "users": "User data",
+      "admin": "Settings"
+    },
+    "header": {
+      "user": "User:",
+      "id": "ID:",
+      "pouch": "Pouch: {{id}}",
+      "console": "Console: {{id}}",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "userLarge": "User:",
+      "sessionRuntime": "Session Runtime: {{value}}"
+    },
+    "home": {
+      "cardTitle": "User Overview",
+      "name": "Name:",
+      "console": "Console:",
+      "pouch": "Pouch:",
+      "timeRemain": "Time Remain:",
+      "timeRemainValue": "{{value}} min",
+      "enter": "ENTER",
+      "activeUsers": "ACTIVE USERS: {{count}}"
+    },
+    "users": {
+      "systemUsers": "System Users",
+      "userInfo": "User Info",
+      "name": "Name:",
+      "id": "ID:",
+      "gender": "Gender:",
+      "gender_male": "Male",
+      "gender_female": "Female",
+      "age": "Age:",
+      "protocol": "Protocol:",
+      "startDate": "Start date:",
+      "treatmentNo": "Treatment No.:",
+      "console": "Console:",
+      "pouch": "Pouch:",
+      "timeRemain": "Time Remain:"
+    },
+    "admin": {
+      "heading": "ADMIN ACTIONS",
+      "unset": "--",
+      "columns": {
+        "action": "Action",
+        "currentValue": "Current Value",
+        "setValue": "Set Value",
+        "description": "Description"
+      },
+      "rows": {
+        "front": "Front Pair Levels",
+        "frontDesc": "Set front pair levels modal",
+        "temple": "Temple pair Levels",
+        "templeDesc": "Set temple pair levels modal",
+        "ear": "Ear Pair Levels",
+        "earDesc": "Set ear pair levels modal",
+        "back": "Back pair Levels",
+        "backDesc": "Set back pair levels modal",
+        "manifold": "Manifold Target",
+        "manifoldDesc": "Set manifold target",
+        "vibration": "Vibration Levels",
+        "vibrationDesc": "Set vibration levels modal",
+        "collaborative": "Collaborative Functions",
+        "collaborativeDesc": "Set collaborative functions",
+        "defaults": "Default Values",
+        "defaultsDesc": "Set default values modal"
+      },
+      "generalData": "General Data",
+      "saveChanges": "Save Changes",
+      "save": "SAVE",
+      "resetToDefault": "Reset to default modal",
+      "resetAll": "RESET ALL"
+    },
+    "regime": {
+      "title": "User Regime",
+      "defaultRegime": "Default Pressure Regime:",
+      "userRegime": "User Pressure Regime:",
+      "set": "SET",
+      "save": "SAVE"
+    },
+    "noData": "—"
   },
 
   "patients": {

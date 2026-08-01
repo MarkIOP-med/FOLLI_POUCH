@@ -1,0 +1,101 @@
+// PAGE_03 — System Users + User Info. Border-box coordinates recovered by
+// edge-detecting diagnostics_ui_04_PAGE_03.png:
+//
+//   System Users panel   x 133 -> 666,  y 274.5 -> 1175.5   caption rule y=325
+//   User Info panel      x 672 -> 1425, y 274.5 -> 1175.5
+//   picker sub-box       x 150 -> 648,  y 348 -> 444
+//   "Name:" ink          x 178,  dropdown x 291..579 y 374..413
+//   info labels          x 702,  values x 924
+//   info ink centres     y 358 then a 48px pitch, ten rows
+//   profile artwork      x 1288..1387, y 363..497
+
+.users-screen {
+  &__list {
+    position: absolute;
+    left: 133px;
+    top: 274.5px;
+    width: 533px;
+    height: 901px;
+  }
+
+  &__info {
+    position: absolute;
+    left: 672px;
+    top: 274.5px;
+    width: 753px;
+    height: 901px;
+  }
+
+  // ── picker ────────────────────────────────────────────────────────────────
+  // A framed sub-box inside the panel body, not a padded row.
+  &__picker {
+    position: absolute;
+    left: 14px;
+    top: 70.5px;
+    width: 498px;
+    height: 96px;
+    border: $bw-row solid $border;
+    border-radius: $radius-md;
+    font-size: $fs-body;
+  }
+
+  // These two live inside the sub-box, so their offsets are box-relative.
+  &__picker-label {
+    position: absolute;
+    left: 26px;
+    top: 28px;
+    font-weight: $fw-label;
+    line-height: 32px;
+  }
+
+  &__select {
+    position: absolute;
+    left: 139px;
+    top: 24px;
+    width: 289px;
+    height: 40px;
+    padding: 0 36px 0 10px;
+    background: $select-bg;
+    border: $bw-hairline solid $border;
+    border-radius: 3px;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-medium;
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, #{$text} 50%),
+      linear-gradient(135deg, #{$text} 50%, transparent 50%);
+    background-position:
+      calc(100% - 24px) calc(50% + 2px),
+      calc(100% - 12px) calc(50% + 2px);
+    background-size: 11px 11px, 11px 11px;
+    background-repeat: no-repeat;
+  }
+
+  // ── info ──────────────────────────────────────────────────────────────────
+  &__fields {
+    position: absolute;
+    left: 24px;
+    top: 58px;
+    display: grid;
+    grid-template-columns: 222px auto;
+    font-size: $fs-body;
+    line-height: 48px;
+    white-space: nowrap;
+  }
+
+  &__label { font-weight: $fw-label; }
+  &__value { color: $text; }
+
+  &__profile {
+    position: absolute;
+    left: 610px;
+    top: 82.5px;
+    width: 100px;
+    height: 135px;
+    object-fit: contain;
+  }
+
+  // Firmware supplies none of the session-timing fields yet.
+  &__pending { color: $text-muted; }
+}

@@ -1,0 +1,221 @@
+// PAGE_04 — Admin Actions. Every number below is a border-box coordinate
+// recovered by edge-detecting diagnostics_ui_04_PAGE_04.png (8000x5000 / 4.1667):
+//
+//   heading        ink centred on y=305, ink starts x=153
+//   table          x 148.5 -> 1430.5, header row y 356 -> 414 (rules at 357/412),
+//                  then ten 72.5px rows, last rule at y=1136
+//   column rules   x = 148.5 / 576 / 784 / 927 / 1430.5
+//   side panel     x 1444.5 -> 1895, y 274.5 -> 1175.5
+//   side internals caption rule y=325, hairline y=498, rules y=575 and y=625
+//                  with a #27475a strip between them
+//   buttons        292x96, centred on x=1669.5, at y=888.5 and y=1086
+
+.admin-screen {
+  &__heading {
+    position: absolute;
+    left: 153px;
+    // Ink centre lands on y=305; a line box equal to the font size puts it there.
+    top: 285px;
+    margin: 0;
+    color: $text;
+    font-size: $fs-heading;
+    font-weight: $fw-label;
+    line-height: 40px;
+  }
+
+  &__table {
+    position: absolute;
+    // Collapsed borders straddle the box edge, so the box is offset by half a
+    // rule to land the rule itself on the measured x=148.5 / y=357.
+    left: 147.3px;
+    top: 355.5px;
+    width: 1282px;
+    // Collapsed, not separated: the mockup draws one shared rule between rows,
+    // and collapsing also makes the 72.5px pitch come straight off the row
+    // height instead of height + two border widths.
+    border-collapse: collapse;
+    color: $text;
+    font-size: $fs-body;
+    table-layout: fixed;
+
+    th {
+      height: 55px;
+      // 4px more below than above: middle-aligned header text otherwise lands
+      // 2px low of where the mockup sets it.
+      padding: 0 28px 4px;
+      background: $panel-title-bg;
+      border: $bw-frame solid $border;
+      font-weight: 400;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    td {
+      // Ten rows span the rules at y=412 and y=1134.5, so the pitch is 72.25 —
+      // slightly under the 72.5 the middle rows measure individually.
+      height: 72.25px;
+      // 3px more above than below: middle-aligned cell text lands 3px high of
+      // where the mockup sets it.
+      padding: 3px 28px 0;
+      border: $bw-row solid $border;
+      vertical-align: middle;
+    }
+
+    // Column widths taken from the vertical rules.
+    &-action  { width: 427.5px; }
+    // Centred, and with no side padding: "Current Value" is 177px of ink in a
+    // 208px column, so any horizontal padding forces it to wrap.
+    &-current { width: 208px; padding: 0; text-align: center; }
+    &-set     { width: 143px; padding: 0; text-align: center; }
+    &-desc    { width: 503.5px; padding-left: 47px; }
+  }
+
+  &__set-input {
+    width: 100px;
+    height: 44px;
+    padding: 0 8px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid $text;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-small;
+    text-align: center;
+
+    &:focus { outline: none; border-bottom-color: $select-bg; }
+  }
+
+  &__empty td { color: transparent; }
+
+  // ── right column ──────────────────────────────────────────────────────────
+  // Every child is placed against its own measured coordinate rather than
+  // stacked with margins: the mockup's vertical rhythm is irregular (a 250px
+  // field block, then a 50px gap, then a 150px one), so a flow layout drifts
+  // several pixels by the time it reaches the buttons.
+  //
+  // Offsets below are relative to the panel's padding box, which starts 3px in
+  // at canvas y=277.5 / x=1447.5.
+  &__side {
+    position: absolute;
+    left: 1444.5px;
+    top: 274.5px;
+    width: 450.5px;
+    height: 901px;
+    @include framed;
+    overflow: hidden;
+  }
+
+  &__side-caption {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 49px;          // bottom rule centred on y=325
+    margin: 0;
+    // This caption's ink centres on y=302 — 2.5px LOWER than the panel captions
+    // on PAGE_02/03, so it gets its own line box. See DiagPanel.scss for why the
+    // line box rather than grid centring.
+    display: block;
+    line-height: 47px;
+    text-align: center;
+    background: $panel-title-bg;
+    border-bottom: $bw-frame solid $border;
+    color: $text;
+    font-size: $fs-body;
+    font-weight: 400;
+  }
+
+  // Ink centres at y=362.5 / 408.5 / 457.5 — a 47.5px rhythm. Labels start at
+  // x=1465, values at x=1577.
+  &__general {
+    position: absolute;
+    top: 64px;
+    left: 17.5px;
+    display: grid;
+    grid-template-columns: 112px 1fr;
+    color: $text;
+    font-size: $fs-body;
+    line-height: 47.5px;
+
+    // Labels are set a step heavier than their values, as drawn.
+    > span:nth-child(odd) { font-weight: $fw-label; }
+  }
+
+  // A light hairline, not the #4c6470 rule used everywhere else.
+  &__divider {
+    position: absolute;
+    top: 220.5px;          // y=498
+    left: 11px;
+    right: 11px;
+    height: 1px;
+    background: #979b9e;
+  }
+
+  &__protocol {
+    position: absolute;
+    top: 238.75px;         // ink centre y=534
+    left: 17.5px;
+    right: 17.5px;
+    display: grid;
+    grid-template-columns: 221px 1fr;
+    color: $text;
+    font-size: $fs-body;
+    line-height: 47.5px;
+
+    > span:first-child { font-weight: $fw-label; }
+  }
+
+  // The empty #27475a strip closed by the rules at y=575 and y=625.
+  &__strip {
+    position: absolute;
+    top: 296px;
+    left: 0;
+    right: 0;
+    height: 53px;
+    background: $panel-title-bg;
+    border-top: $bw-frame solid $border;
+    border-bottom: $bw-frame solid $border;
+  }
+
+  // Ink centres: "Save Changes" y=813, SAVE y=888.5, "Reset to default modal"
+  // y=1007.5, RESET ALL y=1086.
+  &__actions {
+    position: absolute;
+    inset: 0;
+    color: $text;
+    font-size: $fs-body;
+    line-height: 32px;
+  }
+
+  &__save-label,
+  &__reset-label {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    text-align: center;
+  }
+
+  &__save-label  { top: 520.5px; }
+  &__reset-label { top: 717px; }
+
+  // Uses the designer's own button artwork rather than a CSS approximation —
+  // the supplied PNGs are dark gradient pills with the label baked in, which no
+  // flat background/colour pair was ever going to match.
+  &__pill {
+    position: absolute;
+    left: 76.3px;          // 292px wide, centred on x=1669.5
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+
+    img {
+      display: block;
+      width: 292px;
+      height: 95px;
+    }
+
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+  }
+
+  &__pill--save  { top: 563.5px; }
+  &__pill--reset { top: 761px; }
+}
