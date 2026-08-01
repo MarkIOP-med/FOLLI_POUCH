@@ -1,95 +1,96 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+
 import { KioskLock } from '../services/kiosk/KioskLock';
+import { ScreenFrame } from '../components/ScreenFrame';
+import { colors, font, layout } from '../theme';
 
 type Props = {
   onBack: () => void;
+  /** Drives the status-bar link indicator; the screen itself needs no pouch. */
+  isConnected?: boolean;
 };
 
-// Admin control panel. The single large red EXIT button is the ONLY sanctioned
-// way to leave the locked console — it releases lock-task mode then terminates
-// the app (see KioskLock.exit).
-export default function ExitScreen({ onBack }: Props) {
-  const handleExit = () => {
-    KioskLock.exit();
-  };
-
+/**
+ * console_ui_05 PAGE_04 — the admin control panel.
+ *
+ * The single red EXIT button is the only sanctioned way out of the locked
+ * console: it releases lock-task mode and terminates the app (KioskLock.exit).
+ *
+ * The comp's artwork reads "Contol Panel" and "Press EXIT unlock and close the
+ * FOLLI console". Both are typos in the design file, and this is patient-facing
+ * text on a medical device, so it is set in correct English.
+ */
+export default function ExitScreen({ onBack, isConnected = false }: Props) {
   return (
-    <SafeAreaView style={styles.root}>
-      <Text style={styles.heading}>Control Panel</Text>
-      <Text style={styles.subheading}>Press EXIT to unlock and close the FOLLI console.</Text>
+    <ScreenFrame isConnected={isConnected}>
+      <View style={styles.card}>
+        <Text style={styles.heading}>Control Panel</Text>
+        <Text style={styles.subheading}>
+          Press <Text style={styles.emphasis}>EXIT</Text> to unlock and close the FOLLI console
+        </Text>
 
-      <View style={styles.center}>
         <TouchableOpacity
           testID="exit-button"
           style={styles.exitButton}
           activeOpacity={0.85}
-          onPress={handleExit}
+          onPress={() => KioskLock.exit()}
         >
           <Text style={styles.exitText}>EXIT</Text>
         </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity testID="exit-back" style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backText}>Return to console</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+        <TouchableOpacity testID="exit-back" style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backText}>Back to console</Text>
+        </TouchableOpacity>
+      </View>
+    </ScreenFrame>
   );
 }
 
-const BUTTON_SIZE = 200;
-
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#010813',
+  // The comp floats one tall panel below the header, inset by the page gutter.
+  card: {
+    marginTop: 140,
+    marginHorizontal: layout.gutter,
+    height: 1040,
+    borderWidth: 3,
+    borderColor: colors.panelBorder,
+    borderRadius: layout.panelRadius,
+    backgroundColor: colors.panel,
+    paddingHorizontal: 60,
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 30,
   },
   heading: {
-    color: '#ffffff',
-    fontSize: 24,
-    fontWeight: 'bold',
+    marginTop: 70,
+    color: colors.white,
+    fontSize: 76,
   },
   subheading: {
-    color: '#8e8e93',
-    fontSize: 14,
+    marginTop: 22,
+    color: colors.text,
+    fontSize: font.bodyLine,
     textAlign: 'center',
-    marginTop: 8,
-    paddingHorizontal: 30,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  emphasis: { fontWeight: '700' },
+
+  // Positioned to the comp rather than centred in the remaining space: the
+  // button sits above the vertical middle, not in it.
   exitButton: {
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
-    backgroundColor: '#ff3b30',
+    marginTop: 300,
+    width: 682,
+    height: 130,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#ff3b30',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 30,
-    elevation: 12,
-    borderWidth: 4,
-    borderColor: '#ff6a61',
   },
   exitText: {
-    color: '#ffffff',
-    fontSize: 44,
-    fontWeight: 'bold',
-    letterSpacing: 3,
+    color: colors.textDim,
+    fontSize: 58,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
-  backButton: {
-    padding: 12,
-  },
-  backText: {
-    color: '#54627a',
-    fontSize: 14,
-  },
+
+  backButton: { marginTop: 300 },
+  backText: { color: colors.text, fontSize: font.bodyLine },
 });

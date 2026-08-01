@@ -12,8 +12,10 @@ type Props = {
   testID?: string;
 };
 
-const THUMB_SIZE = 26;
-const TRACK_HEIGHT = 16;
+// Design units, measured off console_ui_05 — the console renders on a scaled
+// 886x1890 canvas, so these are canvas units rather than device pixels.
+const THUMB_SIZE = 78;
+const TRACK_HEIGHT = 30;
 
 // Custom slider drawn with the official artwork (slider_01 track capsule +
 // slider_mark thumb). We own the pixels ourselves so it renders identically on
@@ -71,14 +73,16 @@ export default function PressureSlider({
 const styles = StyleSheet.create({
   touchArea: {
     flex: 1,
-    height: 40,
+    height: THUMB_SIZE,
     justifyContent: 'center',
   },
   track: {
     position: 'absolute',
     left: 0,
-    right: 0,
-    width: undefined,
+    // width 100%, not `left: 0; right: 0` with an undefined width: on
+    // react-native-web the latter leaves the stretched track unconstrained and
+    // it runs out past the panel.
+    width: '100%',
     height: TRACK_HEIGHT,
     pointerEvents: 'none',
   },
