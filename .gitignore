@@ -22,6 +22,8 @@ POUCH_APP/backend/folli.db-*
 POUCH_APP/backend/server.log
 POUCH_APP/frontend/vite.log
 POUCH_APP/frontend/tsconfig.tsbuildinfo
+# Vite's dependency pre-bundle cache, rewritten on every dev-server start.
+POUCH_APP/frontend/.vite/
 
 # Regenerated on every `python POUCH_APP/tools/visual_diff.py` run: the captured
 # screenshots, the mockup crops they are compared against, and the diff maps.
