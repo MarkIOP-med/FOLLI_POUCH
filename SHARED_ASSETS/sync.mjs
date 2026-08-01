@@ -8,8 +8,12 @@
  * ("None of these files exist"). Verified by running `expo export`, not assumed.
  *
  * POUCH_APP/frontend does NOT need this: Vite resolves the alias straight out of
- * SHARED_ASSETS with no copy. Only the console gets a synced mirror, and that mirror is
- * gitignored so SHARED_ASSETS stays the single source of truth.
+ * SHARED_ASSETS with no copy. Only the console gets a synced mirror.
+ *
+ * The mirror IS committed, deliberately -- CLAUDE.md documents `npx expo start --web`
+ * and `npx expo run:android`, which bypass the npm pre* hooks that would generate it,
+ * so a fresh clone has to work without running this first. Edit the originals under
+ * SHARED_ASSETS; `--check` fails if the mirror has drifted.
  *
  * Usage:  node SHARED_ASSETS/sync.mjs [--check]
  *         --check  exit non-zero if the mirror is stale (for CI)
@@ -26,7 +30,13 @@ const CHECK = process.argv.includes('--check');
 
 /** Mirrors: [source dir under SHARED_ASSETS, destination dir] */
 const MIRRORS = [
-  [join(HERE, 'buttons'), join(ROOT, 'FOLLI_CONSOLE', 'assets', 'buttons')],
+  // The design firm's own delivery, not a hand-curated subset. SHARED_ASSETS/buttons/
+  // used to hold a 22-file copy that was byte-identical to the first 22 of these;
+  // it was deleted rather than kept in step, so there is one source again.
+  [
+    join(HERE, 'FOLLI_IMAGES', 'CONSOLE_IMAGES', 'buttons'),
+    join(ROOT, 'FOLLI_CONSOLE', 'assets', 'buttons'),
+  ],
 ];
 
 function listFiles(dir) {
