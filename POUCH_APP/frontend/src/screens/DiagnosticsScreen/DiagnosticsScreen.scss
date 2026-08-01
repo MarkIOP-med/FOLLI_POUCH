@@ -1,0 +1,364 @@
+// PAGE_02 — Pouch Diagnostics Overview. Border-box coordinates recovered by
+// edge-detecting diagnostics_ui_04_PAGE_02.png (8000x5000 / 4.1667):
+//
+//   hardware panel   x 133 -> 666,   y 274.5 -> 1175.5
+//   v-nodes panel    x 672 -> 1356,  y 274.5 -> 1175.5   cards x 683..1345
+//   user regime      x 1364 -> 1897, y 274.5 -> 820.5
+//   vibration        x 1364 -> 1897, y 817.5 -> 1175.5
+//
+// Contents are absolutely placed against their measured ink centres, all
+// relative to the owning panel's padding box (3px inside its rule).
+
+.diagnostics {
+  &__hardware  { left: 133px;  top: 274.5px; width: 533px; height: 901px; }
+  &__vnodes    { left: 672px;  top: 274.5px; width: 684px; height: 901px; }
+  &__regime    { left: 1364px; top: 274.5px; width: 533px; height: 546px; }
+  &__vibration { left: 1364px; top: 817.5px; width: 533px; height: 358px; }
+
+  // The cards are the only panel content laid out in flow, so the inset that
+  // puts the first one on y=336 and its left edge on x=683 lives here.
+  &__vnodes .diag-panel__body {
+    padding: 9.5px 8px 0;
+  }
+}
+
+// The horizontal rules inside the hardware and regime panels are #b3b3b3
+// hairlines, not the #4c6470 rule used for structure.
+@mixin hairline {
+  height: 1px;
+  background: $btn-edge;
+}
+
+// ── hardware column ─────────────────────────────────────────────────────────
+// Panel padding box starts at canvas x=136, y=277.5.
+.hw {
+  position: absolute;
+  inset: 0;
+  font-size: $fs-body;
+
+  // START / STOP: 133px discs at x=236 and x=430, y=353.
+  &__round {
+    position: absolute;
+    top: 75.5px;
+    width: 133px;
+    height: 133px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+
+    &--start { left: 100px; }
+    &--stop  { left: 294px; }
+
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    img { display: block; width: 100%; height: 100%; }
+  }
+
+  &__rule {
+    position: absolute;
+    left: 19px;
+    width: 492px;
+    @include hairline;
+
+    &--1 { top: 234.5px; }   // y=512
+    &--2 { top: 374px; }     // y=651.5
+    &--3 { top: 554px; }     // y=831.5
+  }
+
+  // Ink centred on y=555.5 and, like several captions in this design, sitting
+  // 35px left of the panel's centre line rather than on it.
+  &__title {
+    position: absolute;
+    left: 0;
+    top: 262px;
+    width: 457px;
+    margin: 0;
+    font-size: $fs-body;
+    font-weight: $fw-label;
+    line-height: 32px;
+    text-align: center;
+  }
+
+  // "Target: [88] mmHg | Actual: 96 mmHg" — ink centre y=610.5, box x 245..322.
+  &__manifold {
+    position: absolute;
+    left: 21px;
+    top: 310.5px;          // box y 588..633
+    display: flex;
+    align-items: center;
+    // 8px, not a wider flex gap: the runs already carry their own word spaces,
+    // so anything larger pushes "Actual: NN mmHg" past the panel's edge.
+    gap: 8px;
+    height: 46px;
+    color: $text-dim;
+    font-size: $fs-body;
+    white-space: nowrap;
+  }
+
+  &__input {
+    width: 78px;
+    height: 46px;
+    background: $input-bg;
+    border: 2px solid $input-edge;
+    border-radius: 6px;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-body;
+    text-align: center;
+  }
+
+  &__value { color: $text; }
+
+  // Pump / relief valve: 30px dots at x=308.5 and x=582, ink centre y=691.5.
+  &__states {
+    position: absolute;
+    left: 68px;
+    top: 398px;
+    display: flex;
+    gap: 56px;
+    color: $text-dim;
+    font-size: $fs-body;
+    line-height: 32px;
+    white-space: nowrap;
+  }
+
+  &__state {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  &__valves-label {
+    position: absolute;
+    left: 30px;
+    top: 458px;              // ink centre y=752
+    color: $text-dim;
+    font-size: $fs-body;
+    line-height: 32px;
+  }
+
+  &__valves {
+    position: absolute;
+    left: 30px;
+    top: 500px;              // ink centre y=793.5
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 468px;
+    color: $text-dim;
+    // 26, not 32: the zone captions in this row measure 18px of cap height in
+    // the mockup, a step down from the rest of the panel.
+    font-size: $fs-small;
+    line-height: 32px;
+    white-space: nowrap;
+  }
+
+  &__valve {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  // Pump, relief-valve and per-valve state are absent from the telemetry CSV,
+  // so these are empty rings rather than a colour implying a live reading.
+  &__dot-none {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border: 3px solid $text-muted;
+    border-radius: 50%;
+    opacity: 0.5;
+  }
+
+  &__valve &__dot-none { width: 23px; height: 23px; }
+
+  &__note {
+    position: absolute;
+    left: 28px;
+    right: 22px;
+    top: 590px;
+    margin: 0;
+    color: $text-muted;
+    font-size: $fs-tiny;
+    line-height: 1.3;
+  }
+}
+
+// ── user regime column ──────────────────────────────────────────────────────
+// Panel padding box starts at canvas x=1367, y=277.5.
+.regime {
+  position: absolute;
+  inset: 0;
+  font-size: $fs-body;
+
+  // Ink centres y=364 / 405.5 / 453.5 — a 45px rhythm. Labels x=1378,
+  // values x=1524.
+  &__identity {
+    position: absolute;
+    left: 11px;
+    top: 69px;
+    display: grid;
+    grid-template-columns: 146px auto;
+    line-height: 45px;
+    white-space: nowrap;
+
+    > span:nth-child(odd) { font-weight: $fw-label; }
+  }
+
+  // x 1765..1868, y 333..472 in the mockup.
+  &__profile {
+    position: absolute;
+    right: 26px;
+    top: 55.5px;
+    width: 104px;
+    height: 140px;
+    object-fit: contain;
+  }
+
+  &__rule {
+    position: absolute;
+    left: 9px;
+    top: 203.5px;            // y=481
+    width: 518px;
+    @include hairline;
+  }
+
+  &__label {
+    position: absolute;
+    left: 11px;
+    margin: 0;
+    font-size: $fs-body;
+    font-weight: $fw-label;
+    line-height: 32px;
+    white-space: nowrap;
+
+    &--default { top: 215px; }   // ink centre y=510.5
+    &--user    { top: 335.5px; } // ink centre y=631
+  }
+
+  // Four even columns across the panel interior; zone captions above values.
+  &__zones {
+    position: absolute;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: 527px;
+    text-align: center;
+    white-space: nowrap;
+
+    &--default { top: 253px; }   // caption ink centre y=546.5, values y=581.5
+    &--user    { top: 369px; }   // caption ink centre y=662.5, boxes y 680..731
+  }
+
+  &__zone-name {
+    color: $text-dim;
+    font-size: $fs-small;
+    line-height: 35px;
+  }
+
+  &__default {
+    color: $text;
+    font-size: $fs-body;
+    line-height: 35px;
+  }
+
+  &__input {
+    justify-self: center;
+    width: 78px;
+    height: 45px;
+    background: $input-bg;
+    border: 2px solid $input-edge;
+    border-radius: 6px;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-body;
+    text-align: center;
+  }
+
+  // SET at x 1469..1576, SAVE at x 1680..1787, both y 751..795.
+  &__btn {
+    position: absolute;
+    top: 473.5px;
+    width: 108px;
+    height: 45px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+
+    &--set  { left: 102px; }
+    &--save { left: 313px; }
+
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    img { display: block; width: 100%; height: 100%; }
+  }
+}
+
+// ── vibration level assignment ──────────────────────────────────────────────
+// Panel padding box starts at canvas x=1367, y=820.5. Caption rule at y=869.
+.vib-panel {
+  position: absolute;
+  inset: 0;
+  font-size: $fs-body;
+
+  // Ink centre y=905; zone column at x=1383, level discs from x=1523,
+  // "Time Left" right-aligned.
+  &__head,
+  &__row {
+    position: absolute;
+    left: 16px;
+    display: grid;
+    grid-template-columns: 140px 240px 1fr;
+    align-items: center;
+    width: 485px;
+    white-space: nowrap;
+  }
+
+  &__head {
+    top: 68.5px;
+    color: $text-dim;
+    font-size: $fs-body;
+    line-height: 32px;
+  }
+
+  // Ink centres y=962 / 1021 / 1080.5 / 1140 — a 59.3px pitch.
+  &__row {
+    height: 45px;
+    color: $text;
+  }
+
+  &__levels {
+    display: flex;
+    gap: 9px;                  // 45px discs on a 54px pitch
+  }
+
+  &__level {
+    width: 45px;
+    height: 45px;
+    padding: 0;
+    border: 2px solid $text-dim;
+    border-radius: 50%;
+    background: none;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-body;
+    line-height: 1;
+    cursor: pointer;
+
+    &.is-on {
+      background: $select-bg;
+      border-color: $select-bg;
+    }
+
+    &:disabled { cursor: not-allowed; }
+  }
+
+  &__duration {
+    color: $text-dim;
+    text-align: right;
+  }
+
+}

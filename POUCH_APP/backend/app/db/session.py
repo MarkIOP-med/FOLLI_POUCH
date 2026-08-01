@@ -12,7 +12,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from ..config import settings
-from .schema import DEFAULT_SETTINGS, SCHEMA
+from .schema import DEFAULT_SETTINGS, MIGRATIONS, SCHEMA
 
 
 def connect() -> sqlite3.Connection:
@@ -41,9 +41,22 @@ def session_scope() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _apply_migrations(conn: sqlite3.Connection) -> None:
+    """Add any columns missing from an existing database.
+
+    Checked against PRAGMA table_info rather than catching the duplicate-column
+    error, so a genuine failure is not swallowed.
+    """
+    for table, column, ddl in MIGRATIONS:
+        existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_db() -> None:
     with session_scope() as conn:
         conn.executescript(SCHEMA)
+        _apply_migrations(conn)
         for key, value in DEFAULT_SETTINGS.items():
             conn.execute(
                 "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value)

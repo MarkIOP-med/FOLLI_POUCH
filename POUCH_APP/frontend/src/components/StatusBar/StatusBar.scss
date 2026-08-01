@@ -1,0 +1,79 @@
+// Top system bar — the strip between the frame's top rule (y=14) and the header
+// band's top rule (y=61). It carries no fill of its own: sampling the mockup
+// there returns the frame interior's ramp unchanged.
+//
+// Measured ink, left to right: logo x 15..217 y 14..48; "80%" ends x=1444;
+// battery 1455..1494; wifi 1512..1543; clock 1604..1685; date 1714..1893.
+// The right-hand run is anchored to x=1893 and spaced by those gaps, so it stays
+// put as the clock ticks.
+.status-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: #{$canvas-w - 28}px;
+  // 45, not the 50 the strip actually occupies: the mockup's row of glyphs
+  // centres on y=36.5, above the middle of the space it sits in.
+  height: 45px;
+  padding-right: 13px;
+  font-size: $fs-small;
+
+  // Ink measured at x 29..217. Matched on width with the asset's own aspect
+  // ratio kept: the mockup's mark is drawn a touch wider than Logo_Light_01.png
+  // (7.27 vs 6.38), and stretching a logo to close that is worse than being 3px
+  // short at the bottom.
+  &__logo {
+    position: absolute;
+    left: 15px;
+    top: 6px;
+    width: 189px;
+    height: auto;
+  }
+
+  &__spacer { flex: 1; }
+
+  &__group {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    color: $text;
+    white-space: nowrap;
+  }
+
+  &__wifi-group  { margin-left: 18px; }
+  &__clock-group { margin-left: 61px; }
+
+  &__battery-icon {
+    width: 39px;
+    height: 21px;
+    object-fit: contain;
+  }
+
+  // Firmware reports no battery, so the icon is absent rather than guessed at.
+  &__battery-none {
+    display: inline-block;
+    width: 39px;
+    height: 21px;
+    border: 2px solid $text-muted;
+    border-radius: 3px;
+    opacity: 0.45;
+  }
+
+  &__wifi {
+    display: inline-block;
+    width: 32px;
+    height: 22px;
+
+    &--off { opacity: 0.35; }
+  }
+
+  &__clock {
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__date { margin-left: 29px; }
+
+  &__muted { color: $text-muted; }
+}

@@ -1,0 +1,138 @@
+// PAGE_01 — User Overview grid. Coordinates recovered by edge-detecting
+// diagnostics_ui_04_PAGE_01.jpeg (1600x1000, so canvas = source x 1.2):
+//
+//   card columns   x 113..695 / 713..1294 / 1312..1894  — 582 wide on an 18px gap
+//   card rows      y 276..599 and y 617..940            — 323 tall on an 18px gap
+//   caption bar    49 tall, rule at y=325, text ink centred on y=298
+//   fields         labels x 140, values x 363, ink centres y 357.5 on a 48.3 pitch
+//   ENTER pill     132x43, centred, ink centre y=564
+//   ACTIVE USERS   ink x 137, centre y=987.5
+//
+// The mockup draws six fixed slots; per the product decision this is a dynamic
+// grid over the device registry that happens to lay out on the same rhythm,
+// including the empty-slot styling from slot 06.
+
+.home-screen {
+  // The design draws exactly six slots and puts ACTIVE USERS immediately below
+  // them, so the grid is boxed to those two rows (276 -> 940) and scrolls. A
+  // seventh pouch would otherwise start a third row that runs off the canvas and
+  // through the count — which is what happened the first time the registry held
+  // more than six.
+  &__grid {
+    position: absolute;
+    left: 113px;
+    top: 276px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 323px;
+    align-content: start;
+    gap: 18px;
+    width: 1781px;
+    height: 664px;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    // No visible scrollbar: the target is a touch kiosk, where dragging works,
+    // and a classic scrollbar would take ~15px out of the row and shrink every
+    // card off its measured width the moment a seventh pouch is registered.
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  &__count {
+    position: absolute;
+    left: 135px;
+    top: 967.5px;
+    color: $text;
+    font-size: $fs-heading;
+    line-height: 40px;
+  }
+}
+
+.user-card {
+  position: relative;
+  @include framed;
+
+  &--empty { opacity: 0.55; }
+
+  // ── caption bar ───────────────────────────────────────────────────────────
+  &__head {
+    position: absolute;
+    inset: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 49px;
+    // The extra bottom padding lifts the centred text 4px, which is where the
+    // mockup's ink sits — above the middle of the bar, not on it.
+    padding: 0 17px 8px 20px;
+    background: $panel-title-bg;
+    border-bottom: $bw-frame solid $border;
+    color: $text;
+    font-size: $fs-body;
+    font-weight: $fw-label;
+    line-height: 32px;
+  }
+
+  // ── fields ────────────────────────────────────────────────────────────────
+  &__body {
+    position: absolute;
+    left: 24px;
+    top: 58px;
+    display: grid;
+    grid-template-columns: 223px auto;
+    color: $text;
+    font-size: $fs-body;
+    line-height: 48.3px;
+    white-space: nowrap;
+  }
+
+  &__label { color: $text-dim; }
+
+  // Overlaps the field rows on the card's right edge, so it is placed against
+  // the card rather than threaded through the grid.
+  &__profile {
+    position: absolute;
+    right: 6px;
+    top: 100px;
+    width: 104px;
+    height: 140px;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  // ── enter ─────────────────────────────────────────────────────────────────
+  // The designer's own pill artwork, with the label baked in.
+  &__enter {
+    position: absolute;
+    left: 50%;
+    top: 263px;            // pill at y=542, card padding box starts at y=279
+    width: 132px;
+    height: 43px;
+    padding: 0;
+    border: none;
+    background: none;
+    transform: translateX(-50%);
+    cursor: pointer;
+
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    &:disabled { opacity: 0.4; cursor: not-allowed; }
+  }
+
+  // ── selected slot ─────────────────────────────────────────────────────────
+  // Card 01 in the mockup: a #bee7ea outline, the same colour on the caption
+  // rule, and — unlike every other card — no fill behind the caption at all.
+  &--active {
+    border-color: $art-pale;
+
+    .user-card__head {
+      background: none;
+      border-bottom-color: $art-pale;
+    }
+  }
+}

@@ -1,30 +1,30 @@
 import { createBrowserRouter } from 'react-router-dom';
 
-import { AppShell } from '@/components/AppShell';
-import { BoardRoster } from '@/screens/BoardRoster';
-import { DeviceScreen } from '@/screens/DeviceScreen';
-import { PatientDetail } from '@/screens/PatientDetail';
-import { Patients } from '@/screens/Patients';
-import { SettingsScreen } from '@/screens/Settings';
+import { AdminScreen } from '@/screens/AdminScreen';
+import { DiagnosticsScreen } from '@/screens/DiagnosticsScreen';
+import { HomeScreen } from '@/screens/HomeScreen';
+import { UsersScreen } from '@/screens/UsersScreen';
 
+/**
+ * The four screens of the 2026-07 redesign, and nothing else.
+ *
+ * Each renders on its own fixed 1920x1200 canvas with the shared chrome, so
+ * there is no outer navigation shell — the left icon rail is the navigation.
+ */
 export const ROUTES = {
-  board: '/',
-  device: (id: string) => `/devices/${id}`,
-  patients: '/patients',
-  patient: (id: number | string) => `/patients/${id}`,
-  settings: '/settings',
+  home: '/',
+  diagnostics: (id: string) => `/diagnostics/${id}`,
+  users: (id: string) => `/users/${id}`,
+  admin: (id: string) => `/admin/${id}`,
 } as const;
 
 export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <AppShell />,
-    children: [
-      { index: true, element: <BoardRoster /> },
-      { path: 'devices/:id', element: <DeviceScreen /> },
-      { path: 'patients', element: <Patients /> },
-      { path: 'patients/:id', element: <PatientDetail /> },
-      { path: 'settings', element: <SettingsScreen /> },
-    ],
-  },
+  { path: '/', element: <HomeScreen /> },
+  { path: '/home', element: <HomeScreen /> },
+  { path: '/diagnostics', element: <DiagnosticsScreen /> },
+  { path: '/diagnostics/:id', element: <DiagnosticsScreen /> },
+  { path: '/users', element: <UsersScreen /> },
+  { path: '/users/:id', element: <UsersScreen /> },
+  { path: '/admin', element: <AdminScreen /> },
+  { path: '/admin/:id', element: <AdminScreen /> },
 ]);

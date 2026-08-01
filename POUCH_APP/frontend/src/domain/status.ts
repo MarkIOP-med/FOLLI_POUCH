@@ -39,7 +39,10 @@ export function fsrDisplay(reading: FsrReading | null): FsrDisplay {
   }
 }
 
-/** `h:mm:ss` past an hour, `mm:ss` below it. Returns null when there is nothing to show. */
+/**
+ * `h:mm:ss` past an hour, `mm:ss` below it. Returns null when there is nothing
+ * to show.
+ */
 export function formatDuration(seconds: number | null | undefined): string | null {
   if (seconds == null) return null;
 
@@ -49,4 +52,21 @@ export function formatDuration(seconds: number | null | undefined): string | nul
   const secs = String(total % 60).padStart(2, '0');
 
   return hours > 0 ? `${hours}:${minutes}:${secs}` : `${minutes}:${secs}`;
+}
+
+/**
+ * Always `hh:mm:ss`. The session runtime and time-remaining readouts in the
+ * redesign are fixed-width fields, so they must not collapse to `mm:ss` in the
+ * first hour and shift everything beside them.
+ */
+export function formatClockDuration(seconds: number | null | undefined): string | null {
+  if (seconds == null) return null;
+
+  const total = Math.max(0, Math.floor(seconds));
+  const parts = [
+    Math.floor(total / 3600),
+    Math.floor((total % 3600) / 60),
+    total % 60,
+  ];
+  return parts.map((p) => String(p).padStart(2, '0')).join(':');
 }

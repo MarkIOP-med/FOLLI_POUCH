@@ -35,11 +35,18 @@ export interface Alert {
   ts: number;
 }
 
+export type Gender = 'male' | 'female';
+
 export interface PatientRef {
   id: number;
   mrn: string;
   full_name: string;
   national_id_masked: string | null;
+  gender: Gender | null;
+  age: number | null;
+  protocol: string | null;
+  treatment_start_date: number | null;
+  treatment_number: number | null;
 }
 
 export interface DeviceSnapshot {
@@ -94,6 +101,13 @@ export interface Patient {
   national_id: string | null;
   created_at: number;
   prescriptions: Prescription[];
+  gender: Gender | null;
+  birth_year: number | null;
+  /** Derived server-side from birth_year so it cannot go stale. */
+  age: number | null;
+  protocol: string | null;
+  treatment_start_date: number | null;
+  treatment_number: number | null;
 }
 
 export interface Settings {

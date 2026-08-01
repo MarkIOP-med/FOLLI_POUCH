@@ -37,3 +37,9 @@ export function trimIsMeaningful(prescribed: number, trimRange = 10): boolean {
   if (prescribed <= 0) return false;
   return prescribed * (trimRange / 100) >= CONTROLLER_TOLERANCE_MMHG;
 }
+
+/** Parses a pressure entry field, tolerating an emptied input. */
+export function parseTarget(raw: string): number {
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+}
