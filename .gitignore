@@ -21,3 +21,10 @@ POUCH_APP/backend/folli.db
 POUCH_APP/backend/folli.db-*
 POUCH_APP/backend/server.log
 POUCH_APP/frontend/vite.log
+POUCH_APP/frontend/tsconfig.tsbuildinfo
+
+# Regenerated on every `python POUCH_APP/tools/visual_diff.py` run: the captured
+# screenshots, the mockup crops they are compared against, and the diff maps.
+# Several MB per run and meaningless outside the run that produced them — the
+# committed record of how the screens look is VISUAL_REFERENCE/, not this.
+POUCH_APP/tools/diff_output/
