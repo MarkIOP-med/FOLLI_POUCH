@@ -55,15 +55,44 @@ describe('ConsoleScreen (full UI wiring)', () => {
     expect(queryByText('Temples')).toBeNull();
     expect(getByTestId('pressure-readout').props.children).toBe(0); // front default: off
 
-    // Adjust forehead, then flip back to Temples — Temples kept its values.
+    // Forehead is unprescribed, so the patient cannot raise it off zero — the
+    // console trims a prescribed treatment, it does not start one.
     fireEvent.press(getByTestId('pressure-plus'));
-    expect(getByTestId('pressure-readout').props.children).toBe(1);
+    expect(getByTestId('pressure-readout').props.children).toBe(0);
+
+    // Temples is prescribed 25, so it can be trimmed within 22..28.
     fireEvent.press(getByTestId('zone-2'));
     expect(getByTestId('pressure-readout').props.children).toBe(25);
+    fireEvent.press(getByTestId('pressure-plus'));
+    expect(getByTestId('pressure-readout').props.children).toBe(26);
 
-    // ...and forehead kept its adjusted value too.
+    // Each zone still remembers its own value across a switch.
     fireEvent.press(getByTestId('zone-1'));
-    expect(getByTestId('pressure-readout').props.children).toBe(1);
+    expect(getByTestId('pressure-readout').props.children).toBe(0);
+    fireEvent.press(getByTestId('zone-2'));
+    expect(getByTestId('pressure-readout').props.children).toBe(26);
+  });
+
+  // Regression guard. START and STOP share one slot and both stay mounted, with
+  // the inactive one only made transparent. START renders second, so if it is
+  // not also made non-interactive it covers STOP and eats every touch — STOP
+  // then never fires at all on a device. fireEvent calls handlers directly and
+  // cannot see this, so it is asserted on the style instead.
+  it('the hidden master button cannot receive touches', () => {
+    const { getByTestId } = render(<ConsoleScreen onOpenSettings={jest.fn()} />);
+
+    const flatten = (style: unknown): Record<string, unknown> =>
+      Object.assign({}, ...[style].flat(Infinity).filter(Boolean) as object[]);
+
+    // PENDING: STOP is the hidden one and must not intercept.
+    expect(flatten(getByTestId('stop-button').props.style).pointerEvents).toBe('none');
+    expect(flatten(getByTestId('start-button').props.style).pointerEvents).toBeUndefined();
+
+    fireEvent.press(getByTestId('start-button'));
+
+    // ACTIVE: now START is hidden, and must not sit on top of STOP.
+    expect(flatten(getByTestId('start-button').props.style).pointerEvents).toBe('none');
+    expect(flatten(getByTestId('stop-button').props.style).pointerEvents).toBeUndefined();
   });
 
   it('START begins the session and runs the timer; long-press STOP ends it', () => {

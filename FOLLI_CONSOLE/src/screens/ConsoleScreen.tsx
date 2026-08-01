@@ -1,31 +1,38 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  StyleSheet,
-  Text,
-  View,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  Image,
-} from 'react-native';
-import Svg, { Path } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useConsole, SessionState } from '../viewmodels/useConsole';
-import { VNode, MassageLevel, ZONE_LABELS } from '../models/telemetry';
-import { PRESSURE_UI_MAX } from '../config';
-import PressureSlider from '../components/PressureSlider';
+import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-// Official button artwork (assets/buttons). Tiles carry their own label text
-// and selected (_on = light) / unselected (_off = dark) backgrounds; the hero
-// head illustrations highlight the selected zone's node.
-const HERO_IMG: Record<VNode, ReturnType<typeof require>> = {
-  0x01: require('../../assets/buttons/head_zones_front.png'),
-  0x02: require('../../assets/buttons/head_zones_temples.png'),
-  0x03: require('../../assets/buttons/head_zones_ears.png'),
-  0x04: require('../../assets/buttons/head_zones_back.png'),
+import { MassageLevel, VNode, ZONE_LABELS } from '../models/telemetry';
+import { useConsole, SessionState } from '../viewmodels/useConsole';
+import PressureSlider from '../components/PressureSlider';
+import { ScreenFrame } from '../components/ScreenFrame';
+import { colors, font, layout } from '../theme';
+
+// Per-zone hero artwork: the same head with a different zone highlighted.
+//
+// Both genders are wired up, but nothing tells the console which to draw — no
+// patient record reaches it — so it draws the female set the comps use. The
+// male set is here rather than in a later commit because the moment a patient
+// record does arrive, this becomes a one-line lookup instead of a new asset
+// hunt.
+const HERO_IMG: Record<'female' | 'male', Record<VNode, ReturnType<typeof require>>> = {
+  female: {
+    0x01: require('../../assets/buttons/Female_Profile_FRONT_01.png'),
+    0x02: require('../../assets/buttons/Female_Profile_TEMPLE_01.png'),
+    0x03: require('../../assets/buttons/Female_Profile_EAR_01.png'),
+    0x04: require('../../assets/buttons/Female_Profile_BACK_01.png'),
+  },
+  male: {
+    0x01: require('../../assets/buttons/Male_Profile_FRONT_01.png'),
+    0x02: require('../../assets/buttons/Male_Profile_TEMPLE_01.png'),
+    0x03: require('../../assets/buttons/Male_Profile_EAR_01.png'),
+    0x04: require('../../assets/buttons/Male_Profile_BACK_01.png'),
+  },
 };
 
+/** No patient record reaches the console, so there is no gender to read. */
+const HERO_GENDER: 'female' | 'male' = 'female';
+
+// Zone selector tiles. The labels are baked into the artwork.
 const ZONE_TILE: Record<VNode, { on: ReturnType<typeof require>; off: ReturnType<typeof require> }> = {
   0x01: {
     on: require('../../assets/buttons/front_on.png'),
@@ -63,15 +70,8 @@ type Props = {
 const ZONES: VNode[] = [0x01, 0x02, 0x03, 0x04];
 const SPEEDS: MassageLevel[] = [0, 1, 2, 3];
 
-// How long STOP must be held before the emergency stop fires.
+/** How long STOP must be held before the emergency stop fires. */
 const STOP_HOLD_MS = 1500;
-
-// START/STOP artwork is 614x199; SET is 369x200. Rendered sizes keep those
-// aspect ratios so the capsule ends stay perfectly round.
-const MASTER_BTN_W = 260;
-const MASTER_BTN_H = 84;
-const SET_BTN_W = 84;
-const SET_BTN_H = 46;
 
 const HEADER_LABEL: Record<SessionState, string> = {
   pending: 'PENDING',
@@ -79,10 +79,13 @@ const HEADER_LABEL: Record<SessionState, string> = {
   stopped: 'STOPPED',
 };
 
+// Session state, not link state. The comps pair ACTIVE with Connected and
+// PENDING with Disconnected, but the two are independent — a real device
+// reaches connected+pending every time it boots next to a powered pouch.
 const DOT_COLOR: Record<SessionState, string> = {
-  pending: '#f0b429', // amber — waiting for START
-  active: '#82c22c', // green — session running
-  stopped: '#d8433a', // red — emergency stopped
+  pending: colors.pending,
+  active: colors.active,
+  stopped: colors.stopped,
 };
 
 const SUB_STATUS: Record<SessionState, string> = {
@@ -103,10 +106,13 @@ function formatElapsed(totalSeconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-// Renders BOTH artwork states stacked and toggles opacity. Swapping an Image
-// `source` forces Android to re-decode the file, which makes the button flash
-// for a frame — stacking keeps every state pre-decoded so switches are
-// perfectly instant.
+/**
+ * Renders both artwork states stacked and toggles opacity.
+ *
+ * Swapping an Image `source` makes Android re-decode the file, which flashes the
+ * button for a frame. Keeping every state mounted and pre-decoded makes the
+ * switch instant.
+ */
 function DualImage({
   on,
   off,
@@ -128,6 +134,13 @@ function DualImage({
   );
 }
 
+/**
+ * console_ui_05 PAGE_01 and PAGE_02 — the patient-facing console.
+ *
+ * One screen, two session states: PAGE_01 is ACTIVE, PAGE_02 is PENDING. The
+ * third state, STOPPED, has no comp and reuses the pending treatment with its
+ * own red dot and label.
+ */
 export default function ConsoleScreen({ onOpenSettings }: Props) {
   const {
     sessionState,
@@ -138,9 +151,14 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
     zoneSettings,
     targetPressure,
     updateTargetPressure,
+    trimMin,
+    trimMax,
+    canTrim,
     massageLevel,
     setMassageLevel,
     hasUnappliedChanges,
+    liveTelemetry,
+    hasTelemetry,
     isConnected,
     sendCommandToPouch,
     handleEmergencyStop,
@@ -149,13 +167,12 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
 
   const locked = !isSessionActive;
 
-  // STOP hold-to-confirm: while the button is held, a light fill sweeps across
-  // it over STOP_HOLD_MS; releasing early cancels. Interval-driven (not
-  // Animated) so the behavior is fully deterministic under test fake-timers.
+  // STOP hold-to-confirm: a light fill sweeps across the button over
+  // STOP_HOLD_MS; releasing early cancels. Interval-driven rather than Animated
+  // so the behaviour stays deterministic under the tests' fake timers.
   const [holdProgress, setHoldProgress] = useState(0);
-  // After the hold completes, the finger is still on the screen where the
-  // START button appears — swallow that release so lifting the finger can't
-  // instantly restart the session.
+  // After the hold completes the finger is still down where START appears —
+  // swallow that release so lifting off cannot instantly restart the session.
   const [awaitingStopRelease, setAwaitingStopRelease] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -188,16 +205,15 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
 
   useEffect(() => clearHoldTimer, []);
 
-  // Safety net: even if the root never sees the touch end (edge swipes etc.),
-  // re-enable START shortly after a stop.
+  // Safety net: even if the root never sees the touch end (edge swipes and the
+  // like), re-enable START shortly after a stop.
   useEffect(() => {
     if (!awaitingStopRelease) return;
     const t = setTimeout(() => setAwaitingStopRelease(false), 1000);
     return () => clearTimeout(t);
   }, [awaitingStopRelease]);
 
-  // SET flicker: while the selected zone has changes the pouch hasn't received,
-  // the SET button pulses to prompt the patient to apply them.
+  // SET pulses while the selected zone holds changes the pouch has not received.
   const setPulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!hasUnappliedChanges) {
@@ -218,475 +234,439 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
   }, [hasUnappliedChanges, setPulse]);
 
   return (
-    <LinearGradient colors={['#010813', '#050e1d']} style={styles.pageGradient}>
-      <SafeAreaView
-        style={styles.rootContainer}
+    <ScreenFrame isConnected={isConnected} onOpenSettings={onOpenSettings}>
+      <View
+        style={styles.body}
         onTouchEnd={() => {
           if (awaitingStopRelease) setAwaitingStopRelease(false);
         }}
       >
-        <StatusBar barStyle="light-content" backgroundColor="#010813" hidden />
-
-        {/* HEADER: state + colored dot, session timer below, admin gear top-right */}
-        <View style={styles.headerRow}>
-          <Text style={styles.statusText}>{HEADER_LABEL[sessionState]}</Text>
-          <View
-            style={[
-              styles.statusIndicator,
-              { backgroundColor: DOT_COLOR[sessionState], shadowColor: DOT_COLOR[sessionState] },
-            ]}
-          />
-          <TouchableOpacity
-            testID="settings-gear"
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-            onPress={onOpenSettings}
-            accessibilityLabel="Open admin control panel"
-          >
-            <Text style={styles.settingsIconText}>⚙</Text>
-          </TouchableOpacity>
-        </View>
-        <Text testID="session-timer" style={styles.timerText}>
-          Session Time:{formatElapsed(elapsedSeconds)} min
-        </Text>
-        <Text
-          testID="ble-status"
-          style={[styles.bleStatusText, isConnected && styles.bleStatusConnected]}
-        >
-          {isConnected ? '● Pouch connected' : '○ Searching for pouch…'}
-        </Text>
-
-        {/* TREATMENT AREA CARD */}
-        <View style={styles.consoleCard}>
-          <View style={styles.treatmentSplitRow}>
-            <View style={styles.treatmentLeftCol}>
-              <Text style={styles.cardHeader}>Treatment Area</Text>
-              <Text style={styles.cardMainTitle}>{ZONE_LABELS[activeZone] || 'Unknown'}</Text>
-              <Text style={styles.cardSubStatus}>Session Status: {SUB_STATUS[sessionState]}</Text>
-            </View>
-            {/* Hero head illustration — the artwork highlights the active zone.
-                All four stay mounted; only opacity flips (no decode flicker). */}
-            <View style={styles.headFrame}>
-              {ZONES.map((zone) => (
-                <Image
-                  key={zone}
-                  source={HERO_IMG[zone]}
-                  style={[styles.heroHead, { opacity: activeZone === zone ? 1 : 0 }]}
-                  resizeMode="contain"
-                />
-              ))}
-            </View>
-          </View>
-
-          {/* Node selector: official tile artwork spread symmetrically edge to
-              edge, each with a tiny per-zone readout (massage + mmHg) below. */}
-          <View style={styles.zoneButtonGrid}>
-            {ZONES.map((zone) => {
-              const isSelected = activeZone === zone;
-              const settings = zoneSettings[zone];
-              return (
-                <View key={zone} style={styles.zoneCell}>
-                  <TouchableOpacity
-                    testID={`zone-${zone}`}
-                    activeOpacity={0.7}
-                    onPress={() => setActiveZone(zone)}
-                  >
-                    <DualImage
-                      on={ZONE_TILE[zone].on}
-                      off={ZONE_TILE[zone].off}
-                      showOn={isSelected}
-                      width={64}
-                      height={64}
-                    />
-                  </TouchableOpacity>
-                  <Text style={styles.zoneCellLevel}>Lv {settings.massage}</Text>
-                  <Text style={styles.zoneCellPressure}>{settings.pressure} mmHg</Text>
-                </View>
-              );
-            })}
-          </View>
+        {/* ── session state, patient, pouch ─────────────────────────────── */}
+        <View style={styles.stateRow}>
+          <Text style={styles.stateWord}>{HEADER_LABEL[sessionState]}</Text>
+          <View style={[styles.stateDot, { backgroundColor: DOT_COLOR[sessionState] }]} />
         </View>
 
-        {/* PRESSURE CONTROL CARD */}
-        <View style={styles.consoleCard}>
-          <Text style={styles.cardHeader}>Pressure Control</Text>
-
-          <View style={styles.pressureReadoutContainer}>
-            <Text testID="pressure-readout" style={styles.pressureMainDigits}>
-              {targetPressure}
+        <View style={styles.identityRow}>
+          <View>
+            {/* The comp prints a patient name here. Nothing carries one: the BLE
+                protocol is 4-byte commands and 6-byte telemetry, and the
+                POUCH_APP link that would ship patient data does not exist yet. */}
+            <Text style={styles.identityLine}>
+              <Text style={styles.identityLabel}>Name: </Text>
+              {'—'}
             </Text>
-            <Text style={styles.pressureUnit}>mmHg</Text>
+            {/* Labelled Session Time, not the comp's "Remaining Time". Only
+                elapsed is known — no planned duration reaches the console — and
+                printing elapsed under a "remaining" label would be a lie on a
+                medical device. */}
+            <Text testID="session-timer" style={styles.identityLine}>
+              <Text style={styles.identityLabel}>Session Time: </Text>
+              {formatElapsed(elapsedSeconds)} min
+            </Text>
           </View>
 
-          <View style={styles.sliderWrapperRow}>
+          <View style={styles.pouchBlock}>
+            <View style={styles.pouchBatteryRow}>
+              <View style={styles.pouchBatteryBody}>
+                {/* Empty until the pouch has actually reported. Red only when
+                    the charge is genuinely low — the comp's bar is red because
+                    it draws 28%, not because this battery is always red. */}
+                {hasTelemetry && (
+                  <View
+                    style={[
+                      styles.pouchBatteryFill,
+                      {
+                        width: `${Math.max(0, Math.min(100, liveTelemetry.batteryPercentage))}%`,
+                        backgroundColor:
+                          liveTelemetry.batteryPercentage <= 30
+                            ? colors.disconnected
+                            : colors.white,
+                      },
+                    ]}
+                  />
+                )}
+              </View>
+              <View style={styles.pouchBatteryCap} />
+              <Text style={styles.pouchBatteryText}>
+                {hasTelemetry ? `${liveTelemetry.batteryPercentage}%` : '—'}
+              </Text>
+            </View>
+            <View style={styles.pouchIdRow}>
+              <View
+                style={[
+                  styles.pouchDot,
+                  { backgroundColor: isConnected ? colors.active : colors.stopped },
+                ]}
+              />
+              {/* The pouch's identifier is not in the telemetry frame either. */}
+              <Text style={styles.pouchIdText}>Pouch: {'—'}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── treatment area ────────────────────────────────────────────── */}
+        <View style={[styles.panel, styles.treatmentPanel]}>
+          <Text style={styles.panelTitle}>Treatment Area</Text>
+          {/* Uppercased in style, not in the string: the tests assert the zone
+              name and ZONE_LABELS is the protocol's own label table. */}
+          <Text style={styles.zoneName}>{ZONE_LABELS[activeZone] || 'Unknown'}</Text>
+          <Text style={styles.sessionStatus}>Session Status: {SUB_STATUS[sessionState]}</Text>
+
+          <View style={styles.heroFrame}>
+            {ZONES.map((zone) => (
+              <Image
+                key={zone}
+                source={HERO_IMG[HERO_GENDER][zone]}
+                style={[styles.hero, { opacity: activeZone === zone ? 1 : 0 }]}
+                resizeMode="contain"
+              />
+            ))}
+          </View>
+
+          <View style={styles.zoneRow}>
+            {ZONES.map((zone) => (
+              <TouchableOpacity
+                key={zone}
+                testID={`zone-${zone}`}
+                activeOpacity={0.7}
+                onPress={() => setActiveZone(zone)}
+              >
+                <DualImage
+                  on={ZONE_TILE[zone].on}
+                  off={ZONE_TILE[zone].off}
+                  showOn={activeZone === zone}
+                  width={137}
+                  height={137}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── pressure adjustment ───────────────────────────────────────── */}
+        <View style={[styles.panel, styles.pressurePanel]}>
+          <Text style={styles.panelTitle}>Pressure Adjustment</Text>
+
+          <View style={styles.sliderRow}>
             <TouchableOpacity
               testID="pressure-minus"
-              style={styles.sliderStepButton}
+              disabled={!canTrim}
               activeOpacity={0.6}
-              onPress={() => updateTargetPressure(Math.max(0, targetPressure - 1))}
+              onPress={() => updateTargetPressure(targetPressure - 1)}
             >
               <Image source={BTN.minus} style={styles.stepImg} />
             </TouchableOpacity>
+            {/* The slider spans the trim band, not 0..70. The patient's whole
+                range of movement is prescribed +/-10%, so mapping the full
+                hardware range onto the track would make almost every drag a
+                no-op against the clamp. */}
             <PressureSlider
               testID="pressure-slider"
               value={targetPressure}
-              maximumValue={PRESSURE_UI_MAX}
+              minimumValue={trimMin}
+              maximumValue={trimMax}
+              disabled={!canTrim}
               onValueChange={updateTargetPressure}
             />
             <TouchableOpacity
               testID="pressure-plus"
-              style={styles.sliderStepButton}
+              disabled={!canTrim}
               activeOpacity={0.6}
-              onPress={() => updateTargetPressure(Math.min(PRESSURE_UI_MAX, targetPressure + 1))}
+              onPress={() => updateTargetPressure(targetPressure + 1)}
             >
               <Image source={BTN.plus} style={styles.stepImg} />
             </TouchableOpacity>
           </View>
 
-          <Animated.View style={[styles.setButtonWrap, { opacity: setPulse }]}>
-            <TouchableOpacity
-              testID="set-button"
-              disabled={locked}
-              activeOpacity={0.7}
-              onPress={sendCommandToPouch}
-            >
-              <DualImage
-                on={BTN.setOn}
-                off={BTN.setOff}
-                showOn={!locked}
-                width={SET_BTN_W}
-                height={SET_BTN_H}
-              />
-            </TouchableOpacity>
-          </Animated.View>
+          <View style={styles.readoutBlock}>
+            <Text testID="pressure-readout" style={styles.readoutDigits}>
+              {targetPressure}
+            </Text>
+            <Text style={styles.readoutUnit}>mmHg</Text>
+            <Animated.View style={{ opacity: setPulse }}>
+              <TouchableOpacity
+                testID="set-button"
+                disabled={locked}
+                activeOpacity={0.7}
+                onPress={sendCommandToPouch}
+              >
+                <DualImage on={BTN.setOn} off={BTN.setOff} showOn={!locked} width={150} height={81} />
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
         </View>
 
-        {/* MASSAGE LEVELS CARD — numbers live inside a capsule track */}
-        <View style={styles.consoleCard}>
-          <Text style={styles.cardHeader}>Massage Levels</Text>
-          <View style={styles.segmentedControlTrack}>
-            {SPEEDS.map((level) => {
-              const isSelected = massageLevel === level;
-              return (
+        {/* ── massage levels ────────────────────────────────────────────── */}
+        <View style={[styles.panel, styles.massagePanel]}>
+          <View style={styles.massageHeaderRow}>
+            <Text style={styles.panelTitle}>Massage Levels</Text>
+            {/* The comp shows a per-massage countdown. No duration is sent to
+                the console, so there is nothing to count down from. */}
+            <Text style={styles.massageRemaining}>Time remain: {'—'}</Text>
+          </View>
+
+          <View style={styles.massageRow}>
+            <View style={styles.massagePill}>
+              {SPEEDS.map((level) => (
                 <TouchableOpacity
                   key={level}
                   testID={`massage-${level}`}
-                  style={styles.segmentItem}
+                  style={styles.massageCell}
                   activeOpacity={0.7}
                   onPress={() => setMassageLevel(level)}
                 >
-                  <View style={[styles.segmentCircle, isSelected && styles.segmentCircleActive]}>
-                    <Text style={styles.segmentItemText}>{level}</Text>
+                  <View
+                    style={[
+                      styles.massageRing,
+                      massageLevel === level && styles.massageRingActive,
+                    ]}
+                  >
+                    <Text style={styles.massageDigit}>{level}</Text>
                   </View>
                 </TouchableOpacity>
-              );
-            })}
+              ))}
+            </View>
+
+            <Animated.View style={{ opacity: setPulse }}>
+              <TouchableOpacity
+                testID="massage-set-button"
+                disabled={locked}
+                activeOpacity={0.7}
+                onPress={sendCommandToPouch}
+              >
+                <DualImage on={BTN.setOn} off={BTN.setOff} showOn={!locked} width={150} height={81} />
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </View>
 
-        {/* START / STOP + footer strip. BOTH buttons stay mounted in the same
-            fixed-size slot — the inactive one is fully transparent and inert.
-            This kills the remount flash on state flips, and because they are
-            separate elements, a finger still held on STOP after the hold
-            completes can never fire the (freshly revealed) START button. */}
-        <View style={styles.emergencyContainer}>
-          <View style={styles.masterArea}>
-            <TouchableOpacity
-              testID="stop-button"
-              style={[styles.masterBtnAbs, !isSessionActive && styles.masterBtnHidden]}
-              disabled={!isSessionActive}
-              activeOpacity={1}
-              onPressIn={beginStopHold}
-              onPressOut={cancelStopHold}
-            >
-              <View style={styles.masterBtnClip}>
-                <DualImage
-                  on={BTN.stopOn}
-                  off={BTN.stopOff}
-                  showOn={holdProgress === 0}
-                  width={MASTER_BTN_W}
-                  height={MASTER_BTN_H}
-                />
-                <View
-                  testID="stop-hold-fill"
-                  style={[styles.stopHoldFill, { width: `${holdProgress * 100}%` }]}
-                />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="start-button"
-              style={[styles.masterBtnAbs, isSessionActive && styles.masterBtnHidden]}
-              disabled={isSessionActive || awaitingStopRelease}
-              activeOpacity={0.85}
-              onPress={startSession}
-            >
+        {/* ── start / stop ──────────────────────────────────────────────── */}
+        {/* Both buttons stay mounted in the same slot; the inactive one is
+            transparent and inert. That kills the remount flash on state flips,
+            and because they are separate elements a finger still held on STOP
+            can never fire the freshly revealed START. */}
+        <View style={styles.masterSlot}>
+          <TouchableOpacity
+            testID="stop-button"
+            style={[styles.masterBtn, !isSessionActive && styles.masterHidden]}
+            disabled={!isSessionActive}
+            activeOpacity={1}
+            onPressIn={beginStopHold}
+            onPressOut={cancelStopHold}
+          >
+            <View style={styles.masterClip}>
+              {/* The comps draw both master buttons in the `off` artwork
+                  (#737373 body, matching the comp's #80878d); `on` is the lit
+                  #c2c2c2 state. So STOP rests dark and lights up as it is
+                  held, rather than starting lit and dimming. */}
               <DualImage
-                on={BTN.startOn}
-                off={BTN.startOff}
-                showOn={!awaitingStopRelease}
-                width={MASTER_BTN_W}
-                height={MASTER_BTN_H}
+                on={BTN.stopOn}
+                off={BTN.stopOff}
+                showOn={holdProgress > 0}
+                width={layout.primaryButton.w}
+                height={layout.primaryButton.h}
               />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.safetyFooterStrip}>
-            <Svg width={13} height={15} viewBox="0 0 20 23" style={styles.shieldIcon}>
-              <Path
-                d="M10 1 L18 4.5 V11 C18 16.5 14.6 20.4 10 22 C5.4 20.4 2 16.5 2 11 V4.5 Z"
-                fill="none"
-                stroke="#8b95a5"
-                strokeWidth={1.8}
+              <View
+                testID="stop-hold-fill"
+                style={[styles.stopHoldFill, { width: `${holdProgress * 100}%` }]}
               />
-              <Path
-                d="M6.5 11.5 L9 14 L13.8 8.5"
-                fill="none"
-                stroke="#8b95a5"
-                strokeWidth={1.8}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-            <Text style={styles.safetyInstructionFooter}>{FOOTER_HINT[sessionState]}</Text>
-          </View>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            testID="start-button"
+            style={[styles.masterBtn, isSessionActive && styles.masterHidden]}
+            disabled={isSessionActive || awaitingStopRelease}
+            activeOpacity={0.85}
+            onPress={startSession}
+          >
+            {/* Rests in the `off` artwork to match the comp, and lights up only
+                while the finger left over from a STOP hold is still down —
+                which is also the window where the press is deliberately
+                ignored, so the change is visible rather than silent. */}
+            <DualImage
+              on={BTN.startOn}
+              off={BTN.startOff}
+              showOn={awaitingStopRelease}
+              width={layout.primaryButton.w}
+              height={layout.primaryButton.h}
+            />
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
-    </LinearGradient>
+
+        <Text style={styles.hint}>{FOOTER_HINT[sessionState]}</Text>
+      </View>
+    </ScreenFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  pageGradient: {
-    flex: 1,
-  },
-  rootContainer: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  headerRow: {
+  body: { flex: 1 },
+  stackedImg: { position: 'absolute', width: '100%', height: '100%', resizeMode: 'contain' },
+
+  // ── state + identity ──────────────────────────────────────────────────
+  stateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 14,
-  },
-  statusText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 26,
-    letterSpacing: 0.5,
-  },
-  statusIndicator: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginLeft: 12,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 7,
-    elevation: 5,
-  },
-  settingsButton: {
-    position: 'absolute',
-    right: 0,
-    top: 1,
-    padding: 6,
-    opacity: 0.5,
-  },
-  settingsIconText: {
-    fontSize: 16,
-    color: '#8fa0b5',
-  },
-  timerText: {
-    color: '#c9d4e2',
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 3,
-  },
-  bleStatusText: {
-    color: '#8fa0b5',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  bleStatusConnected: {
-    color: '#7fc95c',
-  },
-  consoleCard: {
-    backgroundColor: '#081120',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#263343',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  treatmentSplitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  treatmentLeftCol: {
-    flex: 1,
-    justifyContent: 'space-between',
-    paddingVertical: 2,
-    paddingRight: 10,
-  },
-  cardHeader: {
-    color: '#f0f4f9',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  cardMainTitle: {
-    color: '#ffffff',
-    fontSize: 30,
-    fontWeight: 'bold',
-  },
-  cardSubStatus: {
-    color: '#c3cfdd',
-    fontSize: 13,
-  },
-  headFrame: {
-    width: 100,
-    height: 128,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#3b586f',
-    backgroundColor: '#020a14',
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroHead: {
-    position: 'absolute',
-    left: 1,
-    top: 1,
-    width: 96,
-    height: 124,
-  },
-  stackedImg: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    width: '100%',
-    height: '100%',
-  },
-  zoneButtonGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  zoneCell: {
-    alignItems: 'center',
-  },
-  zoneTileImg: {
-    width: 64,
-    height: 64,
-  },
-  zoneCellLevel: {
-    color: '#8fa0b5',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  zoneCellPressure: {
-    color: '#6c7d92',
-    fontSize: 9,
-    marginTop: 1,
-  },
-  pressureReadoutContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  pressureMainDigits: {
-    color: '#ffffff',
-    fontSize: 48,
-    fontWeight: 'bold',
-  },
-  pressureUnit: {
-    color: '#e8eef5',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  sliderWrapperRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  sliderStepButton: {
-    paddingHorizontal: 2,
-    paddingVertical: 4,
-  },
-  stepImg: {
-    width: 32,
-    height: 32,
-  },
-  setButtonWrap: {
-    alignSelf: 'center',
+    gap: 60,
     marginTop: 6,
-    marginBottom: 2,
+    marginLeft: 46,
   },
-  setImg: {
-    width: SET_BTN_W,
-    height: SET_BTN_H,
-  },
-  segmentedControlTrack: {
+  stateWord: { color: colors.white, fontSize: font.sessionWord, letterSpacing: 2 },
+  stateDot: { width: 115, height: 115, borderRadius: 58 },
+
+  identityRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: '#152334',
-    borderWidth: 1,
-    borderColor: '#2a384a',
-    borderRadius: 27,
-    paddingVertical: 2,
-    paddingHorizontal: 10,
-    marginTop: 10,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginTop: 44,
+    marginHorizontal: 46,
   },
-  segmentItem: {
-    alignItems: 'center',
+  identityLine: { color: colors.white, fontSize: font.patientLine, lineHeight: 58 },
+  identityLabel: { color: colors.text },
+
+  pouchBlock: { alignItems: 'flex-end', gap: 8 },
+  pouchBatteryRow: { flexDirection: 'row', alignItems: 'center' },
+  pouchBatteryBody: {
+    width: 74,
+    height: 38,
+    borderWidth: 4,
+    borderColor: colors.white,
+    borderRadius: 6,
+    padding: 4,
     justifyContent: 'center',
   },
-  segmentCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  pouchBatteryFill: { height: '100%', borderRadius: 2 },
+  pouchBatteryCap: {
+    width: 6,
+    height: 16,
+    backgroundColor: colors.white,
+    borderTopRightRadius: 3,
+    borderBottomRightRadius: 3,
+    marginRight: 60,
+  },
+  pouchBatteryText: { color: colors.white, fontSize: font.battery },
+  pouchIdRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pouchDot: { width: 26, height: 26, borderRadius: 13 },
+  pouchIdText: { color: colors.white, fontSize: font.pouchLine },
+
+  // ── panels ────────────────────────────────────────────────────────────
+  panel: {
+    position: 'absolute',
+    left: layout.gutter,
+    width: layout.panelW,
+    borderWidth: 3,
+    borderColor: colors.panelBorder,
+    borderRadius: layout.panelRadius,
+    backgroundColor: colors.panel,
+  },
+  // Positioned to the comps' own coordinates, minus the 105 status bar and 100
+  // header the frame already draws above this view.
+  treatmentPanel: { top: layout.treatment.y - 205, height: layout.treatment.h },
+  pressurePanel: { top: layout.pressure.y - 205, height: layout.pressure.h },
+  massagePanel: { top: layout.massage.y - 205, height: layout.massage.h },
+
+  panelTitle: { color: colors.text, fontSize: font.panelTitle, marginTop: 26, marginLeft: 21 },
+  zoneName: {
+    color: colors.white,
+    fontSize: font.zoneName,
+    marginLeft: 21,
+    marginTop: 4,
+    textTransform: 'uppercase',
+  },
+  sessionStatus: { color: colors.text, fontSize: font.bodyLine, marginLeft: 21, marginTop: 12 },
+
+  // Measured off the comp: the head sits x 595..825, y 525..795 on the canvas,
+  // against a panel whose box starts at x 41, y 483.
+  heroFrame: { position: 'absolute', right: 20, top: 42, width: 230, height: 270 },
+  hero: { position: 'absolute', width: '100%', height: '100%' },
+
+  // Tile centres in the comp are 183 / 355 / 530 / 703, i.e. 75 in from the
+  // panel edge with even gaps — not edge-to-edge, which is what a plain
+  // space-between over the full width would give.
+  zoneRow: {
+    position: 'absolute',
+    left: 72,
+    right: 72,
+    top: 358,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+
+  // ── pressure ──────────────────────────────────────────────────────────
+  // Comp: the row runs x 67..606, y 1158..1235 on the canvas; the panel box
+  // starts at x 41, y 1027.
+  sliderRow: {
+    position: 'absolute',
+    left: 26,
+    top: 131,
+    width: 540,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  stepImg: { width: 78, height: 78, resizeMode: 'contain' },
+
+  readoutBlock: { position: 'absolute', right: 30, top: 24, alignItems: 'center' },
+  readoutDigits: { color: colors.white, fontSize: 118, lineHeight: 122 },
+  readoutUnit: { color: colors.white, fontSize: font.unit, marginTop: -6 },
+
+  // ── massage ───────────────────────────────────────────────────────────
+  massageHeaderRow: { flexDirection: 'row', alignItems: 'baseline', gap: 30 },
+  massageRemaining: { color: colors.white, fontSize: font.bodyLine, marginTop: 26 },
+
+  massageRow: {
+    position: 'absolute',
+    left: 21,
+    right: 24,
+    top: 126,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  massagePill: {
+    width: layout.massagePill.w,
+    height: layout.massagePill.h,
+    borderRadius: layout.massagePill.h / 2,
+    backgroundColor: colors.controlTrack,
+    borderWidth: 3,
+    borderColor: colors.controlOn,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  massageCell: { flex: 1, alignItems: 'center' },
+  massageRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 3,
     borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  segmentCircleActive: {
-    borderColor: '#0a8ce0',
-    backgroundColor: 'rgba(20,80,150,0.30)',
-  },
-  segmentItemText: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '600',
-  },
-  emergencyContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-  },
-  masterArea: {
-    alignSelf: 'center',
-    width: MASTER_BTN_W,
-    height: MASTER_BTN_H,
-    marginBottom: 9,
-  },
-  masterBtnAbs: {
+  massageRingActive: { borderColor: colors.accent },
+  massageDigit: { color: colors.white, fontSize: font.massageDigit, lineHeight: 80 },
+
+  // ── start / stop ──────────────────────────────────────────────────────
+  masterSlot: {
     position: 'absolute',
     left: 0,
-    top: 0,
+    right: 0,
+    top: layout.primaryButton.y - 205,
+    height: layout.primaryButton.h,
+    alignItems: 'center',
   },
-  masterBtnHidden: {
-    opacity: 0,
-    pointerEvents: 'none',
-  },
-  masterBtnClip: {
-    borderRadius: MASTER_BTN_H / 2,
+  masterBtn: { position: 'absolute' },
+  // pointerEvents is load-bearing, not decoration. START and STOP occupy the
+  // same slot and both stay mounted; the hidden one is only transparent, and
+  // START renders second, so without this it sits on top of STOP and swallows
+  // every touch. STOP then never receives onPressIn and cannot be held at all.
+  masterHidden: { opacity: 0, pointerEvents: 'none' },
+  masterClip: {
+    width: layout.primaryButton.w,
+    height: layout.primaryButton.h,
+    borderRadius: layout.primaryButton.h / 2,
     overflow: 'hidden',
   },
   stopHoldFill: {
@@ -694,24 +674,16 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    // Light sweep over the capsule artwork — same tone, one shade brighter.
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
-  safetyFooterStrip: {
-    flexDirection: 'row',
-    backgroundColor: '#081424',
-    borderWidth: 1,
-    borderColor: '#1b2b42',
-    borderRadius: 10,
-    paddingVertical: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shieldIcon: {
-    marginRight: 6,
-  },
-  safetyInstructionFooter: {
-    color: '#95a1b2',
-    fontSize: 12,
+
+  hint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: layout.hintY - 205,
+    textAlign: 'center',
+    color: colors.text,
+    fontSize: font.hint,
   },
 });
