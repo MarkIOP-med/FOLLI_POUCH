@@ -6,6 +6,8 @@ const THUMB_IMG = require('../../assets/buttons/slider_mark.png');
 
 type Props = {
   value: number;
+  /** Low end of the track. Non-zero because the console trims a prescription. */
+  minimumValue?: number;
   maximumValue: number;
   disabled?: boolean;
   onValueChange: (value: number) => void;
@@ -22,6 +24,7 @@ const TRACK_HEIGHT = 30;
 // Android, web and in jest. Pure layout + PanResponder.
 export default function PressureSlider({
   value,
+  minimumValue = 0,
   maximumValue,
   disabled = false,
   onValueChange,
@@ -30,15 +33,18 @@ export default function PressureSlider({
   const [width, setWidth] = useState(0);
 
   // Refs so the (stable) PanResponder always sees the latest props/layout.
-  const stateRef = useRef({ width: 0, maximumValue, disabled, onValueChange });
-  stateRef.current = { width, maximumValue, disabled, onValueChange };
+  const stateRef = useRef({ width: 0, minimumValue, maximumValue, disabled, onValueChange });
+  stateRef.current = { width, minimumValue, maximumValue, disabled, onValueChange };
 
   const handleTouch = (locationX: number) => {
-    const { width: w, maximumValue: max, onValueChange: emit } = stateRef.current;
+    const { width: w, minimumValue: min, maximumValue: max, onValueChange: emit } =
+      stateRef.current;
     const usable = w - THUMB_SIZE;
-    if (usable <= 0) return;
+    // A zero-width band (an unprescribed zone) would divide by zero below and
+    // there is nothing to emit anyway.
+    if (usable <= 0 || max <= min) return;
     const fraction = Math.max(0, Math.min(1, (locationX - THUMB_SIZE / 2) / usable));
-    emit(Math.round(fraction * max));
+    emit(Math.round(min + fraction * (max - min)));
   };
 
   const responder = useRef(
@@ -50,7 +56,8 @@ export default function PressureSlider({
     }),
   ).current;
 
-  const fraction = maximumValue > 0 ? Math.max(0, Math.min(1, value / maximumValue)) : 0;
+  const span = maximumValue - minimumValue;
+  const fraction = span > 0 ? Math.max(0, Math.min(1, (value - minimumValue) / span)) : 0;
   const thumbLeft = fraction * Math.max(0, width - THUMB_SIZE);
 
   return (

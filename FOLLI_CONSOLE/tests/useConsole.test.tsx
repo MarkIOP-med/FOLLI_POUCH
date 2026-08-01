@@ -61,6 +61,8 @@ describe('useConsole controls', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
+    // Forehead has to be prescribed before it can be trimmed at all.
+    act(() => result.current.applyPrescription({ 0x01: 10 }));
     act(() => result.current.setActiveZone(0x01));
     act(() => result.current.updateTargetPressure(10));
     act(() => result.current.setMassageLevel(1));
@@ -129,6 +131,7 @@ describe('useConsole controls', () => {
     act(() => result.current.startSession());
     client.sendCommand.mockClear();
 
+    act(() => result.current.applyPrescription({ 0x03: 40 }));
     act(() => result.current.setActiveZone(0x03));
     act(() => result.current.updateTargetPressure(40));
     act(() => result.current.setMassageLevel(3));
@@ -143,14 +146,55 @@ describe('useConsole controls', () => {
     });
   });
 
-  it('clamps pressure input to 0..70', () => {
+  it('confines pressure to the prescription +/-10%, not to the full 0..70 range', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
+    // Temples is prescribed 25, so the patient may move between 23 and 28.
+    expect(result.current.trimMin).toBe(23);
+    expect(result.current.trimMax).toBe(28);
+
     act(() => result.current.updateTargetPressure(500));
-    expect(result.current.targetPressure).toBe(70);
+    expect(result.current.targetPressure).toBe(28);
     act(() => result.current.updateTargetPressure(-20));
+    expect(result.current.targetPressure).toBe(23);
+  });
+
+  it('will not let an unprescribed zone be turned on', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // Forehead is prescribed 0 — switched off by the clinician. The patient may
+    // trim a treatment that was ordered, not start one that was not.
+    act(() => result.current.setActiveZone(0x01));
+    expect(result.current.canTrim).toBe(false);
+    act(() => result.current.updateTargetPressure(40));
     expect(result.current.targetPressure).toBe(0);
+  });
+
+  it('re-centres the band when a new prescription arrives', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => result.current.updateTargetPressure(28)); // trimmed to the top
+    act(() => result.current.applyPrescription({ 0x02: 50 }));
+
+    // The new order takes effect at its own value, rather than inheriting the
+    // previous patient's trim.
+    expect(result.current.targetPressure).toBe(50);
+    expect(result.current.trimMin).toBe(45);
+    expect(result.current.trimMax).toBe(55);
+  });
+
+  it('never exceeds the 70 mmHg hardware ceiling, even at the top of a band', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // 68 +10% is 74.8, which the pouch must never be asked for.
+    act(() => result.current.applyPrescription({ 0x02: 68 }));
+    expect(result.current.trimMax).toBe(70);
+    act(() => result.current.updateTargetPressure(999));
+    expect(result.current.targetPressure).toBe(70);
   });
 
   it('held STOP sends the emergency stop and zeroes every zone', () => {
@@ -163,8 +207,12 @@ describe('useConsole controls', () => {
     expect(client.sendEmergencyStop).toHaveBeenCalledTimes(1);
     expect(result.current.sessionState).toBe('stopped');
     ([0x01, 0x02, 0x03, 0x04] as const).forEach((zone) => {
-      expect(result.current.zoneSettings[zone]).toEqual({ pressure: 0, massage: 0 });
+      expect(result.current.zoneSettings[zone].pressure).toBe(0);
+      expect(result.current.zoneSettings[zone].massage).toBe(0);
     });
+    // The prescription survives: the next session resumes the clinical order
+    // rather than starting from nothing.
+    expect(result.current.zoneSettings[0x02].prescribed).toBe(25);
   });
 
   it('START begins a fresh session (timer reset, config re-pushed) after a stop', () => {

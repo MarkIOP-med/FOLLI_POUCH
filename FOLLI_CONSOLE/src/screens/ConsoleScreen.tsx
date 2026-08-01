@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { MassageLevel, VNode, ZONE_LABELS, PRESSURE_MAX } from '../models/telemetry';
+import { MassageLevel, VNode, ZONE_LABELS } from '../models/telemetry';
 import { useConsole, SessionState } from '../viewmodels/useConsole';
 import PressureSlider from '../components/PressureSlider';
 import { ScreenFrame } from '../components/ScreenFrame';
@@ -151,10 +151,14 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
     zoneSettings,
     targetPressure,
     updateTargetPressure,
+    trimMin,
+    trimMax,
+    canTrim,
     massageLevel,
     setMassageLevel,
     hasUnappliedChanges,
     liveTelemetry,
+    hasTelemetry,
     isConnected,
     sendCommandToPouch,
     handleEmergencyStop,
@@ -265,24 +269,28 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
           <View style={styles.pouchBlock}>
             <View style={styles.pouchBatteryRow}>
               <View style={styles.pouchBatteryBody}>
-                {/* Red only when the charge is genuinely low. The comp shows a
-                    red bar because it is drawing 28%, not because the pouch
-                    battery is always red. */}
-                <View
-                  style={[
-                    styles.pouchBatteryFill,
-                    {
-                      width: `${Math.max(0, Math.min(100, liveTelemetry.batteryPercentage))}%`,
-                      backgroundColor:
-                        liveTelemetry.batteryPercentage <= 30
-                          ? colors.disconnected
-                          : colors.white,
-                    },
-                  ]}
-                />
+                {/* Empty until the pouch has actually reported. Red only when
+                    the charge is genuinely low — the comp's bar is red because
+                    it draws 28%, not because this battery is always red. */}
+                {hasTelemetry && (
+                  <View
+                    style={[
+                      styles.pouchBatteryFill,
+                      {
+                        width: `${Math.max(0, Math.min(100, liveTelemetry.batteryPercentage))}%`,
+                        backgroundColor:
+                          liveTelemetry.batteryPercentage <= 30
+                            ? colors.disconnected
+                            : colors.white,
+                      },
+                    ]}
+                  />
+                )}
               </View>
               <View style={styles.pouchBatteryCap} />
-              <Text style={styles.pouchBatteryText}>{liveTelemetry.batteryPercentage}%</Text>
+              <Text style={styles.pouchBatteryText}>
+                {hasTelemetry ? `${liveTelemetry.batteryPercentage}%` : '—'}
+              </Text>
             </View>
             <View style={styles.pouchIdRow}>
               <View
@@ -343,21 +351,29 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
           <View style={styles.sliderRow}>
             <TouchableOpacity
               testID="pressure-minus"
+              disabled={!canTrim}
               activeOpacity={0.6}
-              onPress={() => updateTargetPressure(Math.max(0, targetPressure - 1))}
+              onPress={() => updateTargetPressure(targetPressure - 1)}
             >
               <Image source={BTN.minus} style={styles.stepImg} />
             </TouchableOpacity>
+            {/* The slider spans the trim band, not 0..70. The patient's whole
+                range of movement is prescribed +/-10%, so mapping the full
+                hardware range onto the track would make almost every drag a
+                no-op against the clamp. */}
             <PressureSlider
               testID="pressure-slider"
               value={targetPressure}
-              maximumValue={PRESSURE_MAX}
+              minimumValue={trimMin}
+              maximumValue={trimMax}
+              disabled={!canTrim}
               onValueChange={updateTargetPressure}
             />
             <TouchableOpacity
               testID="pressure-plus"
+              disabled={!canTrim}
               activeOpacity={0.6}
-              onPress={() => updateTargetPressure(Math.min(PRESSURE_MAX, targetPressure + 1))}
+              onPress={() => updateTargetPressure(targetPressure + 1)}
             >
               <Image source={BTN.plus} style={styles.stepImg} />
             </TouchableOpacity>
@@ -642,7 +658,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   masterBtn: { position: 'absolute' },
-  masterHidden: { opacity: 0 },
+  // pointerEvents is load-bearing, not decoration. START and STOP occupy the
+  // same slot and both stay mounted; the hidden one is only transparent, and
+  // START renders second, so without this it sits on top of STOP and swallows
+  // every touch. STOP then never receives onPressIn and cannot be held at all.
+  masterHidden: { opacity: 0, pointerEvents: 'none' },
   masterClip: {
     width: layout.primaryButton.w,
     height: layout.primaryButton.h,
