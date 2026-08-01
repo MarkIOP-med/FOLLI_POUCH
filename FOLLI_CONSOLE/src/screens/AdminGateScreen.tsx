@@ -18,8 +18,11 @@ type Props = {
  * console_ui_05 PAGE_03 — the password gate in front of the admin panel.
  *
  * A soft lock (see config.ts): it stops a curious patient, not a determined
- * attacker. The comp draws no error state, so the incorrect-password message is
- * placed under the field where it pushes nothing else out of position.
+ * attacker. Laid out absolutely against the comp's own coordinates — the card
+ * is x 41, y 351, 804 x 1048, and everything inside is placed relative to it.
+ *
+ * The comp draws no error state, so the incorrect-password message sits in the
+ * gap between the field and the button, where it displaces nothing.
  */
 export default function AdminGateScreen({ onSuccess, onCancel, isConnected = false }: Props) {
   const [value, setValue] = useState('');
@@ -79,60 +82,81 @@ export default function AdminGateScreen({ onSuccess, onCancel, isConnected = fal
   );
 }
 
+// The card is an absolute child of the frame's canvas, so its `top` is the
+// comp's canvas y directly. Every `top` inside it is the comp's y minus the
+// card's own 351.
 const styles = StyleSheet.create({
   card: {
-    marginTop: 140,
-    marginHorizontal: layout.gutter,
+    position: 'absolute',
+    left: layout.gutter,
+    top: 351,
+    width: layout.panelW,
+    height: 1048,
     borderWidth: 3,
     borderColor: colors.panelBorder,
     borderRadius: layout.panelRadius,
     backgroundColor: colors.panel,
-    paddingHorizontal: 60,
-    paddingBottom: 48,
-    alignItems: 'center',
   },
 
-  padlock: { marginTop: 70, width: 150, height: 200 },
+  padlock: { position: 'absolute', alignSelf: 'center', top: 75, width: 152, height: 190 },
 
-  title: { color: colors.white, fontSize: 76 },
+  title: {
+    position: 'absolute',
+    top: 284,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: colors.white,
+    fontSize: 91.7,
+  },
+  // The comp sets this in one line spanning x 55..831 — nearly the full card —
+  // so the card carries almost no horizontal padding here.
   subtitle: {
-    marginTop: 10,
+    position: 'absolute',
+    top: 402,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     color: colors.text,
     fontSize: font.bodyLine,
-    textAlign: 'center',
   },
   emphasis: { fontWeight: '700' },
 
   input: {
-    marginTop: 90,
-    width: '100%',
-    height: 133,
+    position: 'absolute',
+    top: 542,
+    left: 62,
+    width: 681,
+    height: 135,
     borderWidth: 2,
     borderColor: colors.panelBorder,
     borderRadius: 10,
-    paddingHorizontal: 38,
+    paddingHorizontal: 35,
     color: colors.white,
-    fontSize: 46,
+    fontSize: 50,
   },
   inputError: { borderColor: colors.disconnected },
   errorText: {
-    alignSelf: 'flex-start',
-    marginTop: 12,
+    position: 'absolute',
+    top: 686,
+    left: 62,
     color: colors.disconnected,
-    fontSize: 32,
+    fontSize: 34,
   },
 
   submitButton: {
-    marginTop: 60,
-    width: '100%',
-    height: 133,
-    borderRadius: 8,
-    backgroundColor: colors.controlOn,
+    position: 'absolute',
+    top: 735,
+    left: 62,
+    width: 681,
+    height: 135,
+    borderRadius: 6,
+    backgroundColor: '#bcbec0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitText: { color: '#4a4f55', fontSize: 58, letterSpacing: 2 },
+  submitText: { color: '#4a4f55', fontSize: 66.7, letterSpacing: 2 },
 
-  cancelButton: { marginTop: 90 },
+  cancelButton: { position: 'absolute', top: 966, left: 0, right: 0, alignItems: 'center' },
   cancelText: { color: colors.text, fontSize: font.bodyLine },
 });
