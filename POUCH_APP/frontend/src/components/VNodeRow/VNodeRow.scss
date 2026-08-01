@@ -1,0 +1,114 @@
+// One V-node card in the telemetry array.
+// Cards x 683..1345 (662 wide), 192 tall on a 210px pitch, first at y=336 —
+// measured from the border runs in PAGE_02. Inside a card (padding box origin
+// x=685, y=338): head art x 690..813, text column from x=822, SET at x 1253,
+// target box x 924..1001, rule at y=470, FSR line ink centre y=492.
+.vnode-row {
+  position: relative;
+  height: 192px;
+  @include surface;
+  border: $bw-row solid $border;
+  border-radius: $radius-md;
+
+  & + & { margin-top: 18px; }
+
+  &.is-band,
+  &.is-fault { border-color: $alert-red; }
+
+  &__profile {
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    width: 120px;
+    height: 161px;
+    object-fit: contain;
+  }
+
+  &__title {
+    position: absolute;
+    left: 139px;
+    top: 16px;
+    margin: 0;
+    color: $text;
+    font-size: $fs-large;
+    font-weight: $fw-body;
+    line-height: 36px;
+    white-space: nowrap;
+  }
+
+  // 75x41 at x 1253..1327, y 355..395.
+  &__set {
+    position: absolute;
+    left: 568px;
+    top: 17px;
+    width: 75px;
+    height: 41px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+
+    &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    img { display: block; width: 100%; height: 100%; }
+  }
+
+  // "Target: [26] mmHg | Actual: 98 mmHg" — box y 405..449.
+  &__line {
+    position: absolute;
+    left: 137px;
+    top: 67px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 45px;
+    color: $text-dim;
+    font-size: $fs-body;
+    white-space: nowrap;
+  }
+
+  &__input {
+    flex: none;
+    // The mockup gives this row more air around the box than the manifold row.
+    margin: 0 14px;
+    width: 78px;
+    height: 45px;
+    background: $input-bg;
+    border: 2px solid $input-edge;
+    border-radius: 6px;
+    color: $text;
+    font-family: inherit;
+    font-size: $fs-body;
+    text-align: center;
+  }
+
+  &__value { color: $text; }
+
+  &__divider {
+    position: absolute;
+    left: 137px;
+    top: 132px;
+    width: 515px;
+    height: 1px;
+    background: $btn-edge;
+  }
+
+  &__fsr {
+    position: absolute;
+    left: 137px;
+    top: 138px;
+    display: flex;
+    gap: 10px;
+    color: $text-dim;
+    font-size: $fs-body;
+    line-height: 32px;
+    white-space: nowrap;
+  }
+
+  // The L / R prefixes are set a step heavier than the readings they label.
+  &__side { font-weight: $fw-label; color: $text; }
+
+  // A railed channel is an open circuit, never a number.
+  &__fault { color: $alert-red; }
+  &__na    { color: $text-muted; }
+}

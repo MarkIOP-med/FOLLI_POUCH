@@ -1,0 +1,42 @@
+// Framed panel with a centred caption bar — the repeating container across all
+// four redesigned screens. Caption fill #27475a, 2.76px border, 50px tall.
+.diag-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  @include framed;
+  overflow: hidden;
+
+  // Caption bar: panel top rule at y=275, caption rule at y=325 on every page.
+  &__caption {
+    // margin: 0 is load-bearing — this is an <h2>, and the UA's default block
+    // margin was pushing every panel's content ~40px below the mockup.
+    margin: 0;
+    flex: none;
+    height: 49px;
+    // A block with an explicit line box, not a centring grid: the mockup's
+    // caption ink sits on y=300.5, which is 2.5px above the middle of the bar,
+    // and grid centring cannot be nudged off centre (padding leaves the item
+    // where it is). Setting the line box directly does place it, and 44px lands
+    // the ink on 300.5 given this font's metrics.
+    display: block;
+    line-height: 44px;
+    text-align: center;
+    background: $panel-title-bg;
+    border-bottom: $bw-frame solid $border;
+    color: $text;
+    font-size: $fs-body;
+    font-weight: $fw-label;
+  }
+
+  // Deliberately NOT a positioning context: screens place their contents at
+  // panel-relative coordinates taken from the mockups, so every offset in a
+  // screen stylesheet is measured from the same origin — the panel's padding
+  // box — rather than some of them being measured from below the caption.
+  &__body {
+    flex: 1;
+    min-height: 0;
+    color: $text;
+    font-size: $fs-body;
+  }
+}
