@@ -43,13 +43,19 @@ def capture_all(page, out_dir: Path) -> list[tuple[str, Path]]:
         page.screenshot(path=str(path), type="jpeg", quality=QUALITY)
         shots.append((name, path))
 
-    # PAGE_02 — pending, before START. The comp draws FRONT selected; the app
-    # boots on Temples, so select Front to make the two directly comparable.
+    # Each comp draws a different zone, so each shot selects the zone its comp
+    # uses. Otherwise the two differ on the highlighted tile, the zone name and
+    # every pressure readout, and the comparison measures the selection rather
+    # than the layout.
+
+    # PAGE_02 — pending, before START, FRONT selected.
     page.get_by_test_id("zone-1").click()
     page.wait_for_timeout(600)
     shoot("01-console-pending")
 
-    # PAGE_01 — a running session.
+    # PAGE_01 — a running session, TEMPLE selected.
+    page.get_by_test_id("zone-2").click()
+    page.wait_for_timeout(300)
     page.get_by_test_id("start-button").click()
     page.wait_for_timeout(1200)
     shoot("02-console-active")

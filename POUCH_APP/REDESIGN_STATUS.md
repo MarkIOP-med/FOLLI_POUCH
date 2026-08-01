@@ -79,11 +79,58 @@ Not a defect, recorded because it looks like one: every page's title band reads
 `POUCH DIAGNOSTICS OVERVIEW v2.4.3`, including home, users and admin. That is
 what the comps print on all four pages, so the constant title is correct.
 
-## Not started
+## FOLLI_CONSOLE — done
 
-- **FOLLI_CONSOLE** — the four `console_ui_05` pages. Different codebase and
-  language (React Native / Expo). Must keep 41 jest tests and the expo bundle
-  green.
+The four `console_ui_05` comps map onto the three screens that already existed,
+not onto four new ones. Restyled in place; there is no second set of screens.
+
+| Comp | Screen | strict | perceptual |
+|---|---|---|---|
+| PAGE_02 pending | `ConsoleScreen` | 84.49% | 80.48% |
+| PAGE_01 active | `ConsoleScreen` | 84.52% | 80.58% |
+| PAGE_03 admin gate | `AdminGateScreen` | 94.12% | 91.90% |
+| PAGE_04 control panel | `ExitScreen` | 95.36% | 93.43% |
+
+Shots in `VISUAL_REFERENCE/console/v2`, taken by
+`FOLLI_CONSOLE/tools/capture_reference.py` against the exported web bundle. Each
+shot selects the zone its comp draws, or the comparison measures the selection
+rather than the layout.
+
+The two console-screen scores are lower than the other two almost entirely
+because of the no-data fields below, not because of layout — five text fields
+render an em dash where the comp prints content, and the head artwork is tinted
+differently in the comp than in the delivered asset. Neither is closable here.
+
+**Not in the protocol, so rendered as no-data.** The BLE contract is 4-byte
+commands and 6-byte telemetry, and the POUCH_APP link that would carry patient
+data does not exist yet. Patient name, remaining time, pouch ID, the massage
+countdown and the tablet's own battery all show `—`. The single battery byte in
+telemetry is the pouch's, not the tablet's, so it is not reused for both.
+
+**Deliberate deviations from the comps.**
+
+1. The comp's `Remaining Time` is labelled `Session Time`, because only elapsed
+   time reaches the console. Printing elapsed under a "remaining" label would be
+   wrong on a medical device.
+2. PAGE_04's artwork reads "Contol Panel" and "Press EXIT unlock and close".
+   Both are typos in the design file; the app sets correct English.
+3. Connection state and session state are independent. The comps pair
+   Connected/ACTIVE and Disconnected/PENDING, but that is a coincidence of which
+   two states each page drew.
+4. The zone heading is `TEMPLES`, matching the button artwork and the protocol's
+   label table; the comp's heading says `TEMPLE`.
+
+**Open.** No font is bundled — the comps set Source Sans throughout plus Poppins
+for the zone captions and massage digits, and the console renders in the
+platform font. Sizes are right, letterforms are not, and the wider metrics are
+why text that fits one line in the comp can wrap. `expo-font` with
+`@expo-google-fonts/source-sans-3` and `/poppins` is the fix, mirroring what
+POUCH_APP already does with `@fontsource-variable/source-sans-3`.
+
+The console draws the female profile unconditionally. Both sets are wired up;
+nothing tells it which to use.
+
+Both suites stay green: 41 jest tests and a clean `expo export`.
 
 ## No UI at all
 
