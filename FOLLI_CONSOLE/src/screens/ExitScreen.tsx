@@ -47,50 +47,55 @@ export default function ExitScreen({ onBack, isConnected = false }: Props) {
   );
 }
 
+// Same card box as PAGE_03 — x 41, y 351, 804 x 1048. The card sits on the
+// frame's canvas so its `top` is the comp's y; everything inside is that y
+// minus 351.
 const styles = StyleSheet.create({
-  // The comp floats one tall panel below the header, inset by the page gutter.
   card: {
-    marginTop: 140,
-    marginHorizontal: layout.gutter,
-    height: 1040,
+    position: 'absolute',
+    left: layout.gutter,
+    top: 351,
+    width: layout.panelW,
+    height: 1048,
     borderWidth: 3,
     borderColor: colors.panelBorder,
     borderRadius: layout.panelRadius,
     backgroundColor: colors.panel,
-    paddingHorizontal: 60,
-    alignItems: 'center',
   },
+
   heading: {
-    marginTop: 70,
+    position: 'absolute',
+    top: 47,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     color: colors.white,
-    fontSize: 76,
+    fontSize: 91.7,
   },
   subheading: {
-    marginTop: 22,
+    position: 'absolute',
+    top: 165,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
     color: colors.text,
     fontSize: font.bodyLine,
-    textAlign: 'center',
   },
   emphasis: { fontWeight: '700' },
 
-  // Positioned to the comp rather than centred in the remaining space: the
-  // button sits above the vertical middle, not in it.
   exitButton: {
-    marginTop: 300,
-    width: 682,
-    height: 130,
-    borderRadius: 8,
+    position: 'absolute',
+    top: 495,
+    left: 62,
+    width: 681,
+    height: 135,
+    borderRadius: 6,
     backgroundColor: colors.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exitText: {
-    color: colors.textDim,
-    fontSize: 58,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
+  exitText: { color: colors.textDim, fontSize: 66.7, letterSpacing: 2 },
 
-  backButton: { marginTop: 300 },
+  backButton: { position: 'absolute', top: 966, left: 0, right: 0, alignItems: 'center' },
   backText: { color: colors.text, fontSize: font.bodyLine },
 });
