@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-  SafeAreaView,
-} from 'react-native';
+import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
 import { ADMIN_PASSWORD } from '../config';
+import { ScreenFrame } from '../components/ScreenFrame';
+import { colors, font, layout } from '../theme';
+
+const PADLOCK = require('../../assets/buttons/Padlock_Icon_01.png');
 
 type Props = {
   onSuccess: () => void;
   onCancel: () => void;
+  /** Drives the status-bar link indicator; the gate itself needs no pouch. */
+  isConnected?: boolean;
 };
 
-// Password gate in front of the admin control panel. This is a soft lock (see
-// config.ts) — its job is to stop casual end-users, not determined attackers.
-export default function AdminGateScreen({ onSuccess, onCancel }: Props) {
+/**
+ * console_ui_05 PAGE_03 — the password gate in front of the admin panel.
+ *
+ * A soft lock (see config.ts): it stops a curious patient, not a determined
+ * attacker. The comp draws no error state, so the incorrect-password message is
+ * placed under the field where it pushes nothing else out of position.
+ */
+export default function AdminGateScreen({ onSuccess, onCancel, isConnected = false }: Props) {
   const [value, setValue] = useState('');
   const [error, setError] = useState(false);
 
@@ -31,11 +36,14 @@ export default function AdminGateScreen({ onSuccess, onCancel }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <ScreenFrame isConnected={isConnected}>
       <View style={styles.card}>
-        <Text style={styles.lockIcon}>🔒</Text>
+        <Image source={PADLOCK} style={styles.padlock} resizeMode="contain" />
+
         <Text style={styles.title}>Admin Access</Text>
-        <Text style={styles.subtitle}>Enter the administrator password to continue.</Text>
+        <Text style={styles.subtitle}>
+          Enter the <Text style={styles.emphasis}>administrator password</Text> to continue
+        </Text>
 
         <TextInput
           testID="admin-password-input"
@@ -46,7 +54,7 @@ export default function AdminGateScreen({ onSuccess, onCancel }: Props) {
             if (error) setError(false);
           }}
           placeholder="Password"
-          placeholderTextColor="#54627a"
+          placeholderTextColor={colors.textDim}
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
@@ -64,88 +72,67 @@ export default function AdminGateScreen({ onSuccess, onCancel }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity testID="admin-cancel" style={styles.cancelButton} onPress={onCancel}>
-          <Text style={styles.cancelText}>Back to console</Text>
+          <Text style={styles.cancelText}>Back to Console</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ScreenFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#010813',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
   card: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#050e1d',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1a2c42',
-    padding: 24,
+    marginTop: 140,
+    marginHorizontal: layout.gutter,
+    borderWidth: 3,
+    borderColor: colors.panelBorder,
+    borderRadius: layout.panelRadius,
+    backgroundColor: colors.panel,
+    paddingHorizontal: 60,
+    paddingBottom: 48,
     alignItems: 'center',
   },
-  lockIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
+
+  padlock: { marginTop: 70, width: 150, height: 200 },
+
+  title: { color: colors.white, fontSize: 76 },
   subtitle: {
-    color: '#8e8e93',
-    fontSize: 13,
+    marginTop: 10,
+    color: colors.text,
+    fontSize: font.bodyLine,
     textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 20,
   },
+  emphasis: { fontWeight: '700' },
+
   input: {
+    marginTop: 90,
     width: '100%',
-    height: 48,
+    height: 133,
+    borderWidth: 2,
+    borderColor: colors.panelBorder,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#1a2c42',
-    backgroundColor: '#0a1424',
-    color: '#ffffff',
-    paddingHorizontal: 14,
-    fontSize: 16,
+    paddingHorizontal: 38,
+    color: colors.white,
+    fontSize: 46,
   },
-  inputError: {
-    borderColor: '#ff3b30',
-  },
+  inputError: { borderColor: colors.disconnected },
   errorText: {
-    color: '#ff3b30',
-    fontSize: 13,
     alignSelf: 'flex-start',
-    marginTop: 8,
+    marginTop: 12,
+    color: colors.disconnected,
+    fontSize: 32,
   },
+
   submitButton: {
+    marginTop: 60,
     width: '100%',
-    height: 48,
-    borderRadius: 10,
-    backgroundColor: '#2b8bff',
+    height: 133,
+    borderRadius: 8,
+    backgroundColor: colors.controlOn,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
   },
-  submitText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  cancelButton: {
-    marginTop: 16,
-    padding: 8,
-  },
-  cancelText: {
-    color: '#8e8e93',
-    fontSize: 14,
-  },
+  submitText: { color: '#4a4f55', fontSize: 58, letterSpacing: 2 },
+
+  cancelButton: { marginTop: 90 },
+  cancelText: { color: colors.text, fontSize: font.bodyLine },
 });
