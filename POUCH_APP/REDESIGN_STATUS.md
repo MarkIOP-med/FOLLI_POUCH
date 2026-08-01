@@ -57,14 +57,40 @@ FSR faults as `⚠ fault` rather than numbers.
 Known remaining gaps: vertical rhythm inside the V-node cards and the right
 column is tighter than the mockup; status-bar logo inset.
 
+## Known defects
+
+Visible in `VISUAL_REFERENCE/app/v2`, none yet fixed. All four are overflow or
+formatting, not layout — the panels are in the right places.
+
+1. **Header band labels collide.** `Pouch:` and `Console:` are positioned to
+   the comp's coordinates with no gap between them, so a pouch name of the
+   length actually in use runs into the `Console:` label. On all four screens.
+2. **V-node reading clipped.** On diagnostics, `Actual: NN mmHg` overruns the
+   card's right edge and loses the final glyph. The row was measured against
+   the comp's shorter placeholder values.
+3. **Duration hour not zero-padded.** The home cards and User Info call
+   `formatDuration`, which renders `2:25:06`; the header calls
+   `formatClockDuration`, which renders `02:25:13`. Both appear on screen at
+   once and do not align. `formatClockDuration` is the one that matches the
+   design's fixed-width field — the two call sites should use it.
+4. **Profile artwork overlaps a long pouch name** on the home cards.
+
+Not a defect, recorded because it looks like one: every page's title band reads
+`POUCH DIAGNOSTICS OVERVIEW v2.4.3`, including home, users and admin. That is
+what the comps print on all four pages, so the constant title is correct.
+
 ## Not started
 
-- **PAGE_01** (home / User Overview grid), **PAGE_03** (System Users + User
-  Info), **PAGE_04** (Admin Actions table + General Data). Backend fields they
-  need are already in place.
 - **FOLLI_CONSOLE** — the four `console_ui_05` pages. Different codebase and
   language (React Native / Expo). Must keep 41 jest tests and the expo bundle
   green.
+
+## No UI at all
+
+The four delivered pages do not cover everything the replaced screens did.
+Creating a patient, editing a prescription in detail, and registering a device
+or serial port are reachable only through the API and `scripts/seed_mockup.py`.
+Where they belong is a design question for the firm, not something to improvise.
 
 ## How to work on this
 
