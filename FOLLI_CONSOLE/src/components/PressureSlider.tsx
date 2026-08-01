@@ -45,17 +45,37 @@ export default function PressureSlider({
   testID,
 }: Props) {
   const [width, setWidth] = useState(0);
-  // Where the finger is, 0..1, while a drag is in progress. Null when settled.
+  // Where the thumb is, 0..1, while a drag is in progress. Null when settled.
   const [dragFraction, setDragFraction] = useState<number | null>(null);
+
+  const containerRef = useRef<View | null>(null);
+  // Page X of the track's left edge. Measured from the view itself rather than
+  // derived from a touch's locationX, which is reported against whichever view
+  // actually received the event — if that is the thumb, the origin is wrong by
+  // the thumb's position and the value collapses towards the minimum.
+  const originRef = useRef(0);
+  // Distance from the finger to the thumb's centre when the drag began.
+  const grabOffsetRef = useRef(0);
+
+  const measureOrigin = () => {
+    containerRef.current?.measureInWindow((x) => {
+      originRef.current = x;
+    });
+  };
 
   // Refs so the (stable) PanResponder always sees the latest props/layout.
   const stateRef = useRef({ width: 0, minimumValue, maximumValue, disabled, onValueChange });
   stateRef.current = { width, minimumValue, maximumValue, disabled, onValueChange };
 
-  // Page X of the track's left edge, captured when the gesture starts.
-  const originRef = useRef(0);
+  const span = maximumValue - minimumValue;
+  const settledFraction =
+    span > 0 ? Math.max(0, Math.min(1, (value - minimumValue) / span)) : 0;
+  // The responder is created once, so it reads the live fraction from a ref.
+  const fractionRef = useRef(settledFraction);
+  fractionRef.current = dragFraction ?? settledFraction;
 
-  const applyAt = (containerX: number) => {
+  /** Move the thumb so its centre sits at `centreX` within the track. */
+  const applyThumbCentre = (centreX: number) => {
     const { width: w, minimumValue: min, maximumValue: max, onValueChange: emit } =
       stateRef.current;
     const usable = w - THUMB_SIZE;
@@ -63,7 +83,7 @@ export default function PressureSlider({
     // there is nothing to emit anyway.
     if (usable <= 0 || max <= min) return;
 
-    const fraction = Math.max(0, Math.min(1, (containerX - THUMB_SIZE / 2) / usable));
+    const fraction = Math.max(0, Math.min(1, (centreX - THUMB_SIZE / 2) / usable));
     setDragFraction(fraction);
     emit(Math.round(min + fraction * (max - min)));
   };
@@ -73,29 +93,36 @@ export default function PressureSlider({
       onStartShouldSetPanResponder: () => !stateRef.current.disabled,
       onMoveShouldSetPanResponder: () => !stateRef.current.disabled,
       onPanResponderTerminationRequest: () => false,
+      // Touching down must not move the pressure. The gesture only records where
+      // the finger sits relative to the thumb, so the drag continues from the
+      // current value instead of jumping to wherever the screen was touched —
+      // which on a medical control also means a stray tap changes nothing.
       onPanResponderGrant: (evt) => {
-        const { pageX, locationX } = evt.nativeEvent;
-        originRef.current = pageX - locationX;
-        applyAt(locationX);
+        const { width: w } = stateRef.current;
+        const usable = Math.max(0, w - THUMB_SIZE);
+        const thumbCentre = fractionRef.current * usable + THUMB_SIZE / 2;
+        grabOffsetRef.current = evt.nativeEvent.pageX - originRef.current - thumbCentre;
       },
-      onPanResponderMove: (_evt, gesture) => applyAt(gesture.moveX - originRef.current),
+      onPanResponderMove: (_evt, gesture) =>
+        applyThumbCentre(gesture.moveX - originRef.current - grabOffsetRef.current),
       // Settle onto the committed value so the thumb never rests between stops.
       onPanResponderRelease: () => setDragFraction(null),
       onPanResponderTerminate: () => setDragFraction(null),
     }),
   ).current;
 
-  const span = maximumValue - minimumValue;
-  const settledFraction =
-    span > 0 ? Math.max(0, Math.min(1, (value - minimumValue) / span)) : 0;
   const thumbLeft =
     (dragFraction ?? settledFraction) * Math.max(0, width - THUMB_SIZE);
 
   return (
     <View
       testID={testID}
+      ref={containerRef}
       style={styles.touchArea}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => {
+        setWidth(e.nativeEvent.layout.width);
+        measureOrigin();
+      }}
       {...responder.panHandlers}
     >
       {/* pointerEvents 'none' on both children is load-bearing: the touch has to

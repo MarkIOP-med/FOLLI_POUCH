@@ -39,8 +39,21 @@ export type ZoneSettingsMap = Record<VNode, ZoneSettings>;
 export const TRIM_RANGE_PCT = 10;
 
 /**
- * The range this zone may be trimmed to: prescribed +/-10%, inside the
- * hardware's own 0..70 limit.
+ * The controller's own deadband. It holds pressure to about this accuracy, so a
+ * trim narrower than this is a control the patient can move without anything
+ * measurable happening. Mirrors CONTROLLER_TOLERANCE_MMHG in
+ * POUCH_APP/frontend/src/domain/pressure.ts — change one, change both.
+ */
+export const CONTROLLER_TOLERANCE_MMHG = 3;
+
+/**
+ * The range this zone may be trimmed to, inside the hardware's own 0..70 limit.
+ *
+ * The margin is 10% of the prescription or 3 mmHg, whichever is larger. Plain
+ * 10% collapses below the controller's deadband on small prescriptions — at 25
+ * mmHg it is +/-2.5, so the whole travel of the control sits inside the error
+ * the controller already has, and the patient gets a slider that does nothing.
+ * The floor keeps the adjustment real at every prescription.
  *
  * A zone prescribed 0 is switched off, and stays off — the patient can trim a
  * treatment the clinician ordered, not start one they did not.
@@ -50,9 +63,10 @@ export function trimBounds(
   trimRangePct: number = TRIM_RANGE_PCT,
 ): { min: number; max: number } {
   if (prescribed <= 0) return { min: 0, max: 0 };
+  const margin = Math.max((prescribed * trimRangePct) / 100, CONTROLLER_TOLERANCE_MMHG);
   return {
-    min: clampPressure(Math.round(prescribed * (1 - trimRangePct / 100))),
-    max: clampPressure(Math.round(prescribed * (1 + trimRangePct / 100))),
+    min: clampPressure(Math.round(prescribed - margin)),
+    max: clampPressure(Math.round(prescribed + margin)),
   };
 }
 

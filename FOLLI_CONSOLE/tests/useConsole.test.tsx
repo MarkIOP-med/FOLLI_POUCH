@@ -146,18 +146,39 @@ describe('useConsole controls', () => {
     });
   });
 
-  it('confines pressure to the prescription +/-10%, not to the full 0..70 range', () => {
+  it('confines pressure to the trim band, not to the full 0..70 range', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Temples is prescribed 25, so the patient may move between 23 and 28.
-    expect(result.current.trimMin).toBe(23);
+    // Temples is prescribed 25. 10% of that is 2.5, below the controller's
+    // 3 mmHg deadband, so the 3 mmHg floor applies and the band is 22..28.
+    expect(result.current.trimMin).toBe(22);
     expect(result.current.trimMax).toBe(28);
 
     act(() => result.current.updateTargetPressure(500));
     expect(result.current.targetPressure).toBe(28);
     act(() => result.current.updateTargetPressure(-20));
-    expect(result.current.targetPressure).toBe(23);
+    expect(result.current.targetPressure).toBe(22);
+  });
+
+  it('uses whichever is larger, 10% or the 3 mmHg deadband floor', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // Below 30 the percentage would be smaller than the controller can resolve,
+    // so the floor governs: +/-3 rather than +/-1.
+    act(() => result.current.applyPrescription({ 0x02: 10 }));
+    expect(result.current.trimMin).toBe(7);
+    expect(result.current.trimMax).toBe(13);
+
+    // At and above 30 the percentage is the larger of the two and takes over.
+    act(() => result.current.applyPrescription({ 0x02: 30 }));
+    expect(result.current.trimMin).toBe(27);
+    expect(result.current.trimMax).toBe(33);
+
+    act(() => result.current.applyPrescription({ 0x02: 60 }));
+    expect(result.current.trimMin).toBe(54);
+    expect(result.current.trimMax).toBe(66);
   });
 
   it('will not let an unprescribed zone be turned on', () => {

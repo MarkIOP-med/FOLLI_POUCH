@@ -60,7 +60,7 @@ describe('ConsoleScreen (full UI wiring)', () => {
     fireEvent.press(getByTestId('pressure-plus'));
     expect(getByTestId('pressure-readout').props.children).toBe(0);
 
-    // Temples is prescribed 25, so it can be trimmed within 23..28.
+    // Temples is prescribed 25, so it can be trimmed within 22..28.
     fireEvent.press(getByTestId('zone-2'));
     expect(getByTestId('pressure-readout').props.children).toBe(25);
     fireEvent.press(getByTestId('pressure-plus'));
