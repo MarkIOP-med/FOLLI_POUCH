@@ -47,7 +47,7 @@ void captureReferencePressure() {
 
 void updateCurrentPressures() {
   for (int i = 0; i < 4; i++) {
-    currentPressure_gage[i] = p[i + 1];   // p[0] is MANIFOLD; PADs start at p[1]
+    currentPressure_gage[i] = p[i];
   }
   manifoldPressure_gage = p[PUMP_SENSOR];
 }

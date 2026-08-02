@@ -1,7 +1,7 @@
 /*
    ===============================================
-   FOLLISAVE - FOLLI_CNTRL_Gen3
-   Pneumatic Headband Pressure Controller
+   FOLLISAVE - FOLLI_CNTRL_Gen6
+   Pneumatic Headband Pressure Controller (ESP32)
 
    Serial Commands:
      X,Y              → Set channel X to Y mmHg  (e.g. 0,80)
@@ -9,12 +9,10 @@
      s                → Stop system
      r / emergency    → Emergency relief all PADs
 
-   Control Unit:
-     Line 1  [FRONT][TEMPLE][EAR][BACK]  — PAD selection
-     Line 2  [UP][ZERO][DOWN]            — Pressure control for selected PAD
-     Line 3  [VIB0][VIB1][VIB2][VIB3]   — Vibration level for selected PAD
-     Line 4  [RESTORE][RESET][STOP]      — System commands
-     Side    [SIDE1][SIDE2][SIDE3↓hold]  — SIDE3 long press = ON/OFF
+   No onboard keyboard/LEDs/display on this hardware revision — control and
+   status live in the CONSOLE app over BLE (see ble.ino and
+   FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md) plus a POUCH_DIAGNOSTICS
+   serial/WiFi stream (planned, not yet implemented).
    ===============================================
 */
 
@@ -22,17 +20,17 @@
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("\n\n=== FOLLI_CNTRL_Gen3 - FOLLISAVE Controller ===");
+  Serial.println("\n\n=== FOLLI_CNTRL_Gen6 - FOLLISAVE Controller ===");
   Serial.println("Initializing...");
 
   analogReadResolution(12);
 
+  // --- CORE ---
   initValves();
+  // --- PERIPHERAL ---
   initVibration();
-  Wire.begin();
-  initDisplay();
-  initLeds();
-  initKeyboard();
+  initFSR();
+  initBLE();
 
   for (int i = 0; i < 4; i++) savedPressure[i] = defaultPressure[i];
 
@@ -43,18 +41,26 @@ void setup() {
 
   currentState = IDLE;
   Serial.println("Ready. No pressure applied.");
-  Serial.println("Press RESET or RESTORE on control unit to apply pressures.");
 }
 
 void loop() {
+  // --- CORE: sense current pressures ---
   readAnalogSensors();
   updateCurrentPressures();
+
+  // --- PERIPHERAL: read auxiliary sensors, log, take new targets from the outside world ---
+  // (handleSerialCommands() runs before runStateMachine() so a command that changes
+  // targetPressure[] this tick is acted on this tick, not next loop(); BLE command
+  // writes land asynchronously via the NimBLE callback regardless of updateBLE()'s
+  // position here, so it isn't time-sensitive the same way.)
+  readFSR();
   printSerialLog();
   handleSerialCommands();
-  handleKeyEvents();
-  checkLongPress();
+
+  // --- CORE: drive toward targetPressure[] ---
   runStateMachine();
+
+  // --- PERIPHERAL: apply settings, push telemetry ---
   updateVibration();
-  updateLeds();
-  updateDisplay();
+  updateBLE();
 }

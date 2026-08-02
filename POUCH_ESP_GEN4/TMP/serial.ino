@@ -8,7 +8,7 @@ void printSerialLog() {
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7");
+                   "FSR_FRN_L,FSR_FRN_R,FSR_TMP_L,FSR_TMP_R,FSR_EAR_L,FSR_EAR_R,FSR_BCK_L,FSR_BCK_R");
     headerPrinted = true;
   }
 
@@ -18,10 +18,14 @@ void printSerialLog() {
     Serial.print((int)currentPressure_gage[i]);  Serial.print(',');
   }
   Serial.print((int)manifoldPressure_gage);      Serial.print(',');
-  for (int i = 0; i < NUM_FSR; i++) {
-    Serial.print(fsrData[i]);
-    Serial.print(i < NUM_FSR - 1 ? ',' : '\n');
-  }
+  Serial.print(analogRead(fsrPins[0]));          Serial.print(',');  // FSR_FRN_L
+  Serial.print(analogRead(fsrPins[1]));          Serial.print(',');  // FSR_FRN_R
+  Serial.print(analogRead(fsrPins[2]));          Serial.print(',');  // FSR_TMP_L
+  Serial.print(analogRead(fsrPins[3]));          Serial.print(',');  // FSR_TMP_R
+  Serial.print(0);                               Serial.print(',');  // FSR_EAR_L (not implemented)
+  Serial.print(0);                               Serial.print(',');  // FSR_EAR_R (not implemented)
+  Serial.print(analogRead(fsrPins[4]));          Serial.print(',');  // FSR_BCK_L
+  Serial.println(analogRead(fsrPins[5]));                            // FSR_BCK_R
 }
 
 void handleSerialCommands() {
@@ -38,22 +42,6 @@ void handleSerialCommands() {
   if (incoming.equalsIgnoreCase("r") || incoming.equalsIgnoreCase("emergency")) {
     currentState = EMERGENCY_RELIEF;
     Serial.println("→ EMERGENCY RELIEF");
-    return;
-  }
-
-  if (incoming.startsWith("vib:")) {
-    String levels = incoming.substring(4);
-    for (int ch = 0; ch < 4 && levels.length() > 0; ch++) {
-      int comma = levels.indexOf(',');
-      String part = (comma >= 0) ? levels.substring(0, comma) : levels;
-      levels = (comma >= 0) ? levels.substring(comma + 1) : "";
-
-      int level = part.toInt();
-      level = constrain(level, 0, 3);
-      massageLevel[ch] = level;
-      if (level > 0) vibStartTime[ch] = millis();
-    }
-    Serial.println("→ Vibration levels updated");
     return;
   }
 

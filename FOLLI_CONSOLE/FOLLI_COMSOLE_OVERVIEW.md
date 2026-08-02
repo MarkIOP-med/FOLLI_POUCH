@@ -50,8 +50,15 @@ The system utilizes a single custom GATT Service over a secure, bonded Bluetooth
     * `0x03` = High Speed
   * **Byte 3 (Operation Mode Trigger):**
     * `0x00` = Hard Emergency System Shutoff / Dump Pressure
-    * `0x01` = Static Hold Mode
-    * `0x02` = Dynamic Burst / Pulse Mode
+    * `0x01` = Static Hold Mode (apply Byte 1 pressure + Byte 2 massage level to the Byte 0 V-Node)
+    * `0x02` = Dynamic Burst / Pulse Mode — **not implemented on the firmware side yet**, ignored if sent
+    * `0x03` = Restore — recall last-set pressures for all 4 V-Nodes (Bytes 0-2 ignored)
+    * `0x04` = Reset — recall factory-default pressures for all 4 V-Nodes (Bytes 0-2 ignored)
+    * `0x05` = Device Off — vent all + stop vibration + halt (Bytes 0-2 ignored)
+    * `0x06` = Device On — resume from Device Off (Bytes 0-2 ignored)
+    * `0x03`-`0x06` are firmware extensions beyond the original spec, added to cover system-level actions (restore/reset/on-off) that the original physical keyboard supported. See `POUCH_ESP_GEN4/ble.ino`.
+
+* **V-Node byte note:** the firmware maps this positionally onto its 4 real pads — `0x01`=FRONT, `0x02`=TEMPLE, `0x03`=EAR, `0x04`=BACK. There is no split Left/Right Temple channel; the "Left Temple"/"Right Temple" labels above predate the EAR pad and should be read as position 2 and 3 respectively.
 
 ### Characteristic B: Live Telemetry Channel
 * **UUID:** `d68a2a54-7f15-4ba5-bc44-59368d400d3b`

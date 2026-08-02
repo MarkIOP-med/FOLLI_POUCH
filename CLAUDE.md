@@ -13,7 +13,7 @@ FOLLI_POUCH ("FOLLISAVE") is a pneumatic headband pressure controller. The repo 
 
 Outside `FOLLI_CONSOLE/` there is no build system, package.json, or test suite — firmware is compiled/flashed via the Arduino IDE (`.ino` + `config.h`), and the web app is run directly with Python.
 
-**Protocol gap to know about:** the console app implements the BLE GATT protocol from `FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md` (4-byte commands / 6-byte telemetry, service `4fafc201-…`), but Gen4 firmware currently speaks only the USB-serial text protocol below — it has no BLE server. Until BLE is added to the firmware (or a serial transport to the app), the two cannot talk to each other.
+**BLE protocol:** `POUCH_ESP_GEN4/ble.ino` implements a NimBLE GATT server matching `FOLLI_CONSOLE/FOLLI_COMSOLE_OVERVIEW.md` (4-byte commands / 6-byte telemetry, service `4fafc201-…`), extended with opcodes `0x03`-`0x06` (restore/reset/device on-off) that the original doc didn't cover — see that doc's Section 3 and `ble.ino` for the full mapping. The firmware still speaks the USB-serial text protocol below in parallel.
 
 ## Running things
 
@@ -24,7 +24,7 @@ python app.py
 ```
 Serial port is hardcoded at `app.py:19` (`SERIAL_PORT = "COM3"`) — update it to match the actual device port before running. Server listens on `0.0.0.0:5000` and auto-connects to serial on startup; if that fails it still serves the UI and you can connect manually via `/api/connect`.
 
-**Firmware**: open `POUCH_ESP_GEN4/POUCH_ESP_GEN4.ino` in the Arduino IDE (needs `Adafruit_SH110X` and `Adafruit_NeoPixel` libraries) and flash to the Mega/ESP32. Serial monitor / dashboard must use 9600 baud.
+**Firmware**: open `POUCH_ESP_GEN4/POUCH_ESP_GEN4.ino` in the Arduino IDE (needs the `NimBLE-Arduino` library; `SPI` is built in) and flash to the ESP32. Serial monitor / dashboard must use 9600 baud. Targets an ESP32 board — no keyboard, LEDs, or OLED on this hardware revision; the Adafruit display/NeoPixel libraries are no longer needed.
 
 **Console app** (from `FOLLI_CONSOLE/`, needs Node 20+):
 ```bash
@@ -37,23 +37,34 @@ Android kiosk lock-task setup and the `android/` regeneration caveat are documen
 
 ## Firmware architecture (`POUCH_ESP_GEN4/`)
 
-One `.ino` per responsibility, all sharing state declared in `config.h` (pins, tuning constants, enums, globals, forward declarations — read this file first when touching firmware):
+One `.ino` per responsibility, all sharing state declared in `config.h` (pins, tuning constants, enums, globals, forward declarations — read this file first when touching firmware). Arduino requires every `.ino` to sit flat in the sketch root (no subfolders get auto-compiled), so the CORE/PERIPHERAL split below is enforced by convention + `config.h`'s layout, not by directory structure:
+
+**CORE** — the pressure control loop: get each V_NODE's actual pressure to its target. Owns the valve/pump/relief pins and the channel state machine; nothing outside these two files may drive `valvePins`/`PUMP_PIN`/`RELIEF_PIN` or touch the channel-state statics directly.
+
+| File | Responsibility |
+|---|---|
+| `pneumatics.ino` | Valve/pump/relief init, non-blocking state machine driving channels to target pressure |
+| `analogSensor.ino` | Oversampled analog pressure sensor reads + reference-pressure capture |
+
+**PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the pressure loop doesn't need. Peripherals only ever write to the shared control state in `config.h` (`targetPressure[]`, `massageLevel[]`, `deviceOn`, ...) and let CORE act on it next tick — they never touch pins CORE owns.
+
+| File | Responsibility |
+|---|---|
+| `serial.ino` | Serial command parsing + CSV telemetry logging |
+| `ble.ino` | NimBLE GATT server — command channel + telemetry notify, see protocol note above |
+| `vibration.ino` | Vibration motor level control with auto-timeout |
+| `fsr.ino` | 8-channel FSR read via MCP3008 SPI ADC (2 FLOW_LINK connectors × 4 V_NODEs) |
 
 | File | Responsibility |
 |---|---|
 | `POUCH_ESP_GEN4.ino` | `setup()` / `loop()` only |
-| `config.h` | Pins, tuning params, globals, enums, function declarations |
-| `pneumatics.ino` | Valve/pump/relief init, non-blocking state machine driving channels to target pressure |
-| `analogSensor.ino` | Oversampled analog pressure sensor reads + reference-pressure capture |
-| `display.ino` | SH1106G OLED init/update |
-| `serial.ino` | Serial command parsing + CSV telemetry logging |
-| `keyboard.ino` | 17-key debounced scan, key→action mapping, long-press detection |
-| `leds.ino` | NeoPixel (8 LEDs) state-driven sync |
-| `vibration.ino` | Vibration motor level control with auto-timeout |
+| `config.h` | Pins, tuning params, globals, enums, function declarations — grouped under `CORE`/`CORE CONTROL STATE`/`PERIPHERAL` headers matching this split |
 
-`loop()` order matters: read sensors → update pressures → log telemetry → handle serial → handle keys → check long-press → run state machine → update vibration/LEDs/display.
+No keyboard/LEDs/display files — this hardware revision has none; all control/status that used to live on the physical control unit now goes through `ble.ino`.
 
-**Pneumatic topology**: one pump feeds a shared manifold; each of 4 PADs (FRONT/TEMPLE/EAR/BACK) has its own solenoid valve to the manifold and its own downstream pressure sensor; a single relief valve vents the manifold to atmosphere. Increasing a PAD = open its valve + run pump; decreasing = open its valve + relief simultaneously; emergency/STOP = open all 4 valves + relief.
+`loop()` order matters: CORE senses pressure → PERIPHERAL reads FSR/logs/takes new targets from serial (BLE command writes land asynchronously via the NimBLE callback, independent of loop timing) → CORE's state machine drives toward the (possibly just-updated) targets → PERIPHERAL applies vibration + pushes BLE telemetry.
+
+**Pneumatic topology**: one pump feeds a shared manifold; each of 4 V_NODEs (FRONT/TEMPLE/EAR/BACK) has its own solenoid valve to the manifold and its own downstream pressure sensor; a single relief valve vents the manifold to atmosphere. Increasing a PAD = open its valve + run pump; decreasing = open its valve + relief simultaneously; emergency/STOP = open all 4 valves + relief. Each V_NODE also has a vibration motor (coupled L/R pair, one GPIO) and, via the two FLOW_LINK connectors to the headband, an FSR force sensor per side.
 
 **State machine** (`SystemState`): `IDLE → PRESSURIZING → MAINTENANCE`, or `EMERGENCY_RELIEF` / `STOPPED` from anywhere. `updateChannels()` in `pneumatics.ino` is non-blocking — it advances one channel/phase per `loop()` iteration rather than blocking with `delay()`.
 
@@ -62,8 +73,8 @@ One `.ino` per responsibility, all sharing state declared in `config.h` (pins, t
 - `X1,Y1;X2,Y2;...` — batch set multiple channels
 - `s` — stop
 - `r` / `emergency` — emergency relief, all PADs vent
-- `vib:L0,L1,L2,L3` — set vibration levels per channel (handled app-side; not yet parsed in `serial.ino`)
-- Outbound telemetry is a CSV line per loop: `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR_FRN_L,FSR_FRN_R,FSR_TMP_L,FSR_TMP_R,FSR_EAR_L,FSR_EAR_R,FSR_BCK_L,FSR_BCK_R` (EAR FSR channels are stubbed to 0 — not implemented in hardware yet).
+- `vib:L0,L1,L2,L3` — set vibration levels per channel (0–3)
+- Outbound telemetry is a CSV line per loop: `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7` (all 8 FSR channels are real MCP3008 reads now; which channel maps to which FLOW_LINK side/PAD isn't confirmed against the harness yet — see the TODO in `config.h`).
 
 Gen4 differs from the legacy Gen3 doc (`POUCH_GEN4_ARCHITECTURE.md`, actually written against Gen3 pins/behavior) mainly in: reference-pressure capture after startup relief (`captureReferencePressure()`), a pressure-actuation threshold to skip near-zero channels, and vibration auto-timeout (`VIBRATION_DURATION_MS`). When editing Gen4, verify behavior against the actual `.ino` files rather than trusting that doc verbatim.
 
