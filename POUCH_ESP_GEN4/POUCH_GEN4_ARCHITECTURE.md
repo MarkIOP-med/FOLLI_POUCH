@@ -247,6 +247,11 @@ int vibPWM[4]           = {0, 85, 170, 255};     // PWM for vib levels 0, 1, 2, 
 const int overSampling       = 4;
 const int overSamplingDelay  = 5;    // ms between oversampling cycles
 const int sensorDelayMeasur  = 50;   // µs between sensors in one cycle
+
+// Sensor conversion (3.3V supply, 0–100 kPa)
+const float Vmin     = 0.2;
+const float Vmax     = 2.7;
+const float Pmax_kPa = 100.0;
 ```
 
 `PRESSURE_STEP_MMHG`, `LONG_PRESS_MS`, and `DISPLAY_UPDATE_INTERVAL` no longer exist —
@@ -312,7 +317,7 @@ instead of stepping.
 ### Setting a pressure / massage level — BLE mode `0x01` or serial `X,Y`
 - Sets `targetPressure[node]` (and `savedPressure[node]`, so RESTORE can recall it later)
 - BLE also sets `massageLevel[node]` from byte 2 directly (`if > 0`, `vibStartTime[node] = millis()`)
-- Triggers `currentState = PRESSURIZING`
+- Resets `currentChannel = 0` and calls `resetChannelState()`, then triggers `currentState = PRESSURIZING`
 
 ### Restore / Reset — BLE mode `0x03`/`0x04` (no serial equivalent yet)
 - **RESTORE**: `targetPressure = savedPressure` (all 4) → `reliefAllPads()` + `captureReferencePressure()` first → PRESSURIZING
@@ -320,7 +325,8 @@ instead of stepping.
 
 ### Emergency / Stop
 - Serial `s` → `currentState = STOPPED` (full halt)
-- Serial `r`/`emergency`, BLE mode `0x00` → `reliefAllPads()` (+ `stopAllVibration()` on the BLE path) — vents and returns to IDLE
+- Serial `r`/`emergency` → sets `currentState = EMERGENCY_RELIEF`; `reliefAllPads()` then runs on the *next* `loop()` tick via `runStateMachine()`, not synchronously — vents and returns to IDLE
+- BLE mode `0x00` → calls `reliefAllPads()` + `stopAllVibration()` directly/synchronously (no state-machine round-trip) — vents and returns to IDLE
 
 ### Device On/Off — BLE mode `0x05`/`0x06`
 - **OFF**: `stopAllVibration()` + `reliefAllPads()` + `currentState = STOPPED` + `deviceOn = false`

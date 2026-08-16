@@ -76,7 +76,7 @@ No keyboard/LEDs/display files — this hardware revision has none; all control/
 - `vib:L0,L1,L2,L3` — set vibration levels per channel (0–3)
 - Outbound telemetry is a CSV line per loop: `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7` (all 8 FSR channels are real MCP3008 reads now; which channel maps to which FLOW_LINK side/PAD isn't confirmed against the harness yet — see the TODO in `config.h`).
 
-Gen4 differs from the legacy Gen3 doc (`POUCH_GEN4_ARCHITECTURE.md`, actually written against Gen3 pins/behavior) mainly in: reference-pressure capture after startup relief (`captureReferencePressure()`), a pressure-actuation threshold to skip near-zero channels, and vibration auto-timeout (`VIBRATION_DURATION_MS`). When editing Gen4, verify behavior against the actual `.ino` files rather than trusting that doc verbatim.
+`POUCH_GEN4_ARCHITECTURE.md` has since been rewritten against the current firmware (it now calls itself "Gen6" internally, reflecting a later rename) and matches the `.ino`/`config.h` files closely — pins, loop order, state machine, BLE opcodes, and function lists all check out. It still verifies against the code, not the other way around, so when editing firmware prefer the actual `.ino` files as ground truth and update the doc alongside any behavioral change.
 
 ## Web app architecture (`POUCH_APP/`)
 
