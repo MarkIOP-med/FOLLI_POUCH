@@ -46,7 +46,7 @@ One `.ino` per responsibility, all sharing state declared in `config.h` (pins, t
 | `pneumatics.ino` | Valve/pump/relief init, non-blocking state machine driving channels to target pressure |
 | `analogSensor.ino` | Oversampled analog pressure sensor reads + reference-pressure capture |
 
-**PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the pressure loop doesn't need. Peripherals only ever write to the shared control state in `config.h` (`targetPressure[]`, `massageLevel[]`, `deviceOn`, ...) and let CORE act on it next tick — they never touch pins CORE owns.
+**PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the pressure loop doesn't need. Peripherals only ever write to the shared control state in `config.h` (`targetPressure[]`, `vibrationLevel[]`, `deviceOn`, ...) and let CORE act on it next tick — they never touch pins CORE owns.
 
 | File | Responsibility |
 |---|---|

@@ -29,7 +29,7 @@ convention and by `config.h`'s layout):
 - **PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the
   pressure loop doesn't need (`serial.ino`, `ble.ino`, `vibration.ino`, `fsr.ino`).
   Peripherals only ever write to the shared control state in `config.h`
-  (`targetPressure[]`, `massageLevel[]`, `deviceOn`, ...) and let CORE act on it next tick.
+  (`targetPressure[]`, `vibrationLevel[]`, `deviceOn`, ...) and let CORE act on it next tick.
 
 ---
 
@@ -162,7 +162,7 @@ characteristic `beb5483e-…` (4-byte write), telemetry characteristic `d68a2a54
 |---|---|
 | 0 | V-Node — `0x01`=FRONT, `0x02`=TEMPLE, `0x03`=EAR, `0x04`=BACK (positional; doc's "Left/Right Temple" labels predate the EAR pad) |
 | 1 | Target pressure, mmHg, direct value |
-| 2 | Massage level, 0–3 |
+| 2 | Vibration level, 0–3 |
 | 3 | Operation mode — see below |
 
 **Byte 3 (Operation Mode):**
@@ -225,7 +225,7 @@ enum SystemState {
 | `deviceOn` | `bool` | `true` | ON/OFF state, toggled via BLE mode `0x05`/`0x06` | CORE control state |
 | `currentChannel` | `int` | `0` | Which PAD `updateChannels()` is currently servicing | CORE |
 | `savedPressure[4]` | `int` | `= defaultPressure` | Last user-set pressures (RESTORE target) | PERIPHERAL |
-| `massageLevel[4]` | `int` | `{0,0,0,0}` | Current vibration level per PAD (0–3) | PERIPHERAL |
+| `vibrationLevel[4]` | `int` | `{0,0,0,0}` | Current vibration level per PAD (0–3) | PERIPHERAL |
 | `vibStartTime[4]` | `unsigned long` | `{0,0,0,0}` | `millis()` when vibration last started per PAD | PERIPHERAL |
 | `fsrData[8]` | `uint16_t` | — | Latest MCP3008 reads, one per FSR channel | PERIPHERAL |
 
@@ -301,8 +301,8 @@ instead of stepping.
 | Function | Description |
 |---|---|
 | `initVibration()` | Set all vibration pins as OUTPUT, write 0 |
-| `updateVibration()` | Apply `vibPWM[massageLevel[i]]` to each PAD's motor, auto-off after `VIBRATION_DURATION_MS` |
-| `stopAllVibration()` | Write 0 to all motors, reset all `massageLevel[]` to 0 |
+| `updateVibration()` | Apply `vibPWM[vibrationLevel[i]]` to each PAD's motor, auto-off after `VIBRATION_DURATION_MS` |
+| `stopAllVibration()` | Write 0 to all motors, reset all `vibrationLevel[]` to 0 |
 
 ### `fsr.ino` (PERIPHERAL)
 | Function | Description |
@@ -314,9 +314,9 @@ instead of stepping.
 
 ## Command Behaviours
 
-### Setting a pressure / massage level — BLE mode `0x01` or serial `X,Y`
+### Setting a pressure / vibration level — BLE mode `0x01` or serial `X,Y`
 - Sets `targetPressure[node]` (and `savedPressure[node]`, so RESTORE can recall it later)
-- BLE also sets `massageLevel[node]` from byte 2 directly (`if > 0`, `vibStartTime[node] = millis()`)
+- BLE also sets `vibrationLevel[node]` from byte 2 directly (`if > 0`, `vibStartTime[node] = millis()`)
 - Resets `currentChannel = 0` and calls `resetChannelState()`, then triggers `currentState = PRESSURIZING`
 
 ### Restore / Reset — BLE mode `0x03`/`0x04` (no serial equivalent yet)

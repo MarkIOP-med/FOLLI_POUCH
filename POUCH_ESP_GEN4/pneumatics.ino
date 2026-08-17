@@ -23,10 +23,10 @@ void reliefStartup() {
   digitalWrite(PUMP_PIN, LOW);
   digitalWrite(RELIEF_PIN, HIGH);
   for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], HIGH);
-  delay(1000);
+  delay(RELIEF_VENT_DURATION_MS);
   digitalWrite(RELIEF_PIN, LOW);
   for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], LOW);
-  delay(150);
+  delay(STARTUP_SETTLE_MS);
   Serial.println("✓ Startup vent complete.");
 }
 
@@ -34,7 +34,7 @@ void reliefAllPads() {
   digitalWrite(PUMP_PIN, LOW);
   digitalWrite(RELIEF_PIN, HIGH);
   for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], HIGH);
-  delay(1000);
+  delay(RELIEF_VENT_DURATION_MS);
   digitalWrite(RELIEF_PIN, LOW);
   for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], LOW);
   for (int i = 0; i < 4; i++) targetPressure[i] = 0;
@@ -81,7 +81,7 @@ void updateChannels() {
     return;
   }
 
-  if (millis() - channelTimer < 30) return;
+  if (millis() - channelTimer < CHANNEL_PHASE_TICK_MS) return;
 
   float error = targetPressure[currentChannel] - currentPressure_gage[currentChannel];
 

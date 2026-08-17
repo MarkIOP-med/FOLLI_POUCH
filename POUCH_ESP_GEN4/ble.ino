@@ -10,14 +10,14 @@
 #define CHAR_COMMAND_UUID    "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define CHAR_TELEMETRY_UUID  "d68a2a54-7f15-4ba5-bc44-59368d400d3b"
 
-#define TELEMETRY_INTERVAL_MS  250
+// TELEMETRY_INTERVAL_MS now lives in config.h alongside the other tuning constants.
 
 // Byte 3 (Operation Mode Trigger). 0x00-0x02 are from FOLLI_COMSOLE_OVERVIEW.md.
 // 0x03+ are firmware extensions replacing the old physical-keyboard system
 // commands (RESTORE / RESET / device ON-OFF) that the documented protocol
 // has no opcode for — see that doc's Section 3 for the mirrored list.
 #define BLE_MODE_EMERGENCY    0x00   // vent all PADs + stop all vibration
-#define BLE_MODE_STATIC_HOLD  0x01   // apply Byte1 (pressure) + Byte2 (massage) to Byte0's V-Node
+#define BLE_MODE_STATIC_HOLD  0x01   // apply Byte1 (pressure) + Byte2 (vibration) to Byte0's V-Node
 #define BLE_MODE_DYNAMIC      0x02   // burst/pulse mode — not implemented, no pulse control loop exists yet
 #define BLE_MODE_RESTORE      0x03   // recall last-set (saved) pressures, all V_NODEs
 #define BLE_MODE_RESET        0x04   // recall factory-default pressures, all V_NODEs
@@ -32,10 +32,10 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
     std::string v = c->getValue();
     if (v.length() < 4) return;
 
-    uint8_t vNode    = (uint8_t)v[0];
-    uint8_t pressure = (uint8_t)v[1];
-    uint8_t massage  = (uint8_t)v[2];
-    uint8_t mode     = (uint8_t)v[3];
+    uint8_t vNode     = (uint8_t)v[0];
+    uint8_t pressure  = (uint8_t)v[1];
+    uint8_t vibration = (uint8_t)v[2];
+    uint8_t mode      = (uint8_t)v[3];
     int     node     = vNode - 1;   // 0x01..0x04 -> 0..3 (FRONT, TEMPLE, EAR, BACK)
 
     switch (mode) {
@@ -90,10 +90,10 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
     // BLE_MODE_STATIC_HOLD (or any other value) — normal per-node absolute set.
     if (node < 0 || node > 3) return;
 
-    targetPressure[node] = pressure;
-    savedPressure[node]  = pressure;
-    massageLevel[node]   = constrain((int)massage, 0, 3);
-    if (massageLevel[node] > 0) vibStartTime[node] = millis();
+    targetPressure[node]  = pressure;
+    savedPressure[node]   = pressure;
+    vibrationLevel[node]  = constrain((int)vibration, 0, 3);
+    if (vibrationLevel[node] > 0) vibStartTime[node] = millis();
 
     currentChannel = 0;
     resetChannelState();

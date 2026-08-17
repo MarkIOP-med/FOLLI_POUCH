@@ -50,7 +50,7 @@ void handleSerialCommands() {
 
       int level = part.toInt();
       level = constrain(level, 0, 3);
-      massageLevel[ch] = level;
+      vibrationLevel[ch] = level;
       if (level > 0) vibStartTime[ch] = millis();
     }
     Serial.println("→ Vibration levels updated");
