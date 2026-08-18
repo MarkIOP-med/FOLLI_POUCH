@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 #include <SPI.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
 // =====================================================================
 // This file is organized along TWO independent axes — both matter, and
@@ -87,20 +89,21 @@ int  targetPressure[4]   = {0, 0, 0, 0};  // live in-session pressure target per
 int  vibrationLevel[4]   = {0, 0, 0, 0};  // live in-session vibration level per channel, 0-3
 bool deviceOn            = true;
 
-// --- Per-user record — PERIPHERAL (today: RAM; planned: move to NVS flash so it
-// survives a power-cycle and follows one specific user across sessions) ---
-// The core control loop only ever looks at targetPressure[] — savedPressure/
-// defaultPressure exist purely to support the RESTORE/RESET commands.
+// --- Per-user record — PERIPHERAL, RAM only (see userProfile.ino). Set by
+// initUserProfile() at startup and by Save-as-default/Assign-new-user/Reset; does NOT
+// survive a power-cycle or reflash — every boot comes back up unassigned, running on
+// defaultPressure. The core control loop only ever looks at targetPressure[] —
+// savedPressure/userId/assigned exist purely to support the RESTORE/RESET/Save-as-
+// default/Assign-new-user commands.
 // Order: FRONT=0, TEMPLE=1, EAR=2, BACK=3
 int defaultPressure[4] = {25, 120, 85, 130};  // global factory default, all users
-int savedPressure[4];                         // this user's saved default pressure; initialized in setup() from defaultPressure; planned to move to NVS
+int savedPressure[4];                         // this user's saved default pressure — RAM only, see userProfile.ino
 
-// Planned, not yet implemented — a durable per-user profile plus the commands to
-// manage it (save current as default, assign a new/returning user, clear/reset):
-//   int   vibrationLevelDefault[4];  // per-user vibration default, NVS
-//   int   pressureThreshold[4];      // admin-only bound on how far target pressure may drift from the user's default, NVS
-//   int   userId;                    // opaque id of the user currently checked out to this pouch, NVS
-//   bool  assigned;                  // whether this device currently has a live user record, NVS
+// This pair plus savedPressure[4] above is the ONLY per-user data on the device —
+// vibration and thresholds are system-wide, same for every user, not stored per-user
+// (see PRESSURE_THRESHOLD_MMHG in section 3 below).
+int  userId   = -1;     // opaque id of the user currently checked out to this pouch; -1 = none, RAM only
+bool assigned = false;  // whether this device currently has a live user record, RAM only
 
 int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off (20s)
 int vibPWM[4]             = {0, 85, 170, 255};  // PWM output for vibration levels 0-3
@@ -132,10 +135,13 @@ unsigned long vibStartTime[4]  = {0, 0, 0, 0}; // millis() when vibration last s
 // --- Control-loop tuning constants — CORE ---
 int PRESSURE_TOLERANCE_MMHG          = 3;   // ± tolerance for "at target"
 int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // min actual pressure to trigger valve actuation; below this a channel with target=0 is skipped
-// NOTE: this is a different concept from the user-tweakable "pressure threshold" planned
-// above (which bounds how far a user may adjust off their own saved default) — this one
-// is purely a control-loop internal for skipping near-zero channels. The similar names
-// are a real risk of confusion; rename one of the two before either is exposed externally.
+
+// Planned, not yet implemented — system-wide, same for every user, not per-user:
+//   int pressureThreshold[4];  // max allowed drift of live target pressure from the user's saved default, admin-gated
+// NOTE: pressureThreshold is a different concept from PRESSURE_ACTUATION_THRESHOLD_MMHG
+// above — that one is purely a control-loop internal for skipping near-zero channels,
+// this one bounds how far a user may adjust off their own saved default. The similar
+// names are a real risk of confusion; rename one of the two before either ships.
 
 // Valve/pump control-loop timing — CORE. Previously unnamed literals in pneumatics.ino.
 const unsigned long CHANNEL_PHASE_TICK_MS   = 30;    // min time between updateChannels() phase advances
@@ -150,6 +156,46 @@ const int sensorDelayMeasur  = 50;   // µs between sensors in one cycle
 // BLE telemetry cadence — PERIPHERAL. Moved here from ble.ino so it sits alongside the
 // rest of the tuning constants; still a #define today, not runtime-adjustable.
 #define TELEMETRY_INTERVAL_MS  250
+
+
+// ============================================================
+// 4. COMMAND QUEUE — cross-cutting infrastructure, not itself data
+// ============================================================
+// Every transport (Serial, BLE, WiFi later) parses its own wire format but never
+// mutates shared state directly — it builds a Command and enqueues it here instead.
+// loop() drains the queue once per tick, before runStateMachine(), so every command
+// is applied on the main loop thread regardless of which task enqueued it (BLE's
+// onWrite() callback runs in NimBLE's own FreeRTOS task, not on loop()'s — writing
+// shared globals straight from there is a race once a command touches more than one
+// field at a time). Adding WiFi later means writing a parser that builds the same
+// Command struct and calls enqueueCommand() — nothing else changes.
+
+enum CommandType {
+  CMD_SET_TARGET,         // set one channel's pressure (+ optional vibration)
+  CMD_SET_VIBRATION_ALL,  // set vibration levels, starting at channel 0
+  CMD_STOP,
+  CMD_EMERGENCY,
+  CMD_RESTORE,
+  CMD_RESET,
+  CMD_DEVICE_ON,
+  CMD_DEVICE_OFF,
+  CMD_SAVE_AS_DEFAULT,   // current targetPressure[] -> this user's savedPressure[] (RAM only)
+  CMD_ASSIGN_NEW_USER    // blank this pouch's profile and assign a fresh userId, works fully offline
+};
+
+enum CommandSource { SRC_SERIAL, SRC_BLE };  // SRC_WIFI to be added when WiFi lands
+
+struct Command {
+  CommandType   type;
+  CommandSource source;
+  int channel;          // 0-3; used by CMD_SET_TARGET
+  int pressure;          // used by CMD_SET_TARGET
+  int vibLevel;           // 0-3, or -1 = "leave unchanged" — used by CMD_SET_TARGET
+  int vibLevels[4];        // used by CMD_SET_VIBRATION_ALL
+  int vibLevelsCount;       // how many of vibLevels[] are valid, starting at index 0 — used by CMD_SET_VIBRATION_ALL
+};
+
+extern QueueHandle_t commandQueue;
 
 
 // ==================== FUNCTION DECLARATIONS ====================
@@ -169,6 +215,16 @@ void updateCurrentPressures();
 void captureReferencePressure();
 
 // --- PERIPHERAL ---
+// commandQueue.ino
+void initCommandQueue();
+bool enqueueCommand(const Command& cmd);
+void processCommandQueue();
+
+// userProfile.ino
+void initUserProfile();
+void saveCurrentAsUserDefault();
+void assignNewUser();
+
 // fsr.ino
 void initFSR();
 void readFSR();

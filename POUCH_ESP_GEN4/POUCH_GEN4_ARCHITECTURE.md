@@ -72,6 +72,8 @@ external MCP3008 ADC (not direct analog pins).
 | `analogSensor.ino` | CORE | Analog pressure sensor reading and pressure update |
 | `serial.ino` | PERIPHERAL | Serial command parsing + CSV telemetry logging |
 | `ble.ino` | PERIPHERAL | NimBLE GATT server — command channel + telemetry notify |
+| `commandQueue.ino` | PERIPHERAL | Central command queue — every transport enqueues here instead of mutating state directly; one dispatcher applies every command on the main loop thread |
+| `userProfile.ino` | PERIPHERAL | Per-user record (userId, assigned, savedPressure) — RAM only, not durable across power-cycle; reset at startup, updated on Save-as-default/Assign-new-user/Reset |
 | `vibration.ino` | PERIPHERAL | Vibration motor init and level control, auto-timeout |
 | `fsr.ino` | PERIPHERAL | 8-channel FSR read via MCP3008 SPI ADC |
 
@@ -85,13 +87,17 @@ void loop() {
   readAnalogSensors();
   updateCurrentPressures();
 
-  // PERIPHERAL: read auxiliary sensors, log, take new targets from serial
-  // (handleSerialCommands() runs before runStateMachine() so a same-tick command
-  // takes effect this tick; BLE writes land asynchronously via the NimBLE callback,
-  // independent of loop timing.)
+  // PERIPHERAL: read auxiliary sensors, log, parse new commands into the queue.
+  // handleSerialCommands() and the BLE onWrite() callback only ever parse their own
+  // wire format and enqueueCommand() — neither mutates control state directly (BLE's
+  // callback runs in NimBLE's own FreeRTOS task, not this one). processCommandQueue()
+  // drains everything queued so far — this tick's serial input plus any BLE writes
+  // that landed since the last drain — and applies it here, before runStateMachine(),
+  // so it's acted on this same tick.
   readFSR();
   printSerialLog();
   handleSerialCommands();
+  processCommandQueue();
 
   // CORE: drive toward targetPressure[]
   runStateMachine();
@@ -101,6 +107,13 @@ void loop() {
   updateBLE();
 }
 ```
+
+Every transport (Serial, BLE, WiFi later) builds the same internal `Command` struct
+(`config.h`) and calls `enqueueCommand()` — `commandQueue.ino` is the one place that
+actually mutates `targetPressure[]`/`vibrationLevel[]`/`currentState`/etc., so the logic
+isn't duplicated per transport and can't be applied out of order relative to the control
+loop. See `commandQueue.ino`'s `dispatchCommand()` for the full mapping from `CommandType`
+to effect.
 
 ---
 
@@ -176,10 +189,13 @@ characteristic `beb5483e-…` (4-byte write), telemetry characteristic `d68a2a54
 | `0x04` | Reset — recall factory defaults, all 4 V-Nodes (bytes 0-2 ignored) |
 | `0x05` | Device off — vent + stop vibration + halt (bytes 0-2 ignored) |
 | `0x06` | Device on — resume from device off (bytes 0-2 ignored) |
+| `0x07` | Save as default — current pressures become this user's saved default, RAM only (bytes 0-2 ignored) |
+| `0x08` | Assign new user — fresh `userId` assigned to this pouch, saved default reset to factory default (bytes 0-2 ignored) |
 
-`0x03`–`0x06` are firmware extensions beyond the original doc, added to cover the
+`0x03`–`0x08` are firmware extensions beyond the original doc. `0x03`-`0x06` cover the
 system-level actions (restore/reset/on-off) the old physical keyboard supported —
-mirrored in `FOLLI_COMSOLE_OVERVIEW.md` Section 3.
+mirrored in `FOLLI_COMSOLE_OVERVIEW.md` Section 3. `0x07`-`0x08` are newer still, added
+for the per-user profile described in `COMMUNICATION.md` and not yet mirrored there.
 
 **Telemetry payload** (6 bytes, pushed every 250 ms): byte 0-3 = FRONT/TEMPLE/EAR/BACK
 current pressure (mmHg, clamped to a byte); byte 4 = battery SoC (**not measured on
@@ -195,6 +211,11 @@ detection wired up yet — always 0/healthy**).
 - `s` — stop
 - `r` / `emergency` — emergency relief, all PADs vent
 - `vib:L0,L1,L2,L3` — set vibration levels per channel (0–3)
+- `save` — save current pressures as this user's saved default (RAM only)
+- `assign` — assign a fresh user to this pouch, works fully offline
+- `restore` — recall last-set (saved) pressures, all 4 V-Nodes
+- `reset` — recall factory-default pressures, all 4 V-Nodes
+- `on` / `off` — device on / device off
 - Outbound telemetry, one CSV line per loop:
   `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7`
 
@@ -224,7 +245,9 @@ enum SystemState {
 | `manifoldPressure_gage` | `float` | `0.0` | Actual measured manifold pressure | CORE control state |
 | `deviceOn` | `bool` | `true` | ON/OFF state, toggled via BLE mode `0x05`/`0x06` | CORE control state |
 | `currentChannel` | `int` | `0` | Which PAD `updateChannels()` is currently servicing | CORE |
-| `savedPressure[4]` | `int` | `= defaultPressure` | Last user-set pressures (RESTORE target) | PERIPHERAL |
+| `savedPressure[4]` | `int` | `= defaultPressure` | This user's saved default pressure (RESTORE target) — RAM only, see `userProfile.ino` | PERIPHERAL |
+| `userId` | `int` | `-1` | Opaque id of the user checked out to this pouch, `-1` = none — RAM only | PERIPHERAL |
+| `assigned` | `bool` | `false` | Whether this pouch currently has a live user record — RAM only | PERIPHERAL |
 | `vibrationLevel[4]` | `int` | `{0,0,0,0}` | Current vibration level per PAD (0–3) | PERIPHERAL |
 | `vibStartTime[4]` | `unsigned long` | `{0,0,0,0}` | `millis()` when vibration last started per PAD | PERIPHERAL |
 | `fsrData[8]` | `uint16_t` | — | Latest MCP3008 reads, one per FSR channel | PERIPHERAL |
@@ -286,7 +309,7 @@ instead of stepping.
 ### `serial.ino` (PERIPHERAL)
 | Function | Description |
 |---|---|
-| `handleSerialCommands()` | Parse incoming serial — `X,Y`, `X1,Y1;X2,Y2`, `s`, `r`/`emergency`, `vib:` |
+| `handleSerialCommands()` | Parse incoming serial — `X,Y`, `X1,Y1;X2,Y2`, `s`, `r`/`emergency`, `vib:` — builds a `Command` and calls `enqueueCommand()`; never mutates control state directly |
 | `clearSerialBuffer()` | Flush incoming serial buffer |
 | `printSerialLog()` | Print one CSV telemetry line per loop |
 
@@ -295,7 +318,21 @@ instead of stepping.
 |---|---|
 | `initBLE()` | Start the NimBLE GATT server, register command/telemetry characteristics, begin advertising |
 | `updateBLE()` | Push a telemetry notify every `TELEMETRY_INTERVAL_MS` (250 ms) |
-| `CommandCallbacks::onWrite()` | Decodes the 4-byte command and dispatches per the Operation Mode table above |
+| `CommandCallbacks::onWrite()` | Decodes the 4-byte command, builds a `Command`, calls `enqueueCommand()` — never mutates control state directly (runs in NimBLE's own task) |
+
+### `commandQueue.ino` (PERIPHERAL)
+| Function | Description |
+|---|---|
+| `initCommandQueue()` | Create the FreeRTOS queue (16 slots of `Command`) |
+| `enqueueCommand(cmd)` | Non-blocking send; logs and returns `false` if the queue is full |
+| `processCommandQueue()` | Drains every queued `Command` and applies it — the only place `targetPressure[]`/`vibrationLevel[]`/`currentState`/etc. actually change in response to a command |
+
+### `userProfile.ino` (PERIPHERAL)
+| Function | Description |
+|---|---|
+| `initUserProfile()` | Reset `userId`/`assigned`/`savedPressure[]` to unassigned + `defaultPressure[]` at startup (RAM only, not durable) |
+| `saveCurrentAsUserDefault()` | `targetPressure[] -> savedPressure[]` — the Save-as-default command's action |
+| `assignNewUser()` | Assign a fresh, monotonically-incrementing `userId` to this pouch (counter resets each boot), reset `savedPressure[]` to `defaultPressure[]` — works fully offline |
 
 ### `vibration.ino` (PERIPHERAL)
 | Function | Description |
@@ -319,29 +356,39 @@ instead of stepping.
 - BLE also sets `vibrationLevel[node]` from byte 2 directly (`if > 0`, `vibStartTime[node] = millis()`)
 - Resets `currentChannel = 0` and calls `resetChannelState()`, then triggers `currentState = PRESSURIZING`
 
-### Restore / Reset — BLE mode `0x03`/`0x04` (no serial equivalent yet)
+### Restore / Reset — BLE mode `0x03`/`0x04`, serial `restore`/`reset`
 - **RESTORE**: `targetPressure = savedPressure` (all 4) → `reliefAllPads()` + `captureReferencePressure()` first → PRESSURIZING
 - **RESET**: `targetPressure = defaultPressure`, `savedPressure = defaultPressure` (all 4) → same sequence → PRESSURIZING
 
 ### Emergency / Stop
-- Serial `s` → `currentState = STOPPED` (full halt)
-- Serial `r`/`emergency` → sets `currentState = EMERGENCY_RELIEF`; `reliefAllPads()` then runs on the *next* `loop()` tick via `runStateMachine()`, not synchronously — vents and returns to IDLE
-- BLE mode `0x00` → calls `reliefAllPads()` + `stopAllVibration()` directly/synchronously (no state-machine round-trip) — vents and returns to IDLE
+- Serial `s`, BLE mode not applicable — `CMD_STOP` → `currentState = STOPPED` (full halt)
+- Serial `r`/`emergency`, BLE mode `0x00` — both now dispatch the same `CMD_EMERGENCY`:
+  `stopAllVibration()` then `currentState = EMERGENCY_RELIEF`. Venting happens the *same*
+  tick: `processCommandQueue()` runs right before `runStateMachine()` in `loop()`, so
+  `runStateMachine()` sees `EMERGENCY_RELIEF` and calls `reliefAllPads()` before the tick
+  ends. **Behavior change from before the command queue existed**: serial emergency now
+  also stops vibration (previously only the BLE path did), and both sources vent on the
+  same tick they're received (previously serial took one extra tick).
 
-### Device On/Off — BLE mode `0x05`/`0x06`
+### Device On/Off — BLE mode `0x05`/`0x06`, serial `off`/`on`
 - **OFF**: `stopAllVibration()` + `reliefAllPads()` + `currentState = STOPPED` + `deviceOn = false`
 - **ON**: `currentState = IDLE` + `deviceOn = true`
 
+### Save as default / Assign new user — BLE mode `0x07`/`0x08`, serial `save`/`assign`
+- **SAVE AS DEFAULT**: `savedPressure = targetPressure` (all 4), RAM only — does not touch `userId`/`assigned`
+- **ASSIGN NEW USER**: `userId` = next value from a counter that resets each boot, `assigned = true`, `savedPressure = defaultPressure` (all 4). Works fully offline — no dependency on POUCH_APP.
+- Neither changes `targetPressure[]`/`currentState` — these only touch the saved profile, not the live session
+- **None of this survives a power-cycle or reflash** — `userProfile.ino`'s per-user record is RAM only, same as the rest of `config.h`'s state. Adding durability (NVS/`Preferences`) is a deliberate later step if needed, not done today.
+
 ### savedPressure Update Rule
-- Initialised to `defaultPressure` at startup
-- Updated on every command that sets a target pressure (BLE static-hold, serial `X,Y`)
-- RESTORE applies `savedPressure`; RESET resets both `targetPressure` and `savedPressure` to defaults
+- Reset to `defaultPressure` at every startup by `initUserProfile()` — there is no durable per-user state across a power-cycle today
+- Note: BLE static-hold / serial `X,Y` also write `targetPressure[node]` into `savedPressure[node]` directly (existing behavior) — RESTORE applies whichever `savedPressure` is currently in RAM; SAVE AS DEFAULT updates it too, but neither persists beyond the current power session
+- RESET resets both `targetPressure` and `savedPressure` to `defaultPressure`
 
 ### Startup Sequence
 1. Serial init (9600 baud)
 2. `analogReadResolution(12)`
-3. `initValves()` (CORE), then `initVibration()`, `initFSR()`, `initBLE()` (PERIPHERAL)
-4. `savedPressure = defaultPressure`
-5. `reliefStartup()` — vent all to atmosphere
-6. 500ms delay, `captureReferencePressure()`, `clearSerialBuffer()`
-7. `currentState = IDLE` — no pressure applied, ready
+3. `initValves()` (CORE), then `initCommandQueue()`, `initUserProfile()`, `initVibration()`, `initFSR()`, `initBLE()` (PERIPHERAL) — the queue is created before BLE starts advertising, since a write could arrive as soon as it does; `initUserProfile()` resets `userId`/`assigned`/`savedPressure` to unassigned + `defaultPressure` (RAM only)
+4. `reliefStartup()` — vent all to atmosphere
+5. 500ms delay, `captureReferencePressure()`, `clearSerialBuffer()`
+6. `currentState = IDLE` — no pressure applied, ready

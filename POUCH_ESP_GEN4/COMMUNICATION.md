@@ -7,18 +7,39 @@ not always match what's currently implemented; check the **Status** column.
 
 ## Architecture in three bullets
 
-- **POUCH (ESP32)** is the driver. Live session state lives in RAM; one checked-out user's
-  regime (target pressure / vibration defaults + threshold) lives durably in NVS flash.
-  One user per device at a time — a future clear/hard-reset wipes the NVS record.
+- **POUCH (ESP32)** is the driver. Live session state and the checked-out user's pressure
+  regime both live in RAM only — **not durable across a power-cycle today**, by deliberate
+  choice (see "Open items"). One user per device at a time — a future clear/hard-reset wipes
+  the record, same as a reboot already does.
 - **CONSOLE** is a thin relay/display. It reads and writes through POUCH and holds no
   authoritative data of its own.
 - **POUCH_APP (POUCH_DIAGNOSTICS)** holds the full archive — every user ever assigned to any
-  pouch, their identity, and a backup copy of their regime, so nothing is lost if a pouch is
-  reassigned and later handed back to a previous user.
+  pouch, their identity, and a backup copy of their pressure regime, so nothing is lost if a
+  pouch is reassigned and later handed back to a previous user.
 
 > **Ownership rule:** for any given user, exactly one side is "live" at a time — POUCH while
 > they're checked out to it, POUCH_APP's archive while they're not. No field is ever written
 > from two places at once.
+
+### Three data tiers
+
+Every variable in this doc falls into exactly one of these. This is a different split from
+CORE/PERIPHERAL (which is about which `.ino` file may touch a variable in code) — this one is
+about who the value belongs to and how long it lives.
+
+- **Per-user** (`ESP-RAM` currently — durable `ESP-NVS` storage deferred, see "Open items") —
+  the *only* user-specific data that lives on the pouch: `userId`, **User Default Pressure**,
+  and the `assigned` flag. If no user is checked out ("default user"), User Default Pressure
+  is just equal to the global Default Pressure Regime. Being RAM-only means all three reset
+  on every power-cycle/reflash — the pouch "forgets" its assigned user each time it reboots.
+- **System-wide** (`ESP-RAM`/`ESP-CONST`, same for every user, not tied to any `userId`) —
+  Default Pressure Regime, Pressure Threshold, Vibration Duration, Vibration PWM levels, and
+  everything in Control Loop Tuning. These can be live-changed by a command today; *durably*
+  saving a changed value as the new system default (surviving reboot) is future work.
+- **Per-session** (`ESP-RAM`, no persistence at all — gone on power-cycle or new session) —
+  Current Target Pressure (seeded from User Default Pressure, tweakable within Pressure
+  Threshold) and Vibration Channels. Vibration has no per-user saved default — only the
+  system-wide duration/PWM levels persist as constants; the live level itself never does.
 
 ---
 
@@ -29,9 +50,9 @@ not always match what's currently implemented; check the **Status** column.
 | Actual Pressure | Pneumatics | ✅ Implemented |
 | FSR Pressure | Pneumatics | ✅ Implemented |
 | Default Target Pressure | Pneumatics | ✅ Implemented (constant) |
-| Default User Target Pressure | Pneumatics | 🔧 Planned |
+| Default User Target Pressure | Pneumatics | ✅ Implemented (Save-as-default), RAM only; 🔧 durable NVS storage + APP-JSON mirror still planned |
 | Current User Target Pressure | Pneumatics | ✅ Implemented |
-| Pressure Threshold | Pneumatics | 🔧 Planned |
+| Pressure Threshold | Pneumatics | 🆕 Candidate — system-wide, not per-user |
 | Pressure Tolerance | Control Loop Tuning | 🆕 Candidate |
 | Actuation Threshold | Control Loop Tuning | 🆕 Candidate |
 | Telemetry Interval | Control Loop Tuning | 🆕 Candidate |
@@ -47,8 +68,8 @@ not always match what's currently implemented; check the **Status** column.
 | Start time | User Data | ❗ Gap (no RTC) |
 | User Data (identity) | User Data | 🔧 Planned |
 | Session Operation Stage | User Data | ✅ Implemented (= `currentState`) |
-| User ID | User Data | 🔧 Planned |
-| Assigned | User Data | 🔧 Planned |
+| User ID | User Data | ✅ Implemented (ESP), RAM only; 🔧 durable NVS storage + APP-JSON mirror still planned |
+| Assigned | User Data | ✅ Implemented, RAM only |
 | CONSOLE device info | Devices | 🔧 Planned |
 | POUCH device info | Devices | ❗ Gap / 🔧 Planned |
 
@@ -58,7 +79,7 @@ not always match what's currently implemented; check the **Status** column.
 
 **Storage**
 - `ESP-RAM` — ESP32 RAM, live session value, lost on power-cycle
-- `ESP-NVS` — ESP32 flash (`Preferences`), the checked-out user's record, persists
+- `ESP-NVS` — ESP32 flash (`Preferences`), persists — **not currently used**; the per-user record is RAM-only today by deliberate choice, this is reserved for if/when durability is added back
 - `ESP-CONST` — compile-time constant in `config.h`, needs a reflash to change
 - `APP-JSON` — POUCH_APP's JSON database, the durable multi-user archive
 - `CONSOLE-LOCAL` — lives on the CONSOLE device itself, not synced through POUCH
@@ -78,9 +99,9 @@ not always match what's currently implemented; check the **Status** column.
 | Actual Pressure | `(0,0,0,0,0)` | `[MANIFOLD, FRONT, TEMPLE, EAR, BACK]` mmHg | Live sensor readings |
 | FSR Pressure | `(0×8)` | `[FRONT_L, FRONT_R, TEMPLE_L, TEMPLE_R, EAR_L, EAR_R, BACK_L, BACK_R]` | Raw force-sensor ADC reads |
 | Default Target Pressure | `(25,120,85,130)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | Global factory default, all users |
-| Default User Target Pressure | `(25,120,85,130)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | This user's saved regime, loaded at session start |
-| Current User Target Pressure | `(25,120,85,130)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | Live in-session target |
-| Pressure Threshold | `(5,15,10,15)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | Max drift of Current from Default, per channel |
+| Default User Target Pressure | `(25,120,85,130)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | This user's saved regime, loaded at session start. Equals Default Target Pressure (global) if no user is currently assigned. **This is the only per-user field on the pouch.** |
+| Current User Target Pressure | `(25,120,85,130)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | Live in-session target — per session only, not saved anywhere by default |
+| Pressure Threshold | `(5,15,10,15)` | `[FRONT, TEMPLE, EAR, BACK]` mmHg | Max drift of Current from Default, per channel — **system-wide, same for every user**, not stored per-user |
 
 **Access**
 
@@ -88,10 +109,10 @@ not always match what's currently implemented; check the **Status** column.
 |---|---|---|---|---|
 | Actual Pressure | Read-only | `ESP-RAM` | System | ✅ |
 | FSR Pressure | Read-only | `ESP-RAM` | System | ✅ (L/R mapping unconfirmed) |
-| Default Target Pressure | R/W *(open question)* | `ESP-CONST` | Reflash only | ✅ (values now match, `{25,120,85,130}`) |
-| Default User Target Pressure | R/W | `ESP-NVS` + `APP-JSON` mirror | Save-as-default; Restore-from-archive | 🔧 |
-| Current User Target Pressure | R/W | `ESP-RAM` | Serial, BLE, WiFi *(planned)* | ✅ |
-| Pressure Threshold | R/W, **admin only** | `ESP-NVS` + `APP-JSON` mirror | Serial/BLE/WiFi, admin-gated | 🔧 (not enforced yet) |
+| Default Target Pressure | R/W *(open question)* | `ESP-CONST`, system-wide | Reflash only | ✅ (values now match, `{25,120,85,130}`) |
+| Default User Target Pressure | R/W | `ESP-RAM` (per-user, not durable) + `APP-JSON` mirror (planned) | Save-as-default (serial `save`, BLE `0x07`); Restore-from-archive | ✅ Save-as-default implemented, RAM only; 🔧 durable NVS storage + Restore-from-archive (APP-JSON sync) still planned |
+| Current User Target Pressure | R/W | `ESP-RAM`, per session | Serial, BLE, WiFi *(planned)* | ✅ |
+| Pressure Threshold | R/W, **admin only** | `ESP-RAM`, system-wide (not per-user) | Serial/BLE/WiFi, admin-gated | 🆕 Candidate — not enforced yet; durable system-default persistence deferred |
 
 ---
 
@@ -99,7 +120,10 @@ not always match what's currently implemented; check the **Status** column.
 
 Candidates identified while auditing the rest of `config.h`/the `.ino` files for values that
 are currently hardcoded but might reasonably need tuning without a reflash. None of these are
-decided yet — see "Open items" below.
+decided yet — see "Open items" below. All of these are **system-wide** tier (see "Three data
+tiers" above) — same for every user, never stored per-user. So are Pressure Threshold
+(Pneumatics) and Vibration Duration / Vibration Levels (Vibration), listed in their own
+sections below for context but conceptually part of this same bucket.
 
 **Definition**
 
@@ -147,18 +171,18 @@ decided yet — see "Open items" below.
 
 | Variable | Default | Structure | Description |
 |---|---|---|---|
-| Vibration Levels | `(0,85,170,255)` | `[LEVEL_0, LEVEL_1, LEVEL_2, LEVEL_3]` PWM | Output PWM per level 0–3 |
-| Vibration Channels | `(0,0,0,0)` | `[FRONT, TEMPLE, EAR, BACK]` level 0–3 | Live vibration level per channel |
-| Vibration Duration Time | `20` sec | scalar | Auto-off duration after vibration starts |
+| Vibration Levels | `(0,85,170,255)` | `[LEVEL_0, LEVEL_1, LEVEL_2, LEVEL_3]` PWM | Output PWM per level 0–3 — **system-wide**, same for every user |
+| Vibration Channels | `(0,0,0,0)` | `[FRONT, TEMPLE, EAR, BACK]` level 0–3 | Live vibration level per channel — **per session only, no per-user saved default** |
+| Vibration Duration Time | `20` sec | scalar | Auto-off duration after vibration starts — **system-wide**, same for every user |
 | Vibration Time per channel | `(0,0,0,0)` | `[FRONT, TEMPLE, EAR, BACK]` sec | Elapsed time since vibration started |
 
 **Access**
 
 | Variable | Read/Write | Storage | Changed Via | Status |
 |---|---|---|---|---|
-| Vibration Levels | R/W *(open question)* | `ESP-CONST` | Reflash only | ✅ (as `vibPWM[4]`) |
-| Vibration Channels | R/W | `ESP-RAM` | Serial, BLE, WiFi *(planned)* | ✅ (as `vibrationLevel[4]`) |
-| Vibration Duration Time | R/W | `ESP-CONST` | Reflash only | ✅ (values now match, `20000`ms / 20s) |
+| Vibration Levels | R/W *(open question)* | `ESP-CONST`, system-wide | Reflash only | ✅ implemented as `vibPWM[4]`; 🆕 candidate for live command-change (durable persistence deferred) |
+| Vibration Channels | R/W | `ESP-RAM`, per session | Serial, BLE, WiFi *(planned)* | ✅ (as `vibrationLevel[4]`) |
+| Vibration Duration Time | R/W | `ESP-CONST`, system-wide | Reflash only | ✅ implemented, `20000`ms / 20s; 🆕 candidate for live command-change (durable persistence deferred) |
 | Vibration Time per channel | Read-only | `ESP-RAM` | System (derived from `vibStartTime[]`) | 🔧 not exposed yet |
 
 ---
@@ -184,8 +208,8 @@ decided yet — see "Open items" below.
 | Start time | R/W | Not on ESP — timestamped by Console UI / POUCH_APP UI | Console UI / POUCH_APP UI | ❗ same RTC gap |
 | User Data | R/W | `APP-JSON` only | POUCH_APP UI | 🔧 never sent to ESP32 |
 | Session Operation Stage | via actions, not direct set | `ESP-RAM` | Serial `s`/`r`/`emergency`; BLE `0x00`,`0x03`–`0x06` | ✅ this **is** `currentState` |
-| User ID | R/W | `ESP-NVS` + `APP-JSON` | Assignment command | 🔧 |
-| Assigned | R/W | `ESP-NVS` | System — set on assignment, cleared by future Clear/Reset | 🔧 |
+| User ID | R/W | `ESP-RAM` (not durable) + `APP-JSON` (planned) | Assign-new-user (serial `assign`, BLE `0x08`) | ✅ ESP side implemented, RAM only; 🔧 durable NVS storage + APP-JSON sync still planned |
+| Assigned | R/W | `ESP-RAM` (not durable) | System — set by Assign-new-user, cleared by future Clear/Reset (or a reboot, today) | ✅ set/read implemented, RAM only |
 
 ---
 
@@ -226,15 +250,21 @@ Audited alongside the candidates above — these stay compile-time-only, on purp
 - **RTC gap** — no real-time clock on the ESP32 (no WiFi/NTP, no RTC module). Session/Start time must be handled by CONSOLE or POUCH_APP.
 - **`POUCH_ID` scheme** — not yet defined (factory constant? derived from MAC?).
 - **Clear/Hard-reset scope** — deferred design. Should back up to POUCH_APP before wiping if reachable; behavior when unreachable is undecided.
-- **Pressure Threshold enforcement** — not implemented anywhere yet; any command can currently set Current Target Pressure to any value with no bounds-check against Default.
+- **Pressure Threshold enforcement** — not implemented anywhere yet; any command can currently set Current Target Pressure to any value with no bounds-check against Default. Now confirmed system-wide (not per-user).
 - **Naming collision** — `PRESSURE_ACTUATION_THRESHOLD_MMHG` (Control Loop Tuning) vs. "Pressure Threshold" (Pneumatics) are different concepts that sound the same. Rename one before both exist in the shipped protocol.
 - **Sensor Calibration access tier** — likely needs a stricter "service/calibration" role, not general admin, since a bad value corrupts every pressure reading fleet-wide if pushed carelessly.
 - **Valve/Pump Timing** — decide whether these get exposed externally at all, or just formalized as named `config.h` constants and left reflash-only.
+- **Per-user persistence deferred** — `userId`/`assigned`/User Default Pressure are RAM-only by deliberate choice (not a bug): the pouch forgets its assigned user on every power-cycle or reflash. NVS/`Preferences`-backed durability was implemented once and deliberately removed in favor of simplicity while this is still being built out; re-add it later if the pouch needs to remember its user across a reboot.
 
-## New commands needed (not yet in `serial.ino` / `ble.ino`)
+## Commands
 
-- **Save as default** — current → this user's `ESP-NVS` record (propagates to `APP-JSON` when reachable)
-- **Assign new user** — blank pouch seeds a fresh NVS record from global defaults; works fully offline
-- **Assign returning user (restore from archive)** — POUCH_APP pushes an archived record to a blank pouch; requires POUCH_APP connectivity
-- **Clear / hard reset** — wipes `userId` + both defaults + `assigned` flag (design deferred)
-- **Set threshold** — admin-only write to `pressureThreshold[4]`
+Implemented, both transports:
+
+- **Save as default** (serial `save`, BLE mode `0x07`) — current *pressure* → this user's saved-default record, RAM only. Pressure only — vibration has no per-user default to save. Does not touch `userId`/`assigned`. Lost on power-cycle; `APP-JSON` sync (so POUCH_APP's archive picks up the change) is not wired up yet either.
+- **Assign new user** (serial `assign`, BLE mode `0x08`) — assigns a fresh `userId` to this pouch (counter resets each boot, so ids can repeat across power-cycles), resets `savedPressure[]` to the global Default Pressure Regime. RAM only. Works fully offline.
+
+Still needed:
+
+- **Assign returning user (restore from archive)** — POUCH_APP pushes an archived pressure record to a blank pouch; requires POUCH_APP connectivity
+- **Clear / hard reset** — wipes `userId` + User Default Pressure + `assigned` flag (design deferred)
+- **Set system parameter** (admin/service-gated, deferred) — live-update a system-wide value (Pressure Threshold, Vibration Duration/Levels, or any Control Loop Tuning constant) via command. Takes effect immediately in RAM; persisting the change as the new durable system default across reboots is future work.

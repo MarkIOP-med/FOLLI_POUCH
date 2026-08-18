@@ -20,19 +20,17 @@
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("\n\n=== FOLLI_CNTRL_Gen6 - FOLLISAVE Controller ===");
-  Serial.println("Initializing...");
-
+  
   analogReadResolution(12);
 
   // --- CORE ---
   initValves();
   // --- PERIPHERAL ---
+  initCommandQueue();  // before initBLE() — a write could arrive as soon as advertising starts
+  initUserProfile();   // resets userId/assigned/savedPressure to unassigned + factory defaults (RAM only, not durable)
   initVibration();
   initFSR();
   initBLE();
-
-  for (int i = 0; i < 4; i++) savedPressure[i] = defaultPressure[i];
 
   reliefStartup();
   delay(500);
@@ -48,14 +46,17 @@ void loop() {
   readAnalogSensors();
   updateCurrentPressures();
 
-  // --- PERIPHERAL: read auxiliary sensors, log, take new targets from the outside world ---
-  // (handleSerialCommands() runs before runStateMachine() so a command that changes
-  // targetPressure[] this tick is acted on this tick, not next loop(); BLE command
-  // writes land asynchronously via the NimBLE callback regardless of updateBLE()'s
-  // position here, so it isn't time-sensitive the same way.)
+  // --- PERIPHERAL: read auxiliary sensors, log, parse new commands into the queue ---
+  // handleSerialCommands() and the BLE onWrite() callback only ever parse their own
+  // wire format and enqueueCommand() — they never mutate control state directly (BLE's
+  // callback runs in NimBLE's own FreeRTOS task, not this one). processCommandQueue()
+  // drains everything queued so far — this tick's serial input plus any BLE writes that
+  // landed since the last drain — and applies it here, on the main loop thread, before
+  // runStateMachine() so it's acted on this same tick.
   readFSR();
   printSerialLog();
   handleSerialCommands();
+  processCommandQueue();
 
   // --- CORE: drive toward targetPressure[] ---
   runStateMachine();

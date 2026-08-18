@@ -23,10 +23,16 @@
 #define BLE_MODE_RESET        0x04   // recall factory-default pressures, all V_NODEs
 #define BLE_MODE_DEVICE_OFF   0x05   // vent + stop vibration + STOPPED (no further action until DEVICE_ON)
 #define BLE_MODE_DEVICE_ON    0x06   // resume from DEVICE_OFF
+#define BLE_MODE_SAVE_AS_DEFAULT 0x07  // save current pressures as this user's saved default (RAM only), bytes 0-2 ignored
+#define BLE_MODE_ASSIGN_NEW_USER 0x08  // assign a fresh user to this pouch, works fully offline, bytes 0-2 ignored
 
 static NimBLECharacteristic* telemetryChar   = nullptr;
 static unsigned long         lastTelemetryMs = 0;
 
+// This callback only ever parses the 4-byte payload and enqueues a Command — it never
+// mutates targetPressure[]/currentState/etc. directly. It runs in NimBLE's own FreeRTOS
+// task, not on loop()'s, so direct mutation here would race the control loop; see
+// commandQueue.ino / config.h's "COMMAND QUEUE" section for why.
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* c) override {
     std::string v = c->getValue();
@@ -36,68 +42,60 @@ class CommandCallbacks : public NimBLECharacteristicCallbacks {
     uint8_t pressure  = (uint8_t)v[1];
     uint8_t vibration = (uint8_t)v[2];
     uint8_t mode      = (uint8_t)v[3];
-    int     node     = vNode - 1;   // 0x01..0x04 -> 0..3 (FRONT, TEMPLE, EAR, BACK)
+    int     node      = vNode - 1;   // 0x01..0x04 -> 0..3 (FRONT, TEMPLE, EAR, BACK)
+
+    Command cmd = {};
+    cmd.source = SRC_BLE;
 
     switch (mode) {
       case BLE_MODE_EMERGENCY:
-        stopAllVibration();
-        reliefAllPads();
-        Serial.println("BLE → EMERGENCY SHUTOFF");
+        cmd.type = CMD_EMERGENCY;
+        enqueueCommand(cmd);
         return;
 
       case BLE_MODE_RESTORE:
-        reliefAllPads();
-        captureReferencePressure();
-        for (int i = 0; i < 4; i++) targetPressure[i] = savedPressure[i];
-        currentChannel = 0;
-        resetChannelState();
-        currentState = PRESSURIZING;
-        Serial.println("BLE → RESTORE");
+        cmd.type = CMD_RESTORE;
+        enqueueCommand(cmd);
         return;
 
       case BLE_MODE_RESET:
-        reliefAllPads();
-        captureReferencePressure();
-        for (int i = 0; i < 4; i++) {
-          targetPressure[i] = defaultPressure[i];
-          savedPressure[i]  = defaultPressure[i];
-        }
-        currentChannel = 0;
-        resetChannelState();
-        currentState = PRESSURIZING;
-        Serial.println("BLE → RESET");
+        cmd.type = CMD_RESET;
+        enqueueCommand(cmd);
         return;
 
       case BLE_MODE_DEVICE_OFF:
-        deviceOn = false;
-        stopAllVibration();
-        reliefAllPads();
-        currentState = STOPPED;
-        Serial.println("BLE → DEVICE OFF");
+        cmd.type = CMD_DEVICE_OFF;
+        enqueueCommand(cmd);
         return;
 
       case BLE_MODE_DEVICE_ON:
-        deviceOn     = true;
-        currentState = IDLE;
-        Serial.println("BLE → DEVICE ON");
+        cmd.type = CMD_DEVICE_ON;
+        enqueueCommand(cmd);
+        return;
+
+      case BLE_MODE_SAVE_AS_DEFAULT:
+        cmd.type = CMD_SAVE_AS_DEFAULT;
+        enqueueCommand(cmd);
+        return;
+
+      case BLE_MODE_ASSIGN_NEW_USER:
+        cmd.type = CMD_ASSIGN_NEW_USER;
+        enqueueCommand(cmd);
         return;
 
       case BLE_MODE_DYNAMIC:
-        Serial.println("BLE → dynamic/pulse mode requested but not implemented — ignored");
+        Serial.println("BLE -> dynamic/pulse mode requested but not implemented — ignored");
         return;
     }
 
     // BLE_MODE_STATIC_HOLD (or any other value) — normal per-node absolute set.
     if (node < 0 || node > 3) return;
 
-    targetPressure[node]  = pressure;
-    savedPressure[node]   = pressure;
-    vibrationLevel[node]  = constrain((int)vibration, 0, 3);
-    if (vibrationLevel[node] > 0) vibStartTime[node] = millis();
-
-    currentChannel = 0;
-    resetChannelState();
-    currentState = PRESSURIZING;
+    cmd.type     = CMD_SET_TARGET;
+    cmd.channel  = node;
+    cmd.pressure = pressure;
+    cmd.vibLevel = constrain((int)vibration, 0, 3);
+    enqueueCommand(cmd);
   }
 };
 

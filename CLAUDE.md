@@ -46,12 +46,14 @@ One `.ino` per responsibility, all sharing state declared in `config.h` (pins, t
 | `pneumatics.ino` | Valve/pump/relief init, non-blocking state machine driving channels to target pressure |
 | `analogSensor.ino` | Oversampled analog pressure sensor reads + reference-pressure capture |
 
-**PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the pressure loop doesn't need. Peripherals only ever write to the shared control state in `config.h` (`targetPressure[]`, `vibrationLevel[]`, `deviceOn`, ...) and let CORE act on it next tick — they never touch pins CORE owns.
+**PERIPHERAL** — decides *what* the targets should be, or reads/actuates hardware the pressure loop doesn't need. Serial and BLE parse their own wire format but never mutate control state directly — they build a `Command` (`config.h`) and call `enqueueCommand()`; `commandQueue.ino` is the one place that applies it, on the main loop thread — they never touch pins CORE owns.
 
 | File | Responsibility |
 |---|---|
-| `serial.ino` | Serial command parsing + CSV telemetry logging |
-| `ble.ino` | NimBLE GATT server — command channel + telemetry notify, see protocol note above |
+| `serial.ino` | Serial command parsing → enqueues `Command`s; CSV telemetry logging |
+| `ble.ino` | NimBLE GATT server — command channel parses → enqueues `Command`s; telemetry notify, see protocol note above |
+| `commandQueue.ino` | Central command queue + dispatcher — every transport enqueues here instead of mutating `targetPressure[]`/`vibrationLevel[]`/`currentState`/etc. directly, so BLE's callback (which runs in NimBLE's own FreeRTOS task) can't race the control loop |
+| `userProfile.ino` | Per-user record (`userId`, `assigned`, `savedPressure[]`) — RAM only, not durable across power-cycle; one record per device, reset at startup, updated on Save-as-default/Assign-new-user/Reset |
 | `vibration.ino` | Vibration motor level control with auto-timeout |
 | `fsr.ino` | 8-channel FSR read via MCP3008 SPI ADC (2 FLOW_LINK connectors × 4 V_NODEs) |
 
@@ -62,7 +64,7 @@ One `.ino` per responsibility, all sharing state declared in `config.h` (pins, t
 
 No keyboard/LEDs/display files — this hardware revision has none; all control/status that used to live on the physical control unit now goes through `ble.ino`.
 
-`loop()` order matters: CORE senses pressure → PERIPHERAL reads FSR/logs/takes new targets from serial (BLE command writes land asynchronously via the NimBLE callback, independent of loop timing) → CORE's state machine drives toward the (possibly just-updated) targets → PERIPHERAL applies vibration + pushes BLE telemetry.
+`loop()` order matters: CORE senses pressure → PERIPHERAL reads FSR/logs/parses serial into the command queue, then `processCommandQueue()` drains it (this tick's serial input plus any BLE writes queued since the last drain) → CORE's state machine drives toward the (possibly just-updated) targets → PERIPHERAL applies vibration + pushes BLE telemetry.
 
 **Pneumatic topology**: one pump feeds a shared manifold; each of 4 V_NODEs (FRONT/TEMPLE/EAR/BACK) has its own solenoid valve to the manifold and its own downstream pressure sensor; a single relief valve vents the manifold to atmosphere. Increasing a PAD = open its valve + run pump; decreasing = open its valve + relief simultaneously; emergency/STOP = open all 4 valves + relief. Each V_NODE also has a vibration motor (coupled L/R pair, one GPIO) and, via the two FLOW_LINK connectors to the headband, an FSR force sensor per side.
 
@@ -74,7 +76,13 @@ No keyboard/LEDs/display files — this hardware revision has none; all control/
 - `s` — stop
 - `r` / `emergency` — emergency relief, all PADs vent
 - `vib:L0,L1,L2,L3` — set vibration levels per channel (0–3)
+- `save` — save current pressures as this user's saved default (RAM only)
+- `assign` — assign a fresh user to this pouch, works fully offline
+- `restore` / `reset` — recall saved / factory-default pressures
+- `on` / `off` — device on / device off
 - Outbound telemetry is a CSV line per loop: `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7` (all 8 FSR channels are real MCP3008 reads now; which channel maps to which FLOW_LINK side/PAD isn't confirmed against the harness yet — see the TODO in `config.h`).
+
+None of `serial.ino`'s commands beyond the original four (`X,Y`, `s`, `r`/`emergency`, `vib:`) are mirrored by `POUCH_APP/app.py` yet — that's a separate app-side task, not done as part of the firmware work described above.
 
 `POUCH_GEN4_ARCHITECTURE.md` has since been rewritten against the current firmware (it now calls itself "Gen6" internally, reflecting a later rename) and matches the `.ino`/`config.h` files closely — pins, loop order, state machine, BLE opcodes, and function lists all check out. It still verifies against the code, not the other way around, so when editing firmware prefer the actual `.ino` files as ground truth and update the doc alongside any behavioral change.
 
