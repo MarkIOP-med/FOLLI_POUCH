@@ -28,7 +28,7 @@ static unsigned long         lastTelemetryMs = 0;
 // stack's long-write/queued-write mechanism reassembles it — Write-Without-Response is
 // capped at one ATT-MTU-sized packet. Flagging for whoever implements CONSOLE.
 class CommandCallbacks : public NimBLECharacteristicCallbacks {
-  void onWrite(NimBLECharacteristic* c) override {
+  void onWrite(NimBLECharacteristic* c, NimBLEConnInfo& connInfo) override {
     std::string v = c->getValue();
     if (v.length() == 0) return;
     parseCommandString(String(v.c_str()), SRC_BLE);
@@ -52,7 +52,8 @@ void initBLE() {
     NIMBLE_PROPERTY::NOTIFY
   );
 
-  service->start();
+  server->start();  // NimBLE-Arduino 2.x: starts the server and all its services;
+                     // NimBLEService::start() is a deprecated no-op now
 
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(SERVICE_UUID);

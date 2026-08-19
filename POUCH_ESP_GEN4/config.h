@@ -27,10 +27,11 @@ const int valvePins[6] = {26, 4, 13, 14, 25, 27};
 
 // Pressure sensor pins — CORE
 #define NUM_SENSORS  5
-#define PUMP_SENSOR  0   // index of manifold sensor in p[] / analogPressureSensorPins[]
-const int analogPressureSensorPins[NUM_SENSORS] = {36, 32, 33, 34, 35};
-// [0]=36 Manifold  [1]=32 FRONT  [2]=33 TEMPLE  [3]=34 EAR  [4]=35 BACK — manifold-first,
-// NOT the same order as valvePins[] (relief/pump-last) — see POUCH_ESP.md §3.
+#define PUMP_SENSOR  4   // index of manifold sensor in p[] / analogPressureSensorPins[]
+const int analogPressureSensorPins[NUM_SENSORS] = {32, 33, 34, 35, 36};
+// [0]=32 FRONT  [1]=33 TEMPLE  [2]=34 EAR  [3]=35 BACK  [4]=36 Manifold — same GPIOs as
+// before, reordered to match valvePins[]'s convention (named channels first, the
+// manifold/pump-equivalent one last).
 
 // Sensor voltage→pressure calibration curve (3.3V supply, 0–100 kPa sensor) — CORE
 // A bad value here corrupts every pressure reading — reflash-only, not in SET VARIABLE.
@@ -58,7 +59,7 @@ int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per chann
 // Per-user record — PERIPHERAL, RAM only (userProfile.ino). Not durable across a
 // power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
 // TEMPLE=1, EAR=2, BACK=3.
-int systemDefaultPressure[4] = {25, 120, 85, 130};  // global factory default, all users
+int systemDefaultPressure[4] = {80, 80, 80, 80};  // TEMP DEV-DEBUG: TEMPLE/EAR/BACK zeroed to isolate FRONT — real default is {25,120,85,130}, revert when done
 int userDefaultPressure[4];                          // this user's saved default — RAM only
 
 // The only per-user data on the device — vibration and thresholds are system-wide,

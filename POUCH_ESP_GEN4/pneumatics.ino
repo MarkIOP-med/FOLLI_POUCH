@@ -61,6 +61,19 @@ void updateChannels() {
   if (!channelActive) {
     currentChannel = currentChannel % 4;
 
+    // TEMP DEV-DEBUG: unconditionally skip FRONT (channel 0) — its sensor reads a
+    // bogus stuck value (~305mmHg regardless of target) that was blocking every other
+    // channel from ever being serviced, since it never looked "at target" or "safe to
+    // skip." Revert once the FRONT sensor/GPIO32 connection is checked.
+    if (currentChannel == 0) {
+      currentChannel++;
+      if (currentChannel >= 4 && currentState == PRESSURIZING) {
+        currentState = MAINTENANCE;
+        Serial.println("All channels at target → MAINTENANCE");
+      }
+      return;
+    }
+
     // Skip channels where target is 0 and actual is below the actuation threshold.
     // Sensor noise at atmospheric reads 3–7 mmHg; without this they enter the relief
     // branch and open valves unnecessarily. If actual > threshold (real residual
@@ -155,8 +168,12 @@ void updateChannels() {
 
   // ── RELIEF PATH (error < 0 — PAD above target) ────────────────────────────
 
-  // Phase 11 — Venting (PAD valve + RELIEF open, one tick)
+  // Phase 11 — Venting (PAD valve + RELIEF open). Stay here, re-checking every tick,
+  // until vented to within tolerance — mirrors phase 2's "stay until condition met"
+  // pattern on the charging side. Previously this pulsed for one fixed tick (~30ms)
+  // and moved on regardless, which was too short to vent anything meaningful.
   if (channelPhase == 11) {
+    if (actualPressure[currentChannel] > currentTargetPressure[currentChannel] + PRESSURE_TOLERANCE_MMHG) return;
     digitalWrite(PUMP_PIN, LOW);
     digitalWrite(RELIEF_PIN, LOW);
     channelPhase = 12;

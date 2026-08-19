@@ -98,15 +98,13 @@ opens all 4 valves and relief simultaneously.
 | Valves (FRONT/TEMPLE/EAR/BACK) | GPIO 26, 4, 13, 14 |
 | Relief valve | GPIO 25 |
 | Pump | GPIO 27 |
-| Pressure sensors (Manifold/FRONT/TEMPLE/EAR/BACK) | GPIO 36, 32, 33, 34, 35 |
+| Pressure sensors (FRONT/TEMPLE/EAR/BACK/Manifold) | GPIO 32, 33, 34, 35, 36 |
 | Vibration motors (FRONT/TEMPLE/EAR/BACK) | GPIO 16, 17, 21, 22 |
 | MCP3008 chip-select (FSR) | GPIO 5 |
 
-Note the manifold/pump-related entry sits at a **different end** of each array: the
-manifold pressure sensor is index 0 (first) in `analogPressureSensorPins[]`, while
-relief and pump are indices 4–5 (last) in `valvePins[]`. Don't assume the two arrays
-share a layout — code addresses valves via the `RELIEF_PIN`/`PUMP_PIN` macros and
-sensors via `p[i+1]`/`PUMP_SENSOR`, never a shared index scheme.
+`analogPressureSensorPins[]` and `valvePins[]` share the same convention: the 4 named
+channels first, the manifold/pump-equivalent entry last (index 4 for sensors via
+`PUMP_SENSOR`, indices 4–5 for valves via `RELIEF_PIN`/`PUMP_PIN`).
 
 Sensor conversion: 3.3V supply, 0.2–2.7V maps to 0–100kPa, converted to mmHg.
 FSR channel-to-connector/side mapping is not yet confirmed against the physical
