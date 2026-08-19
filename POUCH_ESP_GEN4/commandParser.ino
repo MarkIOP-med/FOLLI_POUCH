@@ -22,6 +22,18 @@ static int parseIntList(String s, int* out, int maxCount) {
   return count;
 }
 
+// How many comma-separated tokens are in s — used to disambiguate setpressure's two
+// forms (a channel,value pair is always 2 tokens; a full positional vector is always 4;
+// no other count is valid either way, so counting is enough, no lookahead needed).
+static int countCommaTokens(const String& s) {
+  if (s.length() == 0) return 0;
+  int count = 1;
+  for (unsigned int i = 0; i < s.length(); i++) {
+    if (s.charAt(i) == ',') count++;
+  }
+  return count;
+}
+
 void parseCommandString(String incoming, CommandSource source) {
   incoming.trim();
   if (incoming.length() == 0) return;
@@ -103,36 +115,53 @@ void parseCommandString(String incoming, CommandSource source) {
     enqueueCommand(cmd);
 
   } else if (word.equalsIgnoreCase("setpressure")) {
-    // setpressure:<ch>,<val>;<ch>,<val>;... — one channel at a time, ';'-batchable
-    bool any = false;
-    while (rest.length() > 0) {
-      int semi = rest.indexOf(';');
-      String part = (semi >= 0) ? rest.substring(0, semi) : rest;
-      rest = (semi >= 0) ? rest.substring(semi + 1) : "";
-      part.trim();
-      if (part.length() == 0) continue;
-
-      int comma = part.indexOf(',');
-      if (comma <= 0) {
-        sendResponse(source, "ERR:SETPRESSURE:malformed pair '" + part + "'");
-        continue;
-      }
-      int ch  = part.substring(0, comma).toInt();
-      int val = part.substring(comma + 1).toInt();
-      if (ch < 0 || ch > 3) {
-        sendResponse(source, "ERR:SETPRESSURE:channel out of range (" + String(ch) + ")");
-        continue;
+    // Two forms, disambiguated by count (unambiguous — a pair is always 2 numbers, a
+    // vector is always 4, and the vector form never contains ';'):
+    //   setpressure:<p0>,<p1>,<p2>,<p3>          — all 4 channels, positional FRONT/TEMPLE/EAR/BACK
+    //   setpressure:<ch>,<val>;<ch>,<val>;...    — one or more channels, indexed, ';'-batchable
+    if (rest.indexOf(';') < 0 && countCommaTokens(rest) == 4) {
+      int values[4];
+      parseIntList(rest, values, 4);
+      for (int ch = 0; ch < 4; ch++) {
+        Command c = {};
+        c.source   = source;
+        c.type     = CMD_SET_TARGET;
+        c.channel  = ch;
+        c.pressure = values[ch];
+        enqueueCommand(c);
       }
 
-      Command c = {};
-      c.source   = source;
-      c.type     = CMD_SET_TARGET;
-      c.channel  = ch;
-      c.pressure = val;
-      enqueueCommand(c);
-      any = true;
+    } else {
+      bool any = false;
+      while (rest.length() > 0) {
+        int semi = rest.indexOf(';');
+        String part = (semi >= 0) ? rest.substring(0, semi) : rest;
+        rest = (semi >= 0) ? rest.substring(semi + 1) : "";
+        part.trim();
+        if (part.length() == 0) continue;
+
+        int comma = part.indexOf(',');
+        if (comma <= 0) {
+          sendResponse(source, "ERR:SETPRESSURE:malformed pair '" + part + "'");
+          continue;
+        }
+        int ch  = part.substring(0, comma).toInt();
+        int val = part.substring(comma + 1).toInt();
+        if (ch < 0 || ch > 3) {
+          sendResponse(source, "ERR:SETPRESSURE:channel out of range (" + String(ch) + ")");
+          continue;
+        }
+
+        Command c = {};
+        c.source   = source;
+        c.type     = CMD_SET_TARGET;
+        c.channel  = ch;
+        c.pressure = val;
+        enqueueCommand(c);
+        any = true;
+      }
+      if (!any) sendResponse(source, "ERR:SETPRESSURE:no valid channel,value pairs");
     }
-    if (!any) sendResponse(source, "ERR:SETPRESSURE:no valid channel,value pairs");
 
   } else if (word.equalsIgnoreCase("setuserdefaultpressure")) {
     cmd.type = CMD_SET_USER_DEFAULT_PRESSURE;

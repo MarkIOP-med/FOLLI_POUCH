@@ -6,76 +6,43 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-// =====================================================================
-// This file is organized along TWO independent axes — both matter, and
-// they don't line up with each other, so both are tagged per variable:
-//
-//   CORE / PERIPHERAL — who in the CODE may touch it.
-//     CORE       = get each V_NODE's actual pressure to its target pressure.
-//                  Owns the valve/pump/relief pins and the channel state
-//                  machine (pneumatics.ino, analogSensor.ino). Nothing
-//                  outside those two files may drive valvePins/PUMP_PIN/
-//                  RELIEF_PIN or touch the channel-state statics directly.
-//     PERIPHERAL = everything that decides *what* the targets should be, or
-//                  that reads/actuates hardware the pressure loop doesn't
-//                  need (serial.ino, ble.ino, fsr.ino, vibration.ino).
-//                  Peripherals only ever write to the shared control state
-//                  and let the core loop act on it next tick.
-//
-//   HARDWARE / USER-TWEAKABLE / SELF-USE — where the value comes from, and
-//   whether anything OUTSIDE the firmware is allowed to change it.
-//     HARDWARE       = physical wiring / sensor-electrical constants tied to
-//                       this board revision. Never exposed over any protocol;
-//                       changing these means changing the physical hardware.
-//     USER-TWEAKABLE = operational "regime" data settable by a user/admin
-//                       over Serial, BLE, or (planned) WiFi.
-//     SELF-USE       = internal state and tuning constants the firmware runs
-//                       its own control loop on. Not exposed over any
-//                       protocol today; some could become admin-configurable
-//                       later without needing a reflash.
-// =====================================================================
+// Two independent axes tag every variable below — see POUCH_ESP.md for the full picture:
+//   CORE / PERIPHERAL   — who may touch it in code. CORE = pneumatics.ino/analogSensor.ino
+//                         only (owns the pins + channel state machine). PERIPHERAL = every
+//                         other file; writes shared state, never touches pins directly.
+//   HARDWARE / USER-TWEAKABLE / SELF-USE — where the value comes from: fixed wiring
+//                         (reflash-only), externally settable regime data, or internal
+//                         control-loop state/tuning.
 
 
 // ============================================================
 // 1. HARDWARE — physical wiring & sensor-electrical constants
 // ============================================================
 
-// --- Valves / Pump / Relief pins — CORE ---
+// Valves / Pump / Relief pins — CORE
 const int valvePins[6] = {26, 4, 13, 14, 25, 27};
-// valvePins[0] = pin 26  → FRONT PAD valve
-// valvePins[1] = pin 4   → TEMPLE PAD valve
-// valvePins[2] = pin 13  → EAR PAD valve
-// valvePins[3] = pin 14  → BACK PAD valve
-// valvePins[4] = pin 25  → RELIEF_PIN
-// valvePins[5] = pin 27  → PUMP_PIN
+// [0]=26 FRONT  [1]=4 TEMPLE  [2]=13 EAR  [3]=14 BACK  [4]=25 RELIEF  [5]=27 PUMP
 #define RELIEF_PIN  valvePins[4]
 #define PUMP_PIN    valvePins[5]
 
-// --- Pressure sensor pins — CORE ---
+// Pressure sensor pins — CORE
 #define NUM_SENSORS  5
-#define PUMP_SENSOR  0   // index of manifold sensor in p[] and analogPressureSensorPins[]
+#define PUMP_SENSOR  0   // index of manifold sensor in p[] / analogPressureSensorPins[]
 const int analogPressureSensorPins[NUM_SENSORS] = {36, 32, 33, 34, 35};
-// p[0]=GPIO36 Manifold  p[1]=GPIO32 FRONT  p[2]=GPIO33 TEMPLE  p[3]=GPIO34 EAR  p[4]=GPIO35 BACK
+// [0]=36 Manifold  [1]=32 FRONT  [2]=33 TEMPLE  [3]=34 EAR  [4]=35 BACK — manifold-first,
+// NOT the same order as valvePins[] (relief/pump-last) — see POUCH_ESP.md §3.
 
 // Sensor voltage→pressure calibration curve (3.3V supply, 0–100 kPa sensor) — CORE
-// Specific to the analog pressure sensor part used on this board. Could be made
-// admin/service-tunable later for batch recalibration without a reflash, but a
-// bad value here silently corrupts every pressure reading, so that would need a
-// tightly restricted (service/calibration-only) access tier, not general admin.
+// A bad value here corrupts every pressure reading — reflash-only, not in SET VARIABLE.
 const float Vmin     = 0.2;
 const float Vmax     = 2.7;
 const float Pmax_kPa = 100.0;
 
-// --- Vibration motor pins — PERIPHERAL ---
-// One line per V_NODE; each drives a coupled L/R vibrator pair fed through the
-// FLOW_LINK connectors, so a single GPIO per PAD is correct (not one per side).
-const int vibrationPins[4] = {16, 17, 21, 22};
-// vibrationPins[0..3] map to FRONT, TEMPLE, EAR, BACK
+// Vibration motor pins — PERIPHERAL. One GPIO per V_NODE drives a coupled L/R pair.
+const int vibrationPins[4] = {16, 17, 21, 22};  // FRONT, TEMPLE, EAR, BACK
 
-// --- FSR pins, via MCP3008 SPI ADC — PERIPHERAL ---
-// 8 channels = 2 FLOW_LINK connectors (LEFT, RIGHT) × 4 V_NODEs (FRONT, TEMPLE, EAR, BACK).
-// TODO: which MCP3008 channel is which connector/PAD is not yet confirmed against the
-// physical harness — fsrData[] is filled in channel order (0-7) until that's verified.
+// FSR pins, via MCP3008 SPI ADC — PERIPHERAL. 8 channels = 2 connectors × 4 V_NODEs.
+// TODO: channel-to-connector/side mapping unconfirmed against the physical harness.
 #define MCP3008_CS  5
 #define NUM_FSR     8
 
@@ -84,27 +51,22 @@ const int vibrationPins[4] = {16, 17, 21, 22};
 // 2. USER-TWEAKABLE — regime data, settable via Serial/BLE/(WiFi)
 // ============================================================
 
-// --- Live session state — PERIPHERAL writes, CORE consumes (RAM, resets each power-cycle) ---
-int  currentTargetPressure[4] = {0, 0, 0, 0};  // live in-session pressure target per channel (FRONT, TEMPLE, EAR, BACK)
-int  vibrationLevel[4]        = {0, 0, 0, 0};  // live in-session vibration level per channel, 0-3
+// Live session state — PERIPHERAL writes, CORE consumes (RAM, resets each power-cycle)
+int  currentTargetPressure[4] = {0, 0, 0, 0};  // live pressure target per channel (FRONT/TEMPLE/EAR/BACK)
+int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per channel, 0-3
 
-// --- Per-user record — PERIPHERAL, RAM only (see userProfile.ino). Set by
-// initUserProfile() at startup and by SAVE AS DEFAULT / ASSIGN / USER_ID / RESET ALL;
-// does NOT survive a power-cycle or reflash — every boot comes back up unassigned,
-// running on systemDefaultPressure. The core control loop only ever looks at
-// currentTargetPressure[] — userDefaultPressure/userId/assigned exist purely to
-// support the START/RESET ALL/SAVE AS DEFAULT/ASSIGN/USER_ID commands.
-// Order: FRONT=0, TEMPLE=1, EAR=2, BACK=3
+// Per-user record — PERIPHERAL, RAM only (userProfile.ino). Not durable across a
+// power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
+// TEMPLE=1, EAR=2, BACK=3.
 int systemDefaultPressure[4] = {25, 120, 85, 130};  // global factory default, all users
-int userDefaultPressure[4];                          // this user's saved default pressure — RAM only, see userProfile.ino
+int userDefaultPressure[4];                          // this user's saved default — RAM only
 
-// This pair plus userDefaultPressure[4] above is the ONLY per-user data on the device —
-// vibration and thresholds are system-wide, same for every user, not stored per-user
-// (see PRESSURE_THRESHOLD_MMHG in section 3 below).
-int  userId   = -1;     // opaque id of the user currently checked out to this pouch; -1 = none, RAM only
-bool assigned = false;  // whether this device currently has a live user record, RAM only
+// The only per-user data on the device — vibration and thresholds are system-wide,
+// same for every user (see PRESSURE_ACTUATION_THRESHOLD_MMHG below).
+int  userId   = -1;     // checked-out user's id, -1 = none — RAM only
+bool assigned = false;  // whether this device has a live user record — RAM only
 
-int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off (20s) — settable via SET VARIABLE
+int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off — SET VARIABLE
 int vibPWM[4]             = {0, 85, 170, 255};  // PWM output for vibration levels 0-3
 
 
@@ -112,7 +74,7 @@ int vibPWM[4]             = {0, 85, 170, 255};  // PWM output for vibration leve
 // 3. SELF-USE — internal state & control-loop tuning
 // ============================================================
 
-// --- State machine — CORE ---
+// State machine — CORE
 enum SystemState {
   IDLE,
   PRESSURIZING,      // actively driving channels to targets
@@ -122,50 +84,44 @@ enum SystemState {
 };
 SystemState currentState = IDLE;
 
-int   currentChannel          = 0;
-float p[NUM_SENSORS];              // converted sensor readings (mmHg, before reference subtraction)
-float referencePressure[NUM_SENSORS] = {0}; // baseline captured after startup/pre-action relief
-float actualPressure[4]         = {0.0};    // measured pressure per channel; also reported externally as read-only telemetry
-float actualManifoldPressure    = 0.0;      // measured manifold pressure — a single scalar, NOT part of the 4-channel vectors; also reported externally as read-only telemetry
-uint16_t fsrData[NUM_FSR];                  // raw force-sensor reads; also reported externally as read-only telemetry
+int   currentChannel          = 0;                    // which channel updateChannels() is servicing
+float p[NUM_SENSORS];                                 // converted sensor readings, mmHg, pre-reference
+float referencePressure[NUM_SENSORS] = {0};           // atmospheric baseline, captured after a full relief
+float actualPressure[4]         = {0.0};              // measured pressure per channel — read-only telemetry
+float actualManifoldPressure    = 0.0;                // measured manifold pressure, single scalar — read-only telemetry
+uint16_t fsrData[NUM_FSR];                            // raw force-sensor reads — read-only telemetry
 
-unsigned long vibStartTime[4]  = {0, 0, 0, 0}; // millis() when vibration last started per PAD
+unsigned long vibStartTime[4]  = {0, 0, 0, 0};  // millis() when vibration last started per channel
 
-// --- Control-loop tuning constants — CORE. Settable via SET VARIABLE (see commandQueue.ino) ---
+// Control-loop tuning — CORE. Settable via SET VARIABLE.
 int PRESSURE_TOLERANCE_MMHG          = 3;   // ± tolerance for "at target"
-int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // min actual pressure to trigger valve actuation; below this a channel with target=0 is skipped
+int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // below this + target=0, a channel is skipped rather than actuated
 
-// Planned, not yet implemented — system-wide, same for every user, not per-user:
-//   int pressureThreshold[4];  // max allowed drift of live target pressure from the user's saved default, admin-gated
-// NOTE: pressureThreshold is a different concept from PRESSURE_ACTUATION_THRESHOLD_MMHG
-// above — that one is purely a control-loop internal for skipping near-zero channels,
-// this one bounds how far a user may adjust off their own saved default. The similar
-// names are a real risk of confusion; rename one of the two before either ships.
+// Planned, not implemented — a per-user bound on how far a user may adjust off their
+// saved default. Distinct from PRESSURE_ACTUATION_THRESHOLD_MMHG above; don't confuse
+// the two if this gets built.
+//   int pressureThreshold[4];  // system-wide, admin-gated
 
-// Valve/pump control-loop timing — CORE. Not settable via SET VARIABLE (const, higher-risk to change).
+// Valve/pump timing — CORE. const, not in SET VARIABLE (higher-risk to change live).
 const unsigned long CHANNEL_PHASE_TICK_MS   = 30;    // min time between updateChannels() phase advances
 const unsigned long RELIEF_VENT_DURATION_MS = 1000;  // how long relief+valves stay open during a full vent
 const unsigned long STARTUP_SETTLE_MS       = 150;   // settle time after startup vent, before capturing reference
 
-// Sensor oversampling — CORE. Not settable via SET VARIABLE (const).
+// Sensor oversampling — CORE. const, not in SET VARIABLE.
 const int overSampling       = 4;
 const int overSamplingDelay  = 5;    // ms between oversampling cycles
 const int sensorDelayMeasur  = 50;   // µs between sensors in one cycle
 
-// BLE telemetry cadence — PERIPHERAL. A real variable (not #define) so SET VARIABLE can change it.
-int TELEMETRY_INTERVAL_MS = 250;
+int TELEMETRY_INTERVAL_MS = 250;  // BLE telemetry push cadence, ms — PERIPHERAL, SET VARIABLE
 
 
 // ============================================================
 // 4. COMMAND QUEUE — cross-cutting infrastructure, not itself data
 // ============================================================
-// Every transport (Serial, BLE, WiFi later) speaks the SAME text grammar — see
-// commandParser.ino's parseCommandString(). Each transport reads its own raw bytes,
-// hands them to that one shared parser, which builds a Command and calls
-// enqueueCommand(). loop() drains the queue once per tick, before runStateMachine(),
-// so every command is applied on the main loop thread regardless of which task
-// enqueued it (BLE's onWrite() callback runs in NimBLE's own FreeRTOS task, not on
-// loop()'s — writing shared globals straight from there would race the control loop).
+// Every transport shares one text grammar (commandParser.ino) and one queue. loop()
+// drains it once per tick, before runStateMachine(), so BLE's onWrite() — which runs on
+// NimBLE's own FreeRTOS task — can't race the control loop. Full grammar and response
+// format: POUCH_ESP.md.
 
 enum CommandType {
   CMD_START,                     // "start"
@@ -174,13 +130,13 @@ enum CommandType {
   CMD_RESTART,                   // "restart"
   CMD_USER_ID,                   // "user:<id>:<p0>,<p1>,<p2>,<p3>"
   CMD_ASSIGN_NEW_USER,           // "assign"
-  CMD_SET_TARGET,                // "setpressure:<channel>,<value>" (one channel at a time; ';'-batchable)
+  CMD_SET_TARGET,                // "setpressure:..." — vector or channel,value; see commandParser.ino
   CMD_SAVE_AS_DEFAULT,           // "saveasdefault"
   CMD_SET_USER_DEFAULT_PRESSURE, // "setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>"
   CMD_SET_VIBRATION_ALL,         // "setvibration:<L0>,<L1>,<L2>,<L3>"
   CMD_SET_VARIABLE,              // "setvariable:<NAME>,<VALUE|default>"
 
-  // --- READ commands — no payload, response comes back tagged "R:..." via sendResponse() ---
+  // READ commands — no payload, response comes back tagged "R:..." via sendResponse()
   CMD_READ_PRESSURE,             // "readpressure"
   CMD_READ_FSR,                  // "readfsr"
   CMD_READ_VARIABLES,            // "readvariables"
@@ -195,15 +151,15 @@ enum CommandSource { SRC_SERIAL, SRC_BLE };  // SRC_WIFI to be added when WiFi l
 struct Command {
   CommandType   type;
   CommandSource source;
-  int  channel;          // 0-3 — CMD_SET_TARGET
-  int  pressure;          // CMD_SET_TARGET
-  int  pressures[4];       // CMD_USER_ID, CMD_SET_USER_DEFAULT_PRESSURE
-  int  vibLevels[4];        // CMD_SET_VIBRATION_ALL
-  int  vibLevelsCount;       // how many of vibLevels[] are valid, starting at index 0 — CMD_SET_VIBRATION_ALL
-  int  userIdValue;            // CMD_USER_ID
-  char varName[20];              // CMD_SET_VARIABLE — fixed-size, NOT Arduino String (this struct is memcpy'd through a FreeRTOS queue)
-  int  varValue;                  // CMD_SET_VARIABLE
-  bool varIsDefault;                // CMD_SET_VARIABLE — true means "reset to compiled default", varValue ignored
+  int  channel;         // 0-3 — CMD_SET_TARGET
+  int  pressure;        // CMD_SET_TARGET
+  int  pressures[4];    // CMD_USER_ID, CMD_SET_USER_DEFAULT_PRESSURE
+  int  vibLevels[4];    // CMD_SET_VIBRATION_ALL
+  int  vibLevelsCount;  // how many of vibLevels[] are valid — CMD_SET_VIBRATION_ALL
+  int  userIdValue;     // CMD_USER_ID
+  char varName[20];     // CMD_SET_VARIABLE — fixed-size, not Arduino String (struct is memcpy'd through the queue)
+  int  varValue;        // CMD_SET_VARIABLE
+  bool varIsDefault;    // CMD_SET_VARIABLE — true = reset to compiled default, varValue ignored
 };
 
 extern QueueHandle_t commandQueue;

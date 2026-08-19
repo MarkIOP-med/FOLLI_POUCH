@@ -102,6 +102,12 @@ opens all 4 valves and relief simultaneously.
 | Vibration motors (FRONT/TEMPLE/EAR/BACK) | GPIO 16, 17, 21, 22 |
 | MCP3008 chip-select (FSR) | GPIO 5 |
 
+Note the manifold/pump-related entry sits at a **different end** of each array: the
+manifold pressure sensor is index 0 (first) in `analogPressureSensorPins[]`, while
+relief and pump are indices 4–5 (last) in `valvePins[]`. Don't assume the two arrays
+share a layout — code addresses valves via the `RELIEF_PIN`/`PUMP_PIN` macros and
+sensors via `p[i+1]`/`PUMP_SENSOR`, never a shared index scheme.
+
 Sensor conversion: 3.3V supply, 0.2–2.7V maps to 0–100kPa, converted to mmHg.
 FSR channel-to-connector/side mapping is not yet confirmed against the physical
 harness — data is read in raw MCP3008 channel order (0–7).
@@ -199,7 +205,7 @@ be truncated without a negotiated MTU.
 | **RESTART** | `restart` | Vent, recapture reference pressure, return to idle. Identity and saved regime untouched. |
 | **USER_ID** | `user:<id>:<p0>,<p1>,<p2>,<p3>` | Load a specific known user: id + full pressure regime, supplied by the caller. Does not start pressurizing — follow with `START` to apply it. |
 | **ASSIGN** | `assign` | Assign a fresh, locally-generated user to this pouch, seeded with system default pressure. Works fully offline. |
-| **SET PRESSURE** | `setpressure:<channel>,<value>` (batch: `setpressure:0,80;3,120`) | Set one channel's live target pressure; begins pressurizing |
+| **SET PRESSURE** | `setpressure:<p0>,<p1>,<p2>,<p3>` (all 4, positional) — or `setpressure:<channel>,<value>` (one channel; batch: `setpressure:0,80;3,120`) | Set live target pressure; begins pressurizing. The two forms are told apart by count — 4 numbers with no `;` is the positional vector, anything else is indexed pairs. |
 | **SAVE AS DEFAULT** | `saveasdefault` | Save whatever's currently running as this user's saved default |
 | **SET USER DEFAULT PRESSURE** | `setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>` | Set this user's saved default directly, independent of the live session |
 | **SET VIBRATION** | `setvibration:<L0>,<L1>,<L2>,<L3>` | Set vibration level per channel (0–3); auto-off after `VIBRATION_DURATION_MS` |
