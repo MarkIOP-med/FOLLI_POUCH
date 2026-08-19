@@ -1,10 +1,11 @@
 #include "config.h"
 
 // Central dispatch for every command that changes control state, regardless of which
-// transport it arrived on. serial.ino and ble.ino only ever parse their own wire format
-// and enqueueCommand() — everything below is the one place that actually mutates
-// targetPressure[]/vibrationLevel[]/currentState/etc., so the logic isn't duplicated
-// per transport and can't be applied out of order relative to the control loop.
+// transport it arrived on. commandParser.ino only ever parses text and enqueueCommand()
+// — everything below is the one place that actually mutates
+// currentTargetPressure[]/userDefaultPressure[]/vibrationLevel[]/currentState/etc., so
+// the logic isn't duplicated per transport and can't be applied out of order relative
+// to the control loop.
 
 QueueHandle_t commandQueue = nullptr;
 
@@ -15,29 +16,79 @@ void initCommandQueue() {
 bool enqueueCommand(const Command& cmd) {
   if (commandQueue == nullptr) return false;
   if (xQueueSend(commandQueue, &cmd, 0) != pdTRUE) {
-    Serial.println("! Command queue full, command dropped");
+    sendResponse(cmd.source, "ERR:QUEUE_FULL:command dropped");
     return false;
   }
   return true;
 }
 
-static const char* sourceTag(CommandSource src) {
-  return (src == SRC_BLE) ? "BLE" : "Serial";
+// Every response — telemetry excluded, that's periodic and unprompted — flows through
+// here. Always echoed to Serial (the developer's window into everything, regardless of
+// which transport triggered it); additionally pushed over BLE notify if that's where
+// the request came from, since a BLE caller has no other way to see it.
+void sendResponse(CommandSource source, const String& line) {
+  Serial.println(line);
+  if (source == SRC_BLE) {
+    sendBLEResponse(line);
+  }
 }
 
-static void applySetTarget(int channel, int pressure, int vibLevel) {
-  if (channel < 0 || channel > 3) return;
-  targetPressure[channel] = pressure;
-  savedPressure[channel]  = pressure;
-  if (vibLevel >= 0) {
-    vibrationLevel[channel] = vibLevel;
-    if (vibLevel > 0) vibStartTime[channel] = millis();
-  }
+// --- START ---
+static void applyStart() {
+  reliefAllPads();
+  captureReferencePressure();
+  for (int i = 0; i < 4; i++) currentTargetPressure[i] = userDefaultPressure[i];
   currentChannel = 0;
   resetChannelState();
   currentState = PRESSURIZING;
 }
 
+// --- STOP --- stop vibration + vent all to zero. Venting happens this same tick:
+// runStateMachine() (called right after processCommandQueue() in loop()) sees
+// EMERGENCY_RELIEF and calls reliefAllPads() before the tick ends.
+static void applyStop() {
+  stopAllVibration();
+  currentState = EMERGENCY_RELIEF;
+}
+
+// --- RESET ALL --- pressure AND identity back to factory state
+static void applyResetAll() {
+  reliefAllPads();
+  captureReferencePressure();
+  for (int i = 0; i < 4; i++) {
+    currentTargetPressure[i] = systemDefaultPressure[i];
+    userDefaultPressure[i]   = systemDefaultPressure[i];
+  }
+  userId   = -1;
+  assigned = false;
+  currentChannel = 0;
+  resetChannelState();
+  currentState = PRESSURIZING;
+}
+
+// --- RESTART --- re-init the control loop only; identity/regime untouched
+static void applyRestart() {
+  reliefAllPads();
+  captureReferencePressure();
+}
+
+// --- USER_ID --- load a specific known user: id + full regime pushed together
+static void applyUserId(int id, const int* pressures) {
+  userId   = id;
+  assigned = true;
+  for (int i = 0; i < 4; i++) userDefaultPressure[i] = pressures[i];
+}
+
+// --- SET PRESSURE --- one channel
+static void applySetTarget(int channel, int pressure) {
+  if (channel < 0 || channel > 3) return;
+  currentTargetPressure[channel] = pressure;
+  currentChannel = 0;
+  resetChannelState();
+  currentState = PRESSURIZING;
+}
+
+// --- SET VIBRATION ---
 static void applySetVibrationAll(const int* levels, int count) {
   for (int ch = 0; ch < count && ch < 4; ch++) {
     vibrationLevel[ch] = levels[ch];
@@ -45,96 +96,172 @@ static void applySetVibrationAll(const int* levels, int count) {
   }
 }
 
-static void applyRestore() {
-  reliefAllPads();
-  captureReferencePressure();
-  for (int i = 0; i < 4; i++) targetPressure[i] = savedPressure[i];
-  currentChannel = 0;
-  resetChannelState();
-  currentState = PRESSURIZING;
-}
-
-static void applyReset() {
-  reliefAllPads();
-  captureReferencePressure();
-  for (int i = 0; i < 4; i++) {
-    targetPressure[i] = defaultPressure[i];
-    savedPressure[i]  = defaultPressure[i];
+// --- SET VARIABLE --- starter registry: only already-mutable, low-risk tuning
+// constants. Deliberately excludes sensor calibration (Vmin/Vmax/Pmax_kPa) and
+// valve/pump timing — both are `const` and flagged in POUCH_ESP.md as needing a
+// stricter service/calibration access tier before being made runtime-settable at all.
+static bool applySetVariable(const String& name, int value, bool useDefault) {
+  if (name.equalsIgnoreCase("PRESSURE_TOLERANCE")) {
+    PRESSURE_TOLERANCE_MMHG = useDefault ? 3 : value;
+  } else if (name.equalsIgnoreCase("ACTUATION_THRESHOLD")) {
+    PRESSURE_ACTUATION_THRESHOLD_MMHG = useDefault ? 10 : value;
+  } else if (name.equalsIgnoreCase("VIBRATION_DURATION")) {
+    VIBRATION_DURATION_MS = useDefault ? 20000 : value;
+  } else if (name.equalsIgnoreCase("TELEMETRY_INTERVAL")) {
+    TELEMETRY_INTERVAL_MS = useDefault ? 250 : value;
+  } else {
+    return false;
   }
-  currentChannel = 0;
-  resetChannelState();
-  currentState = PRESSURIZING;
+  return true;
 }
 
-static void applyDeviceOff() {
-  deviceOn = false;
-  stopAllVibration();
-  reliefAllPads();
-  currentState = STOPPED;
+// --- READ helpers --- each builds its "CATEGORY:payload" fragment (no "R:" prefix,
+// so READ ALL can concatenate them); individual READ commands prepend "R:" themselves.
+
+static const char* stateTag(SystemState s) {
+  switch (s) {
+    case IDLE:             return "IDLE";
+    case PRESSURIZING:     return "PRESSURIZING";
+    case MAINTENANCE:      return "MAINTENANCE";
+    case EMERGENCY_RELIEF: return "EMERGENCY_RELIEF";
+    case STOPPED:          return "STOPPED";
+  }
+  return "UNKNOWN";
 }
 
-static void applyDeviceOn() {
-  deviceOn     = true;
-  currentState = IDLE;
+static String buildPressureFragment() {
+  String s = "PRESSURE:";
+  for (int i = 0; i < 4; i++) { s += (int)actualPressure[i]; s += ","; }
+  s += (int)actualManifoldPressure;
+  for (int i = 0; i < 4; i++) { s += ","; s += currentTargetPressure[i]; }
+  return s;
+}
+
+static String buildFsrFragment() {
+  String s = "FSR:";
+  for (int i = 0; i < NUM_FSR; i++) {
+    s += fsrData[i];
+    if (i < NUM_FSR - 1) s += ",";
+  }
+  return s;
+}
+
+static String buildVariablesFragment() {
+  return "VARIABLES:PRESSURE_TOLERANCE=" + String(PRESSURE_TOLERANCE_MMHG) +
+         ",ACTUATION_THRESHOLD=" + String(PRESSURE_ACTUATION_THRESHOLD_MMHG) +
+         ",VIBRATION_DURATION=" + String(VIBRATION_DURATION_MS) +
+         ",TELEMETRY_INTERVAL=" + String(TELEMETRY_INTERVAL_MS);
+}
+
+static String buildUserFragment() {
+  String s = "USER:" + String(userId) + "," + String(assigned ? "true" : "false");
+  for (int i = 0; i < 4; i++) { s += ","; s += userDefaultPressure[i]; }
+  return s;
+}
+
+static String buildStateFragment() {
+  return String("STATE:") + stateTag(currentState);
+}
+
+static String buildVibrationFragment() {
+  String s = "VIBRATION:";
+  for (int i = 0; i < 4; i++) {
+    s += vibrationLevel[i];
+    if (i < 3) s += ",";
+  }
+  return s;
 }
 
 static void dispatchCommand(const Command& cmd) {
   switch (cmd.type) {
-    case CMD_SET_TARGET:
-      applySetTarget(cmd.channel, cmd.pressure, cmd.vibLevel);
-      Serial.print(sourceTag(cmd.source)); Serial.print(" -> Ch"); Serial.print(cmd.channel);
-      Serial.print(" = "); Serial.println(cmd.pressure);
-      break;
-
-    case CMD_SET_VIBRATION_ALL:
-      applySetVibrationAll(cmd.vibLevels, cmd.vibLevelsCount);
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> Vibration levels updated");
+    case CMD_START:
+      applyStart();
+      sendResponse(cmd.source, "OK:START");
       break;
 
     case CMD_STOP:
-      currentState = STOPPED;
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> System STOPPED");
+      applyStop();
+      sendResponse(cmd.source, "OK:STOP");
       break;
 
-    case CMD_EMERGENCY:
-      // Stopping vibration is part of "emergency" regardless of source — previously
-      // only the BLE path did this; unified here since an emergency should always
-      // stop everything. Venting happens this same tick: runStateMachine() (called
-      // right after processCommandQueue() in loop()) sees EMERGENCY_RELIEF and calls
-      // reliefAllPads() before the tick ends.
-      stopAllVibration();
-      currentState = EMERGENCY_RELIEF;
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> EMERGENCY RELIEF");
+    case CMD_RESET_ALL:
+      applyResetAll();
+      sendResponse(cmd.source, "OK:RESETALL");
       break;
 
-    case CMD_RESTORE:
-      applyRestore();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> RESTORE");
+    case CMD_RESTART:
+      applyRestart();
+      sendResponse(cmd.source, "OK:RESTART");
       break;
 
-    case CMD_RESET:
-      applyReset();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> RESET");
-      break;
-
-    case CMD_DEVICE_OFF:
-      applyDeviceOff();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> DEVICE OFF");
-      break;
-
-    case CMD_DEVICE_ON:
-      applyDeviceOn();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> DEVICE ON");
-      break;
-
-    case CMD_SAVE_AS_DEFAULT:
-      saveCurrentAsUserDefault();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> SAVE AS DEFAULT");
+    case CMD_USER_ID:
+      applyUserId(cmd.userIdValue, cmd.pressures);
+      sendResponse(cmd.source, "OK:USER:" + String(cmd.userIdValue));
       break;
 
     case CMD_ASSIGN_NEW_USER:
       assignNewUser();
-      Serial.print(sourceTag(cmd.source)); Serial.println(" -> ASSIGN NEW USER");
+      sendResponse(cmd.source, "OK:ASSIGN:" + String(userId));
+      break;
+
+    case CMD_SET_TARGET:
+      applySetTarget(cmd.channel, cmd.pressure);
+      sendResponse(cmd.source, "OK:SETPRESSURE:" + String(cmd.channel) + "," + String(cmd.pressure));
+      break;
+
+    case CMD_SAVE_AS_DEFAULT:
+      saveCurrentAsUserDefault();
+      sendResponse(cmd.source, "OK:SAVEASDEFAULT");
+      break;
+
+    case CMD_SET_USER_DEFAULT_PRESSURE:
+      for (int i = 0; i < 4; i++) userDefaultPressure[i] = cmd.pressures[i];
+      sendResponse(cmd.source, "OK:SETUSERDEFAULTPRESSURE");
+      break;
+
+    case CMD_SET_VIBRATION_ALL:
+      applySetVibrationAll(cmd.vibLevels, cmd.vibLevelsCount);
+      sendResponse(cmd.source, "OK:SETVIBRATION");
+      break;
+
+    case CMD_SET_VARIABLE: {
+      String name(cmd.varName);
+      if (applySetVariable(name, cmd.varValue, cmd.varIsDefault)) {
+        sendResponse(cmd.source, "OK:SETVARIABLE:" + name);
+      } else {
+        sendResponse(cmd.source, "ERR:SETVARIABLE:unknown variable " + name);
+      }
+      break;
+    }
+
+    case CMD_READ_PRESSURE:
+      sendResponse(cmd.source, "R:" + buildPressureFragment());
+      break;
+
+    case CMD_READ_FSR:
+      sendResponse(cmd.source, "R:" + buildFsrFragment());
+      break;
+
+    case CMD_READ_VARIABLES:
+      sendResponse(cmd.source, "R:" + buildVariablesFragment());
+      break;
+
+    case CMD_READ_USER:
+      sendResponse(cmd.source, "R:" + buildUserFragment());
+      break;
+
+    case CMD_READ_STATE:
+      sendResponse(cmd.source, "R:" + buildStateFragment());
+      break;
+
+    case CMD_READ_VIBRATION:
+      sendResponse(cmd.source, "R:" + buildVibrationFragment());
+      break;
+
+    case CMD_READ_ALL:
+      sendResponse(cmd.source, "R:" + buildPressureFragment() + ";" + buildFsrFragment() + ";" +
+                                buildVariablesFragment() + ";" + buildUserFragment() + ";" +
+                                buildStateFragment() + ";" + buildVibrationFragment());
       break;
   }
 }

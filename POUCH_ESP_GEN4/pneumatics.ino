@@ -37,14 +37,14 @@ void reliefAllPads() {
   delay(RELIEF_VENT_DURATION_MS);
   digitalWrite(RELIEF_PIN, LOW);
   for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], LOW);
-  for (int i = 0; i < 4; i++) targetPressure[i] = 0;
+  for (int i = 0; i < 4; i++) currentTargetPressure[i] = 0;
   resetChannelState();
   currentState = IDLE;
   Serial.println("All PADs relieved to zero.");
 }
 
 void runStateMachine() {
-  if (!deviceOn || currentState == STOPPED) return;
+  if (currentState == STOPPED) return;
 
   if (currentState == EMERGENCY_RELIEF) {
     reliefAllPads();
@@ -65,8 +65,8 @@ void updateChannels() {
     // Sensor noise at atmospheric reads 3–7 mmHg; without this they enter the relief
     // branch and open valves unnecessarily. If actual > threshold (real residual
     // pressure), the channel is not skipped and the relief path vents it normally.
-    if (targetPressure[currentChannel] == 0 &&
-        currentPressure_gage[currentChannel] <= PRESSURE_ACTUATION_THRESHOLD_MMHG) {
+    if (currentTargetPressure[currentChannel] == 0 &&
+        actualPressure[currentChannel] <= PRESSURE_ACTUATION_THRESHOLD_MMHG) {
       currentChannel++;
       if (currentChannel >= 4 && currentState == PRESSURIZING) {
         currentState = MAINTENANCE;
@@ -83,7 +83,7 @@ void updateChannels() {
 
   if (millis() - channelTimer < CHANNEL_PHASE_TICK_MS) return;
 
-  float error = targetPressure[currentChannel] - currentPressure_gage[currentChannel];
+  float error = currentTargetPressure[currentChannel] - actualPressure[currentChannel];
 
   // PAD is at target — close all, advance to next channel
   if (abs(error) <= PRESSURE_TOLERANCE_MMHG) {
@@ -104,7 +104,7 @@ void updateChannels() {
   if (channelPhase == 0) {
     if (error > 0) {
       // If manifold is already above this channel's target, vent it first
-      if (manifoldPressure_gage > targetPressure[currentChannel] + PRESSURE_TOLERANCE_MMHG) {
+      if (actualManifoldPressure > currentTargetPressure[currentChannel] + PRESSURE_TOLERANCE_MMHG) {
         digitalWrite(RELIEF_PIN, HIGH);
         channelPhase = 1;   // → pre-vent manifold
       } else {
@@ -124,7 +124,7 @@ void updateChannels() {
   // Phase 1 — Pre-venting manifold (RELIEF open, PAD valve closed)
   // Stay here until manifold drops to ≤ target, then start charging
   if (channelPhase == 1) {
-    if (manifoldPressure_gage > targetPressure[currentChannel]) return;
+    if (actualManifoldPressure > currentTargetPressure[currentChannel]) return;
     digitalWrite(RELIEF_PIN, LOW);
     digitalWrite(PUMP_PIN, HIGH);
     channelPhase = 2;
@@ -135,7 +135,7 @@ void updateChannels() {
   // Phase 2 — Charging manifold (PUMP open, PAD valve closed)
   // Stay here until manifold reaches target, then equalize PAD
   if (channelPhase == 2) {
-    if (manifoldPressure_gage < targetPressure[currentChannel] - PRESSURE_TOLERANCE_MMHG) return;
+    if (actualManifoldPressure < currentTargetPressure[currentChannel] - PRESSURE_TOLERANCE_MMHG) return;
     digitalWrite(PUMP_PIN, LOW);
     digitalWrite(valvePins[currentChannel], HIGH);  // open PAD valve — equalize
     channelPhase = 3;

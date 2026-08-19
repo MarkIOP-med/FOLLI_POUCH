@@ -70,21 +70,18 @@ No keyboard/LEDs/display files — this hardware revision has none; all control/
 
 **State machine** (`SystemState`): `IDLE → PRESSURIZING → MAINTENANCE`, or `EMERGENCY_RELIEF` / `STOPPED` from anywhere. `updateChannels()` in `pneumatics.ino` is non-blocking — it advances one channel/phase per `loop()` iteration rather than blocking with `delay()`.
 
-**Serial protocol** (parsed in `serial.ino`, mirrored by `POUCH_APP/app.py`):
-- `X,Y` — set channel X (0–3) target to Y mmHg
-- `X1,Y1;X2,Y2;...` — batch set multiple channels
-- `s` — stop
-- `r` / `emergency` — emergency relief, all PADs vent
-- `vib:L0,L1,L2,L3` — set vibration levels per channel (0–3)
-- `save` — save current pressures as this user's saved default (RAM only)
-- `assign` — assign a fresh user to this pouch, works fully offline
-- `restore` / `reset` — recall saved / factory-default pressures
-- `on` / `off` — device on / device off
-- Outbound telemetry is a CSV line per loop: `time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7` (all 8 FSR channels are real MCP3008 reads now; which channel maps to which FLOW_LINK side/PAD isn't confirmed against the harness yet — see the TODO in `config.h`).
+**Communication protocol**: Serial and BLE parse an identical text command grammar (one
+shared parser, `commandParser.ino`) and produce an identical tagged response format
+(`T:`/`R:`/`OK:`/`ERR:`). Full command list, response format, data model, and known
+limitations are documented in `POUCH_ESP_GEN4/POUCH_ESP.md` — that file is the source of
+truth for the protocol; none of it is mirrored by `POUCH_APP/app.py` yet, which is a
+separate app-side task not done as part of the firmware work.
 
-None of `serial.ino`'s commands beyond the original four (`X,Y`, `s`, `r`/`emergency`, `vib:`) are mirrored by `POUCH_APP/app.py` yet — that's a separate app-side task, not done as part of the firmware work described above.
-
-`POUCH_GEN4_ARCHITECTURE.md` has since been rewritten against the current firmware (it now calls itself "Gen6" internally, reflecting a later rename) and matches the `.ino`/`config.h` files closely — pins, loop order, state machine, BLE opcodes, and function lists all check out. It still verifies against the code, not the other way around, so when editing firmware prefer the actual `.ino` files as ground truth and update the doc alongside any behavioral change.
+`POUCH_ESP_GEN4/POUCH_ESP.md` is the full architecture + protocol reference for this
+firmware (pins, loop order, state machine, data model, commands, limitations). It
+verifies against the code, not the other way around, so when editing firmware prefer
+the actual `.ino` files as ground truth and update that doc alongside any behavioral
+change.
 
 ## Web app architecture (`POUCH_APP/`)
 

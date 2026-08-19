@@ -3,11 +3,13 @@
    FOLLISAVE - FOLLI_CNTRL_Gen6
    Pneumatic Headband Pressure Controller (ESP32)
 
-   Serial Commands:
-     X,Y              → Set channel X to Y mmHg  (e.g. 0,80)
-     X1,Y1;X2,Y2;...  → Set multiple channels
-     s                → Stop system
-     r / emergency    → Emergency relief all PADs
+   Serial Commands (same grammar over BLE — see commandParser.ino, POUCH_ESP.md):
+     start / stop / resetall / restart / assign / saveasdefault
+     user:<id>:<p0>,<p1>,<p2>,<p3>
+     setpressure:<channel>,<value>  (';'-batchable)
+     setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>
+     setvibration:<L0>,<L1>,<L2>,<L3>
+     setvariable:<NAME>,<VALUE|default>
 
    No onboard keyboard/LEDs/display on this hardware revision — control and
    status live in the CONSOLE app over BLE (see ble.ino and
@@ -27,7 +29,7 @@ void setup() {
   initValves();
   // --- PERIPHERAL ---
   initCommandQueue();  // before initBLE() — a write could arrive as soon as advertising starts
-  initUserProfile();   // resets userId/assigned/savedPressure to unassigned + factory defaults (RAM only, not durable)
+  initUserProfile();   // resets userId/assigned/userDefaultPressure to unassigned + factory defaults (RAM only, not durable)
   initVibration();
   initFSR();
   initBLE();
@@ -58,7 +60,7 @@ void loop() {
   handleSerialCommands();
   processCommandQueue();
 
-  // --- CORE: drive toward targetPressure[] ---
+  // --- CORE: drive toward currentTargetPressure[] ---
   runStateMachine();
 
   // --- PERIPHERAL: apply settings, push telemetry ---

@@ -85,27 +85,26 @@ const int vibrationPins[4] = {16, 17, 21, 22};
 // ============================================================
 
 // --- Live session state — PERIPHERAL writes, CORE consumes (RAM, resets each power-cycle) ---
-int  targetPressure[4]   = {0, 0, 0, 0};  // live in-session pressure target per channel (FRONT, TEMPLE, EAR, BACK)
-int  vibrationLevel[4]   = {0, 0, 0, 0};  // live in-session vibration level per channel, 0-3
-bool deviceOn            = true;
+int  currentTargetPressure[4] = {0, 0, 0, 0};  // live in-session pressure target per channel (FRONT, TEMPLE, EAR, BACK)
+int  vibrationLevel[4]        = {0, 0, 0, 0};  // live in-session vibration level per channel, 0-3
 
 // --- Per-user record — PERIPHERAL, RAM only (see userProfile.ino). Set by
-// initUserProfile() at startup and by Save-as-default/Assign-new-user/Reset; does NOT
-// survive a power-cycle or reflash — every boot comes back up unassigned, running on
-// defaultPressure. The core control loop only ever looks at targetPressure[] —
-// savedPressure/userId/assigned exist purely to support the RESTORE/RESET/Save-as-
-// default/Assign-new-user commands.
+// initUserProfile() at startup and by SAVE AS DEFAULT / ASSIGN / USER_ID / RESET ALL;
+// does NOT survive a power-cycle or reflash — every boot comes back up unassigned,
+// running on systemDefaultPressure. The core control loop only ever looks at
+// currentTargetPressure[] — userDefaultPressure/userId/assigned exist purely to
+// support the START/RESET ALL/SAVE AS DEFAULT/ASSIGN/USER_ID commands.
 // Order: FRONT=0, TEMPLE=1, EAR=2, BACK=3
-int defaultPressure[4] = {25, 120, 85, 130};  // global factory default, all users
-int savedPressure[4];                         // this user's saved default pressure — RAM only, see userProfile.ino
+int systemDefaultPressure[4] = {25, 120, 85, 130};  // global factory default, all users
+int userDefaultPressure[4];                          // this user's saved default pressure — RAM only, see userProfile.ino
 
-// This pair plus savedPressure[4] above is the ONLY per-user data on the device —
+// This pair plus userDefaultPressure[4] above is the ONLY per-user data on the device —
 // vibration and thresholds are system-wide, same for every user, not stored per-user
 // (see PRESSURE_THRESHOLD_MMHG in section 3 below).
 int  userId   = -1;     // opaque id of the user currently checked out to this pouch; -1 = none, RAM only
 bool assigned = false;  // whether this device currently has a live user record, RAM only
 
-int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off (20s)
+int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off (20s) — settable via SET VARIABLE
 int vibPWM[4]             = {0, 85, 170, 255};  // PWM output for vibration levels 0-3
 
 
@@ -126,13 +125,13 @@ SystemState currentState = IDLE;
 int   currentChannel          = 0;
 float p[NUM_SENSORS];              // converted sensor readings (mmHg, before reference subtraction)
 float referencePressure[NUM_SENSORS] = {0}; // baseline captured after startup/pre-action relief
-float currentPressure_gage[4] = {0.0};      // measured pressure per channel; also reported externally as read-only telemetry
-float manifoldPressure_gage   = 0.0;        // measured manifold pressure; also reported externally as read-only telemetry
+float actualPressure[4]         = {0.0};    // measured pressure per channel; also reported externally as read-only telemetry
+float actualManifoldPressure    = 0.0;      // measured manifold pressure — a single scalar, NOT part of the 4-channel vectors; also reported externally as read-only telemetry
 uint16_t fsrData[NUM_FSR];                  // raw force-sensor reads; also reported externally as read-only telemetry
 
 unsigned long vibStartTime[4]  = {0, 0, 0, 0}; // millis() when vibration last started per PAD
 
-// --- Control-loop tuning constants — CORE ---
+// --- Control-loop tuning constants — CORE. Settable via SET VARIABLE (see commandQueue.ino) ---
 int PRESSURE_TOLERANCE_MMHG          = 3;   // ± tolerance for "at target"
 int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // min actual pressure to trigger valve actuation; below this a channel with target=0 is skipped
 
@@ -143,44 +142,52 @@ int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // min actual pressure to trigger va
 // this one bounds how far a user may adjust off their own saved default. The similar
 // names are a real risk of confusion; rename one of the two before either ships.
 
-// Valve/pump control-loop timing — CORE. Previously unnamed literals in pneumatics.ino.
+// Valve/pump control-loop timing — CORE. Not settable via SET VARIABLE (const, higher-risk to change).
 const unsigned long CHANNEL_PHASE_TICK_MS   = 30;    // min time between updateChannels() phase advances
 const unsigned long RELIEF_VENT_DURATION_MS = 1000;  // how long relief+valves stay open during a full vent
 const unsigned long STARTUP_SETTLE_MS       = 150;   // settle time after startup vent, before capturing reference
 
-// Sensor oversampling — CORE
+// Sensor oversampling — CORE. Not settable via SET VARIABLE (const).
 const int overSampling       = 4;
 const int overSamplingDelay  = 5;    // ms between oversampling cycles
 const int sensorDelayMeasur  = 50;   // µs between sensors in one cycle
 
-// BLE telemetry cadence — PERIPHERAL. Moved here from ble.ino so it sits alongside the
-// rest of the tuning constants; still a #define today, not runtime-adjustable.
-#define TELEMETRY_INTERVAL_MS  250
+// BLE telemetry cadence — PERIPHERAL. A real variable (not #define) so SET VARIABLE can change it.
+int TELEMETRY_INTERVAL_MS = 250;
 
 
 // ============================================================
 // 4. COMMAND QUEUE — cross-cutting infrastructure, not itself data
 // ============================================================
-// Every transport (Serial, BLE, WiFi later) parses its own wire format but never
-// mutates shared state directly — it builds a Command and enqueues it here instead.
-// loop() drains the queue once per tick, before runStateMachine(), so every command
-// is applied on the main loop thread regardless of which task enqueued it (BLE's
-// onWrite() callback runs in NimBLE's own FreeRTOS task, not on loop()'s — writing
-// shared globals straight from there is a race once a command touches more than one
-// field at a time). Adding WiFi later means writing a parser that builds the same
-// Command struct and calls enqueueCommand() — nothing else changes.
+// Every transport (Serial, BLE, WiFi later) speaks the SAME text grammar — see
+// commandParser.ino's parseCommandString(). Each transport reads its own raw bytes,
+// hands them to that one shared parser, which builds a Command and calls
+// enqueueCommand(). loop() drains the queue once per tick, before runStateMachine(),
+// so every command is applied on the main loop thread regardless of which task
+// enqueued it (BLE's onWrite() callback runs in NimBLE's own FreeRTOS task, not on
+// loop()'s — writing shared globals straight from there would race the control loop).
 
 enum CommandType {
-  CMD_SET_TARGET,         // set one channel's pressure (+ optional vibration)
-  CMD_SET_VIBRATION_ALL,  // set vibration levels, starting at channel 0
-  CMD_STOP,
-  CMD_EMERGENCY,
-  CMD_RESTORE,
-  CMD_RESET,
-  CMD_DEVICE_ON,
-  CMD_DEVICE_OFF,
-  CMD_SAVE_AS_DEFAULT,   // current targetPressure[] -> this user's savedPressure[] (RAM only)
-  CMD_ASSIGN_NEW_USER    // blank this pouch's profile and assign a fresh userId, works fully offline
+  CMD_START,                     // "start"
+  CMD_STOP,                      // "stop"
+  CMD_RESET_ALL,                 // "resetall"
+  CMD_RESTART,                   // "restart"
+  CMD_USER_ID,                   // "user:<id>:<p0>,<p1>,<p2>,<p3>"
+  CMD_ASSIGN_NEW_USER,           // "assign"
+  CMD_SET_TARGET,                // "setpressure:<channel>,<value>" (one channel at a time; ';'-batchable)
+  CMD_SAVE_AS_DEFAULT,           // "saveasdefault"
+  CMD_SET_USER_DEFAULT_PRESSURE, // "setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>"
+  CMD_SET_VIBRATION_ALL,         // "setvibration:<L0>,<L1>,<L2>,<L3>"
+  CMD_SET_VARIABLE,              // "setvariable:<NAME>,<VALUE|default>"
+
+  // --- READ commands — no payload, response comes back tagged "R:..." via sendResponse() ---
+  CMD_READ_PRESSURE,             // "readpressure"
+  CMD_READ_FSR,                  // "readfsr"
+  CMD_READ_VARIABLES,            // "readvariables"
+  CMD_READ_USER,                 // "readuser"
+  CMD_READ_STATE,                // "readstate"
+  CMD_READ_VIBRATION,            // "readvibration"
+  CMD_READ_ALL                   // "readall"
 };
 
 enum CommandSource { SRC_SERIAL, SRC_BLE };  // SRC_WIFI to be added when WiFi lands
@@ -188,11 +195,15 @@ enum CommandSource { SRC_SERIAL, SRC_BLE };  // SRC_WIFI to be added when WiFi l
 struct Command {
   CommandType   type;
   CommandSource source;
-  int channel;          // 0-3; used by CMD_SET_TARGET
-  int pressure;          // used by CMD_SET_TARGET
-  int vibLevel;           // 0-3, or -1 = "leave unchanged" — used by CMD_SET_TARGET
-  int vibLevels[4];        // used by CMD_SET_VIBRATION_ALL
-  int vibLevelsCount;       // how many of vibLevels[] are valid, starting at index 0 — used by CMD_SET_VIBRATION_ALL
+  int  channel;          // 0-3 — CMD_SET_TARGET
+  int  pressure;          // CMD_SET_TARGET
+  int  pressures[4];       // CMD_USER_ID, CMD_SET_USER_DEFAULT_PRESSURE
+  int  vibLevels[4];        // CMD_SET_VIBRATION_ALL
+  int  vibLevelsCount;       // how many of vibLevels[] are valid, starting at index 0 — CMD_SET_VIBRATION_ALL
+  int  userIdValue;            // CMD_USER_ID
+  char varName[20];              // CMD_SET_VARIABLE — fixed-size, NOT Arduino String (this struct is memcpy'd through a FreeRTOS queue)
+  int  varValue;                  // CMD_SET_VARIABLE
+  bool varIsDefault;                // CMD_SET_VARIABLE — true means "reset to compiled default", varValue ignored
 };
 
 extern QueueHandle_t commandQueue;
@@ -219,6 +230,10 @@ void captureReferencePressure();
 void initCommandQueue();
 bool enqueueCommand(const Command& cmd);
 void processCommandQueue();
+void sendResponse(CommandSource source, const String& line);
+
+// commandParser.ino
+void parseCommandString(String incoming, CommandSource source);
 
 // userProfile.ino
 void initUserProfile();
@@ -242,5 +257,6 @@ void stopAllVibration();
 // ble.ino
 void initBLE();
 void updateBLE();
+void sendBLEResponse(const String& line);
 
 #endif
