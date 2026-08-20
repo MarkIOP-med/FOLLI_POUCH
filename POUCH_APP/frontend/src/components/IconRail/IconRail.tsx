@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { RAIL_ICONS } from '@/domain/diagnosticsAssets';
+import { getLastDeviceId } from '@/domain/lastDevice';
 import type { IconRailProps, RailItem } from './IconRail.types';
 import './IconRail.scss';
 
@@ -19,10 +20,12 @@ export function IconRail({ active }: IconRailProps) {
   const navigate = useNavigate();
   // Navigation must carry the device id: a bare /diagnostics used to fall through
   // to a hardcoded mock device, silently swapping which pouch the screen drives.
-  // Device-scoped icons go home instead when there is no id to carry.
+  // From an id-less URL (home) the last visited pouch fills in — without it the
+  // gear/users icons were unreachable from the home screen.
   const { id } = useParams<{ id: string }>();
+  const deviceId = id ?? getLastDeviceId();
   const target = (item: RailItem) =>
-    item.icon === 'home' || !id ? '/' : `${item.to}/${id}`;
+    item.icon === 'home' || !deviceId ? '/' : `${item.to}/${deviceId}`;
 
   return (
     <nav className="icon-rail" aria-label={t('diagnostics.rail.label')}>

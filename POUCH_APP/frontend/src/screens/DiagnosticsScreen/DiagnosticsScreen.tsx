@@ -10,6 +10,7 @@ import { DiagPanel } from '@/components/DiagPanel';
 import { VNodeRow } from '@/components/VNodeRow';
 import { BUTTONS, PROFILE } from '@/domain/diagnosticsAssets';
 import { maskNationalId } from '@/domain/israeliId';
+import { setLastDeviceId } from '@/domain/lastDevice';
 import { parseTarget } from '@/domain/pressure';
 import { useDeviceActions } from '@/domain/useDeviceActions';
 import {
@@ -52,6 +53,10 @@ export function DiagnosticsScreen() {
     if (stagedPatientId == null) sessionStorage.removeItem(`staged-patient:${id}`);
     else sessionStorage.setItem(`staged-patient:${id}`, String(stagedPatientId));
   }, [stagedPatientId, id]);
+
+  useEffect(() => {
+    if (id) setLastDeviceId(id);
+  }, [id]);
 
   useEffect(() => {
     if (stagedPatientId == null) {

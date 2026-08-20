@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
@@ -9,6 +9,7 @@ import { HeaderBand } from '@/components/HeaderBand';
 import { IconRail } from '@/components/IconRail';
 import { StatusBar } from '@/components/StatusBar';
 import { BUTTONS, PROFILE } from '@/domain/diagnosticsAssets';
+import { getLastDeviceId, setLastDeviceId } from '@/domain/lastDevice';
 import { formatDuration } from '@/domain/status';
 import { useRoster } from '@/domain/useRoster';
 import { APP_VERSION, useHeaderUsers } from '@/screens/DiagnosticsScreen/DiagnosticsScreen.lib';
@@ -26,11 +27,18 @@ export function HomeScreen() {
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
 
+  // Seed the rail's device fallback so Settings/Users are reachable from here
+  // even before the first ENTER of the session.
+  useEffect(() => {
+    if (!getLastDeviceId() && devices[0]) setLastDeviceId(devices[0].id);
+  }, [devices]);
+
   /* ENTER on a disconnected pouch connects it first (a serial pouch resets on
      port-open and takes ~7s to boot — telemetry appears on the device screen once
      it's up), then navigates. An already-connected pouch enters directly. */
   const enterDevice = async (device: DeviceSnapshot) => {
     setConnectError(null);
+    setLastDeviceId(device.id);
     if (!device.connected) {
       setConnectingId(device.id);
       try {
