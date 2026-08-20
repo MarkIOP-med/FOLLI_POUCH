@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { api } from '@/api/client';
+import type { DeviceSnapshot } from '@/api/types';
 import { AppFrame } from '@/components/AppFrame';
 import { HeaderBand } from '@/components/HeaderBand';
 import { IconRail } from '@/components/IconRail';
@@ -20,6 +23,27 @@ export function HomeScreen() {
   const navigate = useNavigate();
   const { devices } = useRoster();
   const { users } = useHeaderUsers();
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+
+  /* ENTER on a disconnected pouch connects it first (a serial pouch resets on
+     port-open and takes ~7s to boot — telemetry appears on the device screen once
+     it's up), then navigates. An already-connected pouch enters directly. */
+  const enterDevice = async (device: DeviceSnapshot) => {
+    setConnectError(null);
+    if (!device.connected) {
+      setConnectingId(device.id);
+      try {
+        await api.connect(device.id);
+      } catch (err) {
+        setConnectError(err instanceof Error ? err.message : String(err));
+        setConnectingId(null);
+        return;
+      }
+      setConnectingId(null);
+    }
+    navigate(`/diagnostics/${device.id}`);
+  };
 
   const noData = t('diagnostics.noData');
   const active = devices.filter((d) => d.session_id !== null).length;
@@ -79,8 +103,8 @@ export function HomeScreen() {
             <button
               type="button"
               className="user-card__enter"
-              disabled={!device.connected}
-              onClick={() => navigate(`/diagnostics/${device.id}`)}
+              disabled={connectingId !== null}
+              onClick={() => void enterDevice(device)}
             >
               <img src={BUTTONS.enter} alt={t('diagnostics.home.enter')} />
             </button>
@@ -113,6 +137,14 @@ export function HomeScreen() {
 
       <div className="home-screen__count">
         {t('diagnostics.home.activeUsers', { count: active })}
+        {connectingId && (
+          <span className="home-screen__connecting">
+            {' '}{t('device.connecting', { id: connectingId })}
+          </span>
+        )}
+        {connectError && (
+          <span className="home-screen__connect-error"> {connectError}</span>
+        )}
       </div>
     </AppFrame>
   );

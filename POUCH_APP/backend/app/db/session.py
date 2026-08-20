@@ -61,9 +61,14 @@ def init_db() -> None:
             conn.execute(
                 "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value)
             )
-        # A mock pouch always exists so the app is usable with no hardware attached.
-        conn.execute(
-            "INSERT OR IGNORE INTO devices (id, label, transport, port) VALUES (?,?,?,?)",
-            ("POUCH-MOCK", "Mock Pouch", "mock", None),
-        )
+        # First run only: seed a mock pouch so the app is usable with no hardware
+        # attached. Guarded on an empty roster — not INSERT OR IGNORE — so deleting
+        # the mock once real hardware is registered is a decision that sticks across
+        # restarts instead of quietly reappearing every boot.
+        count = conn.execute("SELECT COUNT(*) AS n FROM devices").fetchone()["n"]
+        if count == 0:
+            conn.execute(
+                "INSERT INTO devices (id, label, transport, port) VALUES (?,?,?,?)",
+                ("POUCH-MOCK", "Mock Pouch", "mock", None),
+            )
         conn.commit()

@@ -50,8 +50,13 @@ class TestSessionAndZones:
         time.sleep(1.5)
 
         snapshot = client.get(f"/api/devices/{mock_device}").json()
+        # railed 4095 = open circuit — must surface as FAULT, never a number
+        assert zone_of(snapshot, "FRONT")["fsr_l"]["state"] == "FAULT"
         assert zone_of(snapshot, "FRONT")["fsr_l"]["raw"] is None
-        assert zone_of(snapshot, "EAR")["fsr_l"]["state"] == "NOT_IMPLEMENTED"
+        # Gen4 reads all 8 FSR channels — the Gen3 EAR stub is gone, so EAR's live
+        # channel reports a real number like any other
+        assert zone_of(snapshot, "EAR")["fsr_l"]["state"] == "OK"
+        assert isinstance(zone_of(snapshot, "EAR")["fsr_l"]["raw"], int)
 
     def test_hardware_state_reported_as_absent(
         self, client: TestClient, mock_device: str

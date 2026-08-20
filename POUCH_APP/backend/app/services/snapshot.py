@@ -87,10 +87,12 @@ def _zone_view(
         "status": status,
         "massage_level": rx.get("massage_level", 0),
         "massage_seconds": rx.get("massage_seconds", 30),
-        # EAR FSR channels are stubbed to 0 in firmware — 'not implemented', which is
-        # not the same thing as a fault.
-        "fsr_l": fsr_reading(live["fsr_l"], zone != "EAR") if live else None,
-        "fsr_r": fsr_reading(live["fsr_r"], zone != "EAR") if live else None,
+        # Gen4 firmware reads all 8 FSR channels (the Gen3 EAR stub is gone). The
+        # channel→zone/side mapping is still unconfirmed against the harness, and one
+        # FLOW_LINK side is physically dead on the bench — those read flat 0, which is
+        # a hardware state, not "not implemented".
+        "fsr_l": fsr_reading(live["fsr_l"]) if live else None,
+        "fsr_r": fsr_reading(live["fsr_r"]) if live else None,
     }
 
 

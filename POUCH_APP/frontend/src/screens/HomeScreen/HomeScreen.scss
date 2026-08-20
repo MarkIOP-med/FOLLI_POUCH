@@ -47,6 +47,10 @@
     font-size: $fs-heading;
     line-height: 40px;
   }
+
+  // Inline feedback for ENTER's connect-then-navigate step, on the count line.
+  &__connecting { opacity: 0.7; }
+  &__connect-error { color: $alert-red; }
 }
 
 .user-card {

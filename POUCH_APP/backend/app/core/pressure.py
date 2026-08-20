@@ -73,7 +73,11 @@ def zone_status(actual: int, effective: int, out_of_band_since: float | None,
     SETTLING, and the UI colours it differently. Claiming OK while the number on
     screen plainly disagrees is how the mock rendered a leak as ordinary text.
     """
-    if flat_since is not None and (now - flat_since) > FLATLINE_FAULT_SECONDS:
+    # A vented, idle zone legitimately reads a hard 0 for as long as it stays idle
+    # (firmware clamps negative gauge readings to 0), so a flatline only means "dead
+    # sensor" when the zone is actually commanded to hold pressure.
+    if effective > 0 and flat_since is not None and \
+            (now - flat_since) > FLATLINE_FAULT_SECONDS:
         return ZoneStatus.SENSOR_FAULT
     if abs(actual - effective) <= CONTROLLER_TOLERANCE_MMHG:
         return ZoneStatus.OK
