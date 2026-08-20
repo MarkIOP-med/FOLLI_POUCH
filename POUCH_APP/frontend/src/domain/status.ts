@@ -23,8 +23,9 @@ export interface FsrDisplay {
 
 /**
  * A railed FSR (4095 = open circuit) must never render as a number or a computed
- * Newton value — that presents the absence of data as data. EAR is stubbed to 0
- * in firmware and is 'none', which is not the same thing as a fault.
+ * Newton value — that presents the absence of data as data. (Gen4 firmware reads
+ * all 8 FSR channels; the old Gen3 EAR stub is gone. NOT_IMPLEMENTED remains for
+ * any future channel the backend marks as such.)
  */
 export function fsrDisplay(reading: FsrReading | null): FsrDisplay {
   if (!reading) return { kind: 'none', value: null, className: 'fsr--none' };

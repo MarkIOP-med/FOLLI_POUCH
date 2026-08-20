@@ -82,6 +82,8 @@ export interface DeviceSnapshot {
   };
   technical?: {
     log_tail: string[];
+    /** Tagged OK:/ERR:/R: command responses from the pouch, newest last. */
+    last_responses: string[];
     raw_frame: unknown;
   };
 }
@@ -120,6 +122,8 @@ export interface SerialPort {
   port: string;
   description: string;
   hwid: string;
+  /** CP2102 USB bridge detected — almost certainly the pouch. */
+  likely_pouch: boolean;
 }
 
 export interface SessionRow {

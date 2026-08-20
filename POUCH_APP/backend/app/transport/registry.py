@@ -45,12 +45,23 @@ class DeviceRuntime:
         self.session_started_at: float | None = None
         self.setpoints: dict[str, int] = {zone: 0 for zone in ZONES}
 
-        # fault tracking
+        self._reset_faults()
+
+    def _reset_faults(self) -> None:
+        """Fault-tracking state. Also called on disconnect: a reconnected pouch
+        must not inherit stale flatline timers or a pre-suppressed alert flag."""
         self._flat_since: dict[str, float | None] = {zone: None for zone in ZONES}
         self._last_actual: dict[str, int | None] = {zone: None for zone in ZONES}
         self._out_of_band_since: dict[str, float | None] = {zone: None for zone in ZONES}
         self.manifold_flat_since: float | None = None
         self._last_manifold: int | None = None
+
+        # When each zone's commanded target last went 0 → >0. The flatline fault
+        # windows are armed from this moment, not from however long an idle zone
+        # has legitimately sat at 0 — otherwise the first frame after START reads
+        # as a 10-minute-old flatline and raises a spurious SENSOR_FAULT.
+        self._commanded_since: dict[str, float | None] = {zone: None for zone in ZONES}
+        self._manifold_commanded_since: float | None = None
 
         # Alerts fire on the transition into a bad state, not on every snapshot.
         self.alerted: dict[str, str] = {}
@@ -90,6 +101,7 @@ class DeviceRuntime:
             self.link.disconnect()
         self.link = None
         self.last_frame = None
+        self._reset_faults()
 
     @property
     def connected(self) -> bool:
@@ -164,6 +176,21 @@ class DeviceRuntime:
             self._out_of_band_since[zone] = time.time()
         return self._out_of_band_since[zone]
 
+    def note_commanded(self, zone: str, commanded: bool) -> float | None:
+        """Track the 0 → commanded transition; returns when it happened (or None)."""
+        if not commanded:
+            self._commanded_since[zone] = None
+        elif self._commanded_since[zone] is None:
+            self._commanded_since[zone] = time.time()
+        return self._commanded_since[zone]
+
+    def note_manifold_commanded(self, commanded: bool) -> float | None:
+        if not commanded:
+            self._manifold_commanded_since = None
+        elif self._manifold_commanded_since is None:
+            self._manifold_commanded_since = time.time()
+        return self._manifold_commanded_since
+
 
 class Registry:
     """Thread-safe map of device id → runtime."""
@@ -195,10 +222,14 @@ class Registry:
             runtime.disconnect()
 
     def get(self, device_id: str) -> DeviceRuntime | None:
-        return self._devices.get(device_id)
+        with self._lock:
+            return self._devices.get(device_id)
 
     def all(self) -> list[DeviceRuntime]:
-        return list(self._devices.values())
+        # Under the lock: add/remove mutate the dict from request threads, and an
+        # unlocked values() iteration can raise "dict changed size during iteration".
+        with self._lock:
+            return list(self._devices.values())
 
     def disconnect_all(self) -> None:
         for runtime in self.all():

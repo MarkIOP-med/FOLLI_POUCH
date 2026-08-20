@@ -79,22 +79,23 @@ const lastSessionByDevice = new Map<string, StickySession>();
 
 export function useStickyDevice(
   snapshot: DeviceSnapshot | null,
-  deviceId: string,
+  deviceId: string | undefined,
 ): StickySession {
+  const key = deviceId ?? '';
   const live: StickySession = {
     patientId: snapshot?.patient?.id ?? null,
     sessionElapsedS: snapshot?.session_elapsed_s ?? null,
   };
 
   useEffect(() => {
-    if (snapshot) lastSessionByDevice.set(deviceId, live);
-  }, [snapshot, live.patientId, live.sessionElapsedS, deviceId]);
+    if (snapshot) lastSessionByDevice.set(key, live);
+  }, [snapshot, live.patientId, live.sessionElapsedS, key]);
 
   // Once a frame has arrived it is authoritative, including when it reports no
   // patient — otherwise ending a session would leave the old name on screen.
   return snapshot
     ? live
-    : lastSessionByDevice.get(deviceId) ?? { patientId: null, sessionElapsedS: null };
+    : lastSessionByDevice.get(key) ?? { patientId: null, sessionElapsedS: null };
 }
 
 /** Manifold target is the highest commanded zone; the pump charges to it. */

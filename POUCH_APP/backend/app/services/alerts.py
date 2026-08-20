@@ -16,7 +16,8 @@ ALERTING_STATUSES: dict[str, audit.Severity] = {
 
 
 def raise_zone_alerts(
-    conn: sqlite3.Connection, runtime: DeviceRuntime, zones: list[dict]
+    conn: sqlite3.Connection, runtime: DeviceRuntime, zones: list[dict],
+    manifold_fault: bool = False,
 ) -> None:
     """Write an event when a zone *enters* a bad state.
 
@@ -47,17 +48,23 @@ def raise_zone_alerts(
 
         runtime.alerted[name] = status
 
-    if runtime.manifold_flat_since is not None and not runtime.manifold_alerted:
+    # The caller passes the gated verdict (core.pressure.manifold_fault) so this
+    # and the snapshot can never disagree. Fires on the transition into fault and
+    # re-arms when the fault clears — a one-shot flag that never resets would
+    # silence every future genuine failure after the first.
+    if manifold_fault and not runtime.manifold_alerted:
         audit.log_event(
             conn,
             runtime.device_id,
             "warn",
             "manifold_fault",
-            "Manifold sensor flat at 0 since boot -- suspect open circuit",
+            "Manifold sensor flat at 0 while commanded -- suspect open circuit",
             runtime.session_id,
         )
         runtime.manifold_alerted = True
         changed = True
+    elif not manifold_fault:
+        runtime.manifold_alerted = False
 
     if changed:
         conn.commit()

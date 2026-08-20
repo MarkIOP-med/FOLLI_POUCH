@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class DeviceIn(BaseModel):
     id: str = Field(min_length=1)
     label: str = Field(min_length=1)
-    transport: Literal["serial", "mock"] = "serial"
+    transport: Literal["serial", "mock", "ble"] = "serial"
     port: str | None = None
 
 

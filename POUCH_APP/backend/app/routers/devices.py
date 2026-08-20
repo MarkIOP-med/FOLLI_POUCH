@@ -35,6 +35,20 @@ from .dependencies import get_connected_runtime, get_runtime, validate_zone
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
+def send_or_502(action) -> str:
+    """Run one link command; a transport that died since the dependency check
+    (unplugged cable, reader thread flipping connected=False) becomes a clean
+    502 instead of an unhandled RuntimeError → 500."""
+    try:
+        return action()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"device link failed: {exc}"
+        ) from exc
+
+
 # ── registry ────────────────────────────────────────────────────────────────
 
 @router.get("")
@@ -113,43 +127,52 @@ def disconnect_device(
 
 
 # ── live stream ─────────────────────────────────────────────────────────────
-# SSE rather than polling: telemetry lands at ~12 Hz, which a poll loop cannot
-# track. Coalesced here — the UI cannot use more, and the DB write is downsampled
+# SSE rather than polling: telemetry lands at 5 Hz (200ms firmware cadence) and
+# is coalesced here — the UI cannot use more, and the DB write is downsampled
 # separately.
 
 @router.get("/{device_id}/stream")
 async def stream_device(runtime: DeviceRuntime = Depends(get_runtime)) -> StreamingResponse:
     async def generate():
         last_write = 0.0
-        while True:
+        # One connection for the stream's lifetime (this used to open ~5/sec),
+        # and any build error ends the stream cleanly — EventSource reconnects.
+        try:
             with session_scope() as conn:
-                payload = snapshot_service.build(runtime, conn, include_technical=True)
-                yield f"data: {json.dumps(payload)}\n\n"
+                while True:
+                    payload = snapshot_service.build(runtime, conn, include_technical=True)
+                    yield f"data: {json.dumps(payload)}\n\n"
 
-                now = time.time()
-                if (
-                    runtime.session_id
-                    and runtime.last_frame
-                    and now - last_write >= settings.telemetry_write_interval_s
-                ):
-                    last_write = now
-                    repo.write_telemetry(
-                        conn,
-                        runtime.session_id,
-                        now,
-                        [
-                            (
-                                zone,
-                                runtime.last_frame["zones"][zone]["target"],
-                                runtime.last_frame["zones"][zone]["actual"],
-                                runtime.last_frame["manifold"],
-                            )
-                            for zone in ZONES
-                        ],
-                    )
-                    conn.commit()
+                    # Bind the frame once: the reader thread reassigns last_frame
+                    # concurrently, and reading it field-by-field can tear one DB
+                    # row across two different frames.
+                    frame = runtime.last_frame
+                    now = time.time()
+                    if (
+                        runtime.session_id
+                        and frame
+                        and now - last_write >= settings.telemetry_write_interval_s
+                    ):
+                        last_write = now
+                        repo.write_telemetry(
+                            conn,
+                            runtime.session_id,
+                            now,
+                            [
+                                (
+                                    zone,
+                                    frame["zones"][zone]["target"],
+                                    frame["zones"][zone]["actual"],
+                                    frame["manifold"],
+                                )
+                                for zone in ZONES
+                            ],
+                        )
+                        conn.commit()
 
-            await asyncio.sleep(settings.stream_interval_s)
+                    await asyncio.sleep(settings.stream_interval_s)
+        except Exception:
+            return
 
     return StreamingResponse(
         generate(),
@@ -169,7 +192,7 @@ def apply_targets(
     targets = {zone["zone"]: zone["effective_mmhg"] for zone in payload["zones"]}
 
     assert runtime.link is not None
-    sent = runtime.link.set_targets(targets)
+    sent = send_or_502(lambda: runtime.link.set_targets(targets))
 
     audit.log_event(db, runtime.device_id, "info", "apply", sent, runtime.session_id)
     audit.record(db, "apply", f"device:{runtime.device_id}", None, targets)
@@ -184,7 +207,7 @@ def stop_device(
 ) -> CommandResult:
     """STOP ALL — the firmware's `stop` vents every channel and halts vibration."""
     assert runtime.link is not None
-    sent = runtime.link.stop()
+    sent = send_or_502(runtime.link.stop)
     audit.log_event(db, runtime.device_id, "warn", "stop", f"sent {sent!r}", runtime.session_id)
     db.commit()
     return CommandResult(sent=sent)
@@ -196,7 +219,7 @@ def emergency_device(
     db: sqlite3.Connection = Depends(get_db),
 ) -> CommandResult:
     assert runtime.link is not None
-    sent = runtime.link.emergency()
+    sent = send_or_502(runtime.link.emergency)
     audit.log_event(
         db, runtime.device_id, "alarm", "emergency_relief", f"sent {sent!r}",
         runtime.session_id,
@@ -216,7 +239,7 @@ def pause_device(
     session is the only honest implementation. START/APPLY resumes.
     """
     assert runtime.link is not None
-    sent = runtime.link.emergency()
+    sent = send_or_502(runtime.link.emergency)
     audit.log_event(
         db, runtime.device_id, "info", "pause",
         f"vented, session held (sent {sent!r})", runtime.session_id,
@@ -233,7 +256,7 @@ def rezero_device(
     db: sqlite3.Connection = Depends(get_db),
 ) -> CommandResult:
     assert runtime.link is not None
-    sent = runtime.link.rezero()
+    sent = send_or_502(runtime.link.rezero)
     audit.log_event(db, runtime.device_id, "info", "rezero", sent, runtime.session_id)
     db.commit()
     return CommandResult(
@@ -327,6 +350,8 @@ def set_vibration(
         raise HTTPException(status.HTTP_409_CONFLICT, "no patient loaded")
     zone = validate_zone(body.zone)
 
+    # Store first but commit only after the device push: committing before a
+    # failed push would leave the record claiming a level the device never got.
     patients_repo.set_vibration(
         db, runtime.patient_id, zone, body.massage_level, body.massage_seconds
     )
@@ -334,7 +359,6 @@ def set_vibration(
         db, "set_vibration", f"patient:{runtime.patient_id}:{zone}", None,
         body.model_dump(),
     )
-    db.commit()
 
     payload = snapshot_service.build(runtime, db)
 
@@ -342,12 +366,14 @@ def set_vibration(
     # full-vector only, so send every zone's stored level, not just the edited one.
     if runtime.connected and runtime.link is not None:
         by_zone = {z["zone"]: z.get("massage_level", 0) for z in payload["zones"]}
-        sent = runtime.link.set_vibration([by_zone.get(z, 0) for z in ZONES])
+        sent = send_or_502(
+            lambda: runtime.link.set_vibration([by_zone.get(z, 0) for z in ZONES])
+        )
         audit.log_event(
             db, runtime.device_id, "info", "set_vibration", sent, runtime.session_id
         )
-        db.commit()
 
+    db.commit()
     return payload
 
 

@@ -38,8 +38,13 @@ export function trimIsMeaningful(prescribed: number, trimRange = 10): boolean {
   return prescribed * (trimRange / 100) >= CONTROLLER_TOLERANCE_MMHG;
 }
 
-/** Parses a pressure entry field, tolerating an emptied input. */
-export function parseTarget(raw: string): number {
+/**
+ * Parses a pressure entry field, clamped to [0, ceiling]. The input's own
+ * min/max are browser-advisory only — a typed 500 arrives here as 500, and it
+ * must never leave as more than the ceiling.
+ */
+export function parseTarget(raw: string, ceiling: number): number {
   const value = Number(raw);
-  return Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.round(clamp(value, 0, ceiling));
 }

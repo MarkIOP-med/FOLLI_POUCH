@@ -1,4 +1,4 @@
-"""Database schema.
+﻿"""Database schema.
 
 Kept as one SQL script rather than an ORM: the schema is small, the queries are
 explicit, and a clinical data model benefits from being readable at a glance.
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS prescriptions (
 CREATE TABLE IF NOT EXISTS devices (
     id         TEXT PRIMARY KEY,
     label      TEXT NOT NULL,
-    transport  TEXT NOT NULL,          -- 'serial' | 'mock'
+    transport  TEXT NOT NULL,          -- 'serial' | 'mock' | 'ble'
     port       TEXT,
     fw_version TEXT,
     last_seen  REAL
@@ -107,7 +107,7 @@ DEFAULT_SETTINGS = {
 #
 # Fields required by the 2026-07 redesign (diagnostics_ui_04 PAGE_01/03/04):
 # the User Info and User Overview panels display them, so the screens cannot
-# render without them. All nullable — existing records stay valid.
+# render without them. All nullable â€” existing records stay valid.
 MIGRATIONS: list[tuple[str, str, str]] = [
     # (table, column, DDL)
     ("patients", "gender", "TEXT"),

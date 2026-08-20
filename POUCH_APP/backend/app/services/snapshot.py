@@ -13,6 +13,7 @@ from ..core.pressure import (
     ZoneStatus,
     effective_mmhg,
     fsr_reading,
+    manifold_fault,
     trim_is_meaningful,
     zone_status,
 )
@@ -21,8 +22,6 @@ from ..repositories import app_settings, audit
 from ..repositories import patients as patients_repo
 from ..transport.registry import DeviceRuntime
 from .alerts import raise_zone_alerts
-
-MANIFOLD_FAULT_SECONDS = 30
 
 
 def _mask_national_id(value: str | None) -> str | None:
@@ -74,7 +73,14 @@ def _zone_view(
     else:
         in_band = abs(actual - effective) <= CONTROLLER_TOLERANCE_MMHG
         band_since = runtime.note_band(zone, in_band)
-        status = zone_status(actual, effective, band_since, now, runtime.flat_since(zone))
+        # The flatline window arms from whichever is later: the reading going
+        # flat, or the zone being commanded. A zone idle at 0 for ten minutes
+        # must not read as a ten-minute flatline on the first frame after START.
+        flat = runtime.flat_since(zone)
+        commanded = runtime.note_commanded(zone, effective > 0)
+        if flat is not None and commanded is not None:
+            flat = max(flat, commanded)
+        status = zone_status(actual, effective, band_since, now, flat)
 
     rx = prescriptions.get(zone, {})
     return {
@@ -132,7 +138,16 @@ def build(
         for zone in ZONES
     ]
 
-    raise_zone_alerts(conn, runtime, zones)
+    # Manifold flatline, gated exactly like the zones: armed only while some zone
+    # is commanded, from whichever is later — the flatline or the command.
+    any_commanded = any(z["effective_mmhg"] > 0 for z in zones)
+    m_flat = runtime.manifold_flat_since
+    m_commanded = runtime.note_manifold_commanded(any_commanded)
+    if m_flat is not None and m_commanded is not None:
+        m_flat = max(m_flat, m_commanded)
+    m_fault = manifold_fault(any_commanded, m_flat, now)
+
+    raise_zone_alerts(conn, runtime, zones, m_fault)
 
     snapshot = {
         "id": runtime.device_id,
@@ -141,8 +156,8 @@ def build(
         "port": runtime.port,
         "connected": runtime.connected,
         "rate_hz": runtime.rate_hz,
-        # None until the firmware gains a `v` command: Gen4 is a byte-for-byte copy
-        # of Gen3 and prints the Gen3 banner, so a board cannot identify itself.
+        # None until the firmware gains a device-identity command (POUCH_ID is on
+        # the Gen4 known-limitations list) — a board cannot identify itself yet.
         "fw_version": runtime.fw_version,
         "error": runtime.link.error if runtime.link else None,
         "service_mode": runtime.service_mode,
@@ -157,10 +172,7 @@ def build(
         "trim_range_pct": trim_range,
         "alerts": audit.unacked_alerts(conn, runtime.device_id),
         "manifold_mmhg": frame["manifold"] if frame else None,
-        "manifold_fault": (
-            runtime.manifold_flat_since is not None
-            and (now - runtime.manifold_flat_since) > MANIFOLD_FAULT_SECONDS
-        ),
+        "manifold_fault": m_fault,
         # The mock shows pump duty, purge-valve state and four valve LEDs. None of
         # that is in the telemetry CSV — serial.ino emits only time, targets,
         # actuals, manifold and FSRs. Rather than invent plausible indicators, the

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceStream } from '@/api/useDeviceStream';
 import { DiagLayout } from '@/components/DiagLayout';
 import { DiagPanel } from '@/components/DiagPanel';
 import { PROFILE } from '@/domain/diagnosticsAssets';
+import { maskNationalId } from '@/domain/israeliId';
 import { formatDuration } from '@/domain/status';
 import {
   APP_VERSION,
@@ -15,11 +16,10 @@ import {
 } from '@/screens/DiagnosticsScreen/DiagnosticsScreen.lib';
 import './UsersScreen.scss';
 
-const DEFAULT_DEVICE = 'POUCH-MOCKUP';
-
 /** PAGE_03 — System Users and User Info. */
 export function UsersScreen() {
-  const { id = DEFAULT_DEVICE } = useParams<{ id: string }>();
+  // No device id, no screen — the old fallback silently pointed at a mock id.
+  const { id } = useParams<{ id: string }>();
   const { t, i18n } = useTranslation();
   const { snapshot } = useDeviceStream(id);
   const { patients, users } = useHeaderUsers();
@@ -47,6 +47,8 @@ export function UsersScreen() {
       })
     : noData;
 
+  if (!id) return <Navigate to="/" replace />;
+
   return (
     <DiagLayout
       active="users"
@@ -70,8 +72,13 @@ export function UsersScreen() {
             id="user-picker"
             className="users-screen__select"
             value={selectedId ?? ''}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
+            onChange={(e) =>
+              setSelectedId(e.target.value === '' ? null : Number(e.target.value))
+            }
           >
+            {/* Without an explicit empty option the browser paints the first
+                patient's name while nothing is actually selected. */}
+            <option value="">{noData}</option>
             {patients.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.full_name}
@@ -96,7 +103,10 @@ export function UsersScreen() {
           <span className="users-screen__value">{selected?.full_name ?? noData}</span>
 
           <span className="users-screen__label">{t('diagnostics.users.id')}</span>
-          <span className="users-screen__value">{selected?.national_id ?? noData}</span>
+          {/* Masked like every other screen — this is a ward-visible tablet. */}
+          <span className="users-screen__value">
+            {selected ? maskNationalId(selected.national_id) : noData}
+          </span>
 
           <span className="users-screen__label">{t('diagnostics.users.gender')}</span>
           <span className="users-screen__value">

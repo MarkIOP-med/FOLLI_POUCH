@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/api/client';
-import type { Gender, Zone } from '@/api/types';
+import type { Gender, Patient, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
 import { DiagLayout } from '@/components/DiagLayout';
 import { DiagPanel } from '@/components/DiagPanel';
 import { VNodeRow } from '@/components/VNodeRow';
 import { BUTTONS, PROFILE } from '@/domain/diagnosticsAssets';
+import { maskNationalId } from '@/domain/israeliId';
+import { parseTarget } from '@/domain/pressure';
 import { useDeviceActions } from '@/domain/useDeviceActions';
 import {
   APP_VERSION,
@@ -18,32 +20,91 @@ import {
 } from './DiagnosticsScreen.lib';
 import './DiagnosticsScreen.scss';
 
-const DEFAULT_DEVICE = 'POUCH-MOCK';
-
 /** PAGE_02 — Pouch Diagnostics Overview. */
 export function DiagnosticsScreen() {
-  const { id = DEFAULT_DEVICE } = useParams<{ id: string }>();
+  // No device id, no screen — the old fallback to a hardcoded mock id silently
+  // pointed this screen at a different (usually nonexistent) pouch.
+  const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
-  const { snapshot } = useDeviceStream(id);
-  const { busyKey, run } = useDeviceActions();
+  const { snapshot, streamError, stale } = useDeviceStream(id);
+  const { busyKey, error, run, clearError } = useDeviceActions();
   const { users } = useHeaderUsers();
   const sticky = useStickyDevice(snapshot, id);
-  const [manifoldDraft, setManifoldDraft] = useState('');
+
+  // Staged patient: chosen in the header but not yet treated. The session — and
+  // with it the Session Runtime clock — begins only when START is pressed. Until
+  // then the choice lives client-side only (nothing reaches the backend), kept in
+  // sessionStorage so a page refresh doesn't silently drop the selection.
+  const [stagedPatientId, setStagedPatientId] = useState<number | null>(() => {
+    const raw = sessionStorage.getItem(`staged-patient:${id}`);
+    return raw ? Number(raw) : null;
+  });
+  const [stagedPatient, setStagedPatient] = useState<Patient | null>(null);
+  // Drafts for the User Pressure Regime inputs; committed by the panel's SET.
+  const [regimeDrafts, setRegimeDrafts] = useState<Record<string, string>>({});
+  const sessionActive = snapshot?.session_id != null;
+
+  useEffect(() => {
+    if (stagedPatientId == null) sessionStorage.removeItem(`staged-patient:${id}`);
+    else sessionStorage.setItem(`staged-patient:${id}`, String(stagedPatientId));
+  }, [stagedPatientId, id]);
+
+  useEffect(() => {
+    if (stagedPatientId == null) {
+      setStagedPatient(null);
+      return;
+    }
+    let cancelled = false;
+    api
+      .patient(stagedPatientId)
+      .then((p) => {
+        if (!cancelled) setStagedPatient(p);
+      })
+      .catch(() => {
+        if (!cancelled) setStagedPatient(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stagedPatientId]);
+
+  // Keep the selector consistent with a session that is already running (e.g.
+  // after navigating back to this screen mid-treatment).
+  useEffect(() => {
+    if (sessionActive && snapshot?.patient) setStagedPatientId(snapshot.patient.id);
+  }, [sessionActive, snapshot?.patient?.id]);
 
   // Renders its chrome even before the stream connects — see AdminScreen for why
   // an early return here caused a flash on every navigation. The panels appear
   // immediately and fill in when the first frame lands.
-  const gender: Gender = snapshot?.patient?.gender ?? 'female';
+  const gender: Gender =
+    snapshot?.patient?.gender ?? stagedPatient?.gender ?? 'female';
   const disabled = !snapshot?.connected || busyKey !== null;
   const noData = t('diagnostics.noData');
   const zones = snapshot?.zones ?? [];
+
+  // Prescription preview while staged (no session yet): zone → prescription.
+  const stagedRx = new Map(
+    (stagedPatient?.prescriptions ?? []).map((rx) => [rx.zone, rx]),
+  );
+  const previewing = !sessionActive && stagedPatient != null;
+
+  // No device id, no screen — the old fallback to a hardcoded mock id silently
+  // pointed this screen at a different pouch. (After the hooks: hook order.)
+  if (!id) return <Navigate to="/" replace />;
 
   return (
     <DiagLayout
       active="diagnostics"
       users={users}
-      selectedUserId={sticky.patientId}
-      onSelectUser={() => undefined}
+      selectedUserId={sessionActive ? sticky.patientId : stagedPatientId}
+      /* Selecting a patient only STAGES them — nothing is sent to the device and
+         no session (or runtime clock) starts until START is pressed. Changing the
+         selection while a session runs ends that session first (which vents). */
+      onSelectUser={(patientId) => {
+        setStagedPatientId(patientId);
+        if (sessionActive) void run('endingSession', () => api.endSession(id));
+      }}
       {...headerFromSnapshot(snapshot, id)}
       sessionElapsedS={sticky.sessionElapsedS}
       version={APP_VERSION}
@@ -55,21 +116,37 @@ export function DiagnosticsScreen() {
         style={{}}
       >
         <div className="hw">
+          {/* START begins the session (this is when Session Runtime starts
+              counting), re-zeros the pressure baseline (the firmware's restart —
+              vent + reference capture, ~2s), then applies the staged patient's
+              regime. With no patient staged it opens a service-mode session. */}
           <button
             type="button"
             className="hw__round hw__round--start"
-            disabled={disabled || snapshot?.session_id == null}
-            onClick={() => run('applying', () => api.apply(id))}
+            disabled={disabled}
+            onClick={() =>
+              run('applying', async () => {
+                if (!sessionActive) await api.startSession(id, stagedPatientId);
+                await api.rezero(id);
+                await api.apply(id);
+              })
+            }
           >
             <img src={BUTTONS.start} alt={t('device.hardware.start')} />
           </button>
-          {/* Sends the vent command, not the firmware's stop — 's' never
-              writes PUMP_PIN LOW, so it does not stop the pump. */}
+          {/* STOP ends the session (venting everything on the way); with no
+              session it is a plain vent — the firmware's `stop`. As the safety
+              control it is gated on connection only, never on another command
+              being in flight. */}
           <button
             type="button"
             className="hw__round hw__round--stop"
-            disabled={disabled}
-            onClick={() => run('stopping', () => api.stop(id))}
+            disabled={!snapshot?.connected}
+            onClick={() =>
+              run('stopping', () =>
+                sessionActive ? api.endSession(id) : api.stop(id),
+              )
+            }
           >
             <img src={BUTTONS.stop} alt={t('device.hardware.stopAll')} />
           </button>
@@ -79,16 +156,12 @@ export function DiagnosticsScreen() {
 
           <div className="hw__manifold">
             <span>{t('device.vnodes.target')}</span>
-            <input
-              className="hw__input"
-              type="number"
-              min={0}
-              max={snapshot?.ceiling_mmhg}
-              value={manifoldDraft || snapshot?.manifold_target_mmhg || ''}
-              disabled={disabled}
-              aria-label={t('device.hardware.manifoldTarget')}
-              onChange={(e) => setManifoldDraft(e.target.value)}
-            />
+            {/* Display-only: the manifold target is derived (highest commanded
+                zone — the pump charges to it), not directly settable. The old
+                input collected a draft that was never sent anywhere. */}
+            <span className="hw__value">
+              {snapshot ? snapshot.manifold_target_mmhg : noData}
+            </span>
             {/* One run, not four spans — see VNodeRow: the flex gap would be
                 added at every word boundary and overflow the panel. */}
             <span>
@@ -165,11 +238,18 @@ export function DiagnosticsScreen() {
         <div className="regime">
           <div className="regime__identity">
             <span>{t('diagnostics.users.name')}</span>
-            <span>{snapshot?.patient?.full_name ?? noData}</span>
+            <span>
+              {snapshot?.service_mode
+                ? t('device.patientBand.serviceMode')
+                : snapshot?.patient?.full_name ?? stagedPatient?.full_name ?? noData}
+            </span>
             <span>{t('diagnostics.users.id')}</span>
-            <span>{snapshot?.patient?.national_id_masked ?? noData}</span>
+            <span>
+              {snapshot?.patient?.national_id_masked ??
+                (stagedPatient ? maskNationalId(stagedPatient.national_id) : noData)}
+            </span>
             <span>{t('diagnostics.users.age')}</span>
-            <span>{snapshot?.patient?.age ?? noData}</span>
+            <span>{snapshot?.patient?.age ?? stagedPatient?.age ?? noData}</span>
           </div>
 
           <img className="regime__profile" src={PROFILE[gender].NONE} alt="" />
@@ -187,7 +267,9 @@ export function DiagnosticsScreen() {
             ))}
             {zones.map((z) => (
               <span key={`${z.zone}-v`} className="regime__default">
-                {z.prescribed_mmhg}
+                {previewing
+                  ? stagedRx.get(z.zone)?.prescribed_mmhg ?? 0
+                  : z.prescribed_mmhg}
               </span>
             ))}
           </div>
@@ -206,17 +288,47 @@ export function DiagnosticsScreen() {
                 key={`${z.zone}-i`}
                 className="regime__input"
                 type="number"
-                readOnly
-                value={z.effective_mmhg}
+                min={0}
+                max={snapshot?.ceiling_mmhg}
+                readOnly={!sessionActive}
+                value={
+                  regimeDrafts[z.zone] ??
+                  String(
+                    previewing
+                      ? stagedRx.get(z.zone)?.prescribed_mmhg ?? 0
+                      : z.effective_mmhg,
+                  )
+                }
+                onChange={(e) =>
+                  sessionActive &&
+                  setRegimeDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
+                }
                 aria-label={t(`zones.${z.zone}`)}
               />
             ))}
           </div>
 
+          {/* Commits every edited regime input to the loaded patient (or, in
+              service mode, as direct setpoints). Was a button with no handler. */}
           <button
             type="button"
             className="regime__btn regime__btn--set"
-            disabled={disabled}
+            disabled={disabled || !sessionActive || Object.keys(regimeDrafts).length === 0}
+            onClick={() =>
+              run('settingTarget', async () => {
+                const ceiling = snapshot?.ceiling_mmhg ?? 0;
+                for (const [zoneName, raw] of Object.entries(regimeDrafts)) {
+                  if (raw.trim() === '') continue;
+                  const mmhg = parseTarget(raw, ceiling);
+                  if (snapshot?.service_mode) {
+                    await api.setSetpoint(id, zoneName as Zone, mmhg);
+                  } else {
+                    await api.setZoneRx(id, zoneName as Zone, mmhg);
+                  }
+                }
+                setRegimeDrafts({});
+              })
+            }
           >
             <img src={BUTTONS.set} alt={t('diagnostics.regime.set')} />
           </button>
@@ -262,32 +374,83 @@ export function DiagnosticsScreen() {
             >
               <span>{t(`zones.${zone.zone}`)}</span>
               <span className="vib-panel__levels">
-                {[0, 1, 2, 3].map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    className={`vib-panel__level${
-                      zone.massage_level === level ? ' is-on' : ''
-                    }`}
-                    disabled={disabled || !snapshot?.patient}
-                    aria-pressed={zone.massage_level === level}
-                    onClick={() =>
-                      run('settingVibration', () =>
-                        api.setVibration(id, zone.zone as Zone, level),
-                      )
-                    }
-                  >
-                    {level}
-                  </button>
-                ))}
+                {[0, 1, 2, 3].map((level) => {
+                  const shown = previewing
+                    ? stagedRx.get(zone.zone)?.massage_level ?? 0
+                    : zone.massage_level;
+                  return (
+                    <button
+                      key={level}
+                      type="button"
+                      className={`vib-panel__level${shown === level ? ' is-on' : ''}`}
+                      disabled={disabled || !snapshot?.patient}
+                      aria-pressed={shown === level}
+                      onClick={() =>
+                        run('settingVibration', () =>
+                          api.setVibration(id, zone.zone as Zone, level),
+                        )
+                      }
+                    >
+                      {level}
+                    </button>
+                  );
+                })}
               </span>
               <span className="vib-panel__duration">
-                {t('units.duration', { value: zone.massage_seconds })}
+                {t('units.duration', {
+                  value: previewing
+                    ? stagedRx.get(zone.zone)?.massage_seconds ?? 30
+                    : zone.massage_seconds,
+                })}
               </span>
             </div>
           ))}
         </div>
       </DiagPanel>
+
+      {/* ── Status strip: stream health, command failures, device alarms ── */}
+      {/* Everything here used to fail silently — a dead stream kept painting the
+          last pressures, a rejected command just un-disabled its button, and
+          alarms were written to the DB without ever reaching a screen. */}
+      <div className="diagnostics__status">
+        {(streamError || stale) && (
+          <span className="diagnostics__status-item diagnostics__status-item--warn">
+            {t('device.streamInterrupted')}
+          </span>
+        )}
+        {error && (
+          <button
+            type="button"
+            className="diagnostics__status-item diagnostics__status-item--error"
+            onClick={clearError}
+            title={t('common.dismiss')}
+          >
+            {error} ✕
+          </button>
+        )}
+        {snapshot?.error && (
+          <span className="diagnostics__status-item diagnostics__status-item--error">
+            {t('device.linkError', { message: snapshot.error })}
+          </span>
+        )}
+        {snapshot?.manifold_fault && (
+          <span className="diagnostics__status-item diagnostics__status-item--error">
+            {t('device.hardware.manifoldFault')}
+          </span>
+        )}
+        {(snapshot?.alerts ?? []).slice(0, 3).map((alert) => (
+          <button
+            key={alert.id}
+            type="button"
+            className={`diagnostics__status-item diagnostics__status-item--${alert.severity}`}
+            onClick={() => run('acking', () => api.ackAlert(id, alert.id))}
+            title={t('common.acknowledge')}
+          >
+            ⚠ {alert.code}
+            {alert.detail ? ` — ${alert.detail}` : ''} ✕
+          </button>
+        ))}
+      </div>
     </DiagLayout>
   );
 }

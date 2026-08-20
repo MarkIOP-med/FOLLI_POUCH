@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { RAIL_ICONS } from '@/domain/diagnosticsAssets';
@@ -17,6 +17,12 @@ const ITEMS: readonly RailItem[] = [
 export function IconRail({ active }: IconRailProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // Navigation must carry the device id: a bare /diagnostics used to fall through
+  // to a hardcoded mock device, silently swapping which pouch the screen drives.
+  // Device-scoped icons go home instead when there is no id to carry.
+  const { id } = useParams<{ id: string }>();
+  const target = (item: RailItem) =>
+    item.icon === 'home' || !id ? '/' : `${item.to}/${id}`;
 
   return (
     <nav className="icon-rail" aria-label={t('diagnostics.rail.label')}>
@@ -29,7 +35,7 @@ export function IconRail({ active }: IconRailProps) {
           aria-current={item.icon === active ? 'page' : undefined}
           title={t(item.labelKey)}
           style={{ '--rail-index': index } as CSSProperties}
-          onClick={() => navigate(item.to)}
+          onClick={() => navigate(target(item))}
         >
           {/* The artwork is black-on-transparent, so it is applied as a mask and
               filled with the designer's grey/white pair rather than rendered as

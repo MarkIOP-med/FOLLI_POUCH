@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/api/client';
@@ -15,11 +15,10 @@ import {
 import { TABLE_ROWS, adminActions } from './AdminScreen.lib';
 import './AdminScreen.scss';
 
-const DEFAULT_DEVICE = 'POUCH-MOCKUP';
-
 /** PAGE_04 — Admin Actions. */
 export function AdminScreen() {
-  const { id = DEFAULT_DEVICE } = useParams<{ id: string }>();
+  // No device id, no screen — the old fallback silently pointed at a mock id.
+  const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { snapshot } = useDeviceStream(id);
   const { busyKey, run } = useDeviceActions();
@@ -36,11 +35,16 @@ export function AdminScreen() {
   const noData = t('diagnostics.noData');
   const disabled = !snapshot?.connected || busyKey !== null || !snapshot.patient;
 
+  if (!id) return <Navigate to="/" replace />;
+
   return (
     <DiagLayout
       active="settings"
       users={users}
       selectedUserId={sticky.patientId}
+      /* Read-only here: patient loading happens on the diagnostics screen. A
+         selector that accepts input and discards it reads as broken. */
+      selectDisabled
       onSelectUser={() => undefined}
       {...headerFromSnapshot(snapshot, id)}
       sessionElapsedS={sticky.sessionElapsedS}

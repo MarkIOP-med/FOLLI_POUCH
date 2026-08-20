@@ -39,20 +39,18 @@ class Settings:
         )
     )
 
-    # Serial link. The bench board is an Arduino Due; opening its programming port
-    # at 1200 baud is the bootloader erase trigger, so the rate is deliberately not
-    # env-overridable.
-    serial_baud: int = 9600
-
-    # SSE coalescing. Telemetry lands at ~12 Hz; the UI cannot use more than this.
+    # SSE coalescing. Telemetry lands at 5 Hz (firmware SERIAL_LOG_INTERVAL_MS =
+    # 200ms); the UI cannot use more than this.
     stream_interval_s: float = 0.2
-    # Telemetry is downsampled before it reaches the DB: 12 Hz x 4 zones raw is
-    # roughly 4M rows per pouch per day.
+    # Telemetry is downsampled before it reaches the DB: 5 Hz x 4 zones raw is
+    # roughly 1.7M rows per pouch per day.
     telemetry_write_interval_s: float = 1.0
 
-    # Fault detection thresholds, mirrored in the frontend domain layer.
-    flatline_fault_seconds: int = _env_int("FOLLI_FLATLINE_FAULT_S", 30)
-    out_of_band_debounce_seconds: int = _env_int("FOLLI_BAND_DEBOUNCE_S", 5)
+    # The serial baud and the fault-detection thresholds are NOT here: baud is
+    # pinned in transport/serial_link.py, and the flatline/debounce windows are
+    # constants in core/pressure.py (mirrored in the frontend domain layer).
+    # Env knobs for them existed once but were read by nothing — a setting that
+    # silently does nothing is worse than none.
 
     # No auth yet — every audit row is attributed to this actor. When login lands,
     # this becomes the fallback for unauthenticated system actions only.

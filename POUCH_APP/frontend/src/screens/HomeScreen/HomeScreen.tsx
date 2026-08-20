@@ -21,7 +21,7 @@ const MIN_SLOTS = 6;
 export function HomeScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { devices } = useRoster();
+  const { devices, error: rosterError } = useRoster();
   const { users } = useHeaderUsers();
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -57,6 +57,9 @@ export function HomeScreen() {
         version={APP_VERSION}
         users={users}
         selectedUserId={lead?.patient?.id ?? null}
+        /* Read-only mirror of the lead pouch's patient; loading happens on the
+           diagnostics screen. */
+        selectDisabled
         onSelectUser={() => undefined}
         consoleId={null}
         pouchId={lead?.id ?? null}
@@ -144,6 +147,11 @@ export function HomeScreen() {
         )}
         {connectError && (
           <span className="home-screen__connect-error"> {connectError}</span>
+        )}
+        {/* A dead roster poll used to freeze the grid at its cached values with
+            no indication anything was wrong. */}
+        {rosterError && (
+          <span className="home-screen__connect-error"> {rosterError}</span>
         )}
       </div>
     </AppFrame>

@@ -9,7 +9,9 @@ export interface HeaderBandProps {
   version: string;
   users: HeaderUser[];
   selectedUserId: number | null;
-  onSelectUser: (id: number) => void;
+  onSelectUser: (id: number | null) => void;
+  /** Renders the user selector read-only (screens where selection has no meaning). */
+  selectDisabled?: boolean;
 
   consoleId: string | null;
   pouchId: string | null;

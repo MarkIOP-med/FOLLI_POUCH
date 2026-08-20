@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/api/client';
 import type { DeviceSnapshot } from '@/api/types';
@@ -26,7 +26,7 @@ export interface RosterState {
  * Without it, navigating back to the home grid painted six empty slots and a
  * blank header for one poll interval before the data landed, which read as a
  * flicker. Caching is honest here because this roster is polled every 2s by
- * design — it is already allowed to be that stale — unlike the 12Hz telemetry in
+ * design â€” it is already allowed to be that stale â€” unlike the 5Hz telemetry in
  * `useDeviceStream`, which is never carried across a remount.
  */
 let cachedDevices: DeviceSnapshot[] = [];

@@ -24,6 +24,8 @@
     "none": "none",
     "notAvailable": "n/a",
     "notReported": "not reported",
+    "dismiss": "dismiss",
+    "acknowledge": "acknowledge",
     "unknown": "unknown",
     "emDash": "—",
     "mmhg": "mmHg",
@@ -147,7 +149,7 @@
       "zonePair": "Zone Pair",
       "levels": "Levels",
       "duration": "Duration",
-      "note": "Configured duration, not a live countdown — the firmware does not report remaining vibration time. Also note `vib:` is listed in the protocol but is not yet parsed in serial.ino, so these levels are stored, not sent."
+      "note": "Configured duration, not a live countdown — the firmware does not report remaining vibration time. Levels are stored with the prescription and pushed to the device (setvibration)."
     },
 
     "technical": {
@@ -157,7 +159,7 @@
       "transport": "Transport",
       "linkRate": "Link rate",
       "firmware": "Firmware",
-      "firmwareUnknown": "unknown — no `v` command in firmware",
+      "firmwareUnknown": "unknown — the firmware has no device-identity command yet",
       "serialLog": "Serial log",
       "serialLogEmpty": "(no log lines yet)",
       "rawFrame": "Raw frame"
@@ -207,7 +209,7 @@
     },
 
     "notConnected": "Pouch not connected",
-    "rezeroNote": "Firmware has no re-zero command yet — this vents instead. The baseline is captured 500 ms after boot, before the sensors settle."
+    "rezeroNote": "Vents and re-captures the atmospheric baseline (the firmware's restart command)."
   },
 
   "diagnostics": {
@@ -235,7 +237,7 @@
       "name": "Name:",
       "console": "Console:",
       "pouch": "Pouch:",
-      "timeRemain": "Time Remain:",
+      "timeRemain": "Time Elapsed:",
       "timeRemainValue": "{{value}} min",
       "enter": "ENTER",
       "activeUsers": "ACTIVE USERS: {{count}}"
@@ -254,7 +256,7 @@
       "treatmentNo": "Treatment No.:",
       "console": "Console:",
       "pouch": "Pouch:",
-      "timeRemain": "Time Remain:"
+      "timeRemain": "Time Elapsed:"
     },
     "admin": {
       "heading": "ADMIN ACTIONS",
@@ -351,7 +353,7 @@
     "devicePort": "— port —",
     "firmwareShort": "fw {{version}}",
     "detectedPorts": "Detected ports: {{ports}}",
-    "firmwareNote": "Firmware version reads unknown until the firmware gains a `v` command — Gen4 is a byte-for-byte copy of Gen3 and prints the Gen3 banner, so a board currently cannot identify itself.",
+    "firmwareNote": "Firmware version reads unknown until the firmware gains a device-identity command (POUCH_ID is on the Gen4 known-limitations list) — a board currently cannot identify itself over the wire.",
     "transport": {
       "serial": "serial",
       "mock": "mock"

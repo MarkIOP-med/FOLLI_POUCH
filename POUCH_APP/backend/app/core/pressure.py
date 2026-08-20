@@ -87,14 +87,28 @@ def zone_status(actual: int, effective: int, out_of_band_since: float | None,
     return ZoneStatus.SETTLING
 
 
-def fsr_reading(raw: int, implemented: bool = True) -> dict:
+def manifold_fault(any_zone_commanded: bool, flat_since: float | None,
+                   now: float) -> bool:
+    """One predicate for the manifold flatline, shared by snapshot and alerts.
+
+    A vented, idle manifold legitimately reads a hard 0; a flatline only means
+    "dead sensor" while some zone is commanded — that's when the pump charges the
+    manifold and a stuck 0 would make it run forever.
+    """
+    return (
+        any_zone_commanded
+        and flat_since is not None
+        and (now - flat_since) > FLATLINE_FAULT_SECONDS
+    )
+
+
+def fsr_reading(raw: int) -> dict:
     """An FSR value plus whether it can be trusted.
 
     A railed 4095 is an open circuit. It must never reach the UI as a number or a
     computed Newton value -- that reads as data when it is the absence of data.
+    (Gen4 reads all 8 channels; the Gen3 'not implemented' EAR stub is gone.)
     """
-    if not implemented:
-        return {"raw": None, "state": "NOT_IMPLEMENTED"}
     if raw >= FSR_RAIL:
         return {"raw": None, "state": "FAULT"}
     return {"raw": raw, "state": "OK"}

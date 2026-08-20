@@ -17,3 +17,6 @@ class SerialPortOut(BaseModel):
     port: str
     description: str
     hwid: str
+    # CP2102 bridge (10C4:EA60) == almost certainly the pouch — the one field
+    # that tells an operator which COM port to pick.
+    likely_pouch: bool = False

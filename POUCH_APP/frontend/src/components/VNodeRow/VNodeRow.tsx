@@ -21,7 +21,16 @@ export function VNodeRow({ zone, gender, ceiling, disabled, onSet }: VNodeRowPro
   const zoneKey = zone.zone as Zone;
   const left = fsrDisplay(zone.fsr_l);
   const right = fsrDisplay(zone.fsr_r);
-  const commit = () => onSet(zoneKey, parseTarget(draft));
+  // An emptied field is not a command: clearing the box and tabbing away used to
+  // send 0 mmHg and vent the pad. Reverting to the prescription is the only
+  // non-surprising reading of an empty input.
+  const commit = () => {
+    if (draft.trim() === '') {
+      setDraft(String(zone.prescribed_mmhg));
+      return;
+    }
+    onSet(zoneKey, parseTarget(draft, ceiling));
+  };
 
   const renderFsr = (d: ReturnType<typeof fsrDisplay>) => {
     if (d.kind === 'fault') {

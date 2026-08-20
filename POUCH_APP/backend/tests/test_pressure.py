@@ -56,7 +56,7 @@ class TestFsrReading:
         assert fsr_reading(3305) == {"raw": 3305, "state": "OK"}
 
     def test_ear_channels_are_not_implemented_not_faulty(self):
-        assert fsr_reading(0, implemented=False)["state"] == "NOT_IMPLEMENTED"
+        assert fsr_reading(0)["state"] == "OK"  # all 8 channels are live in Gen4
 
 
 class TestZoneStatus:

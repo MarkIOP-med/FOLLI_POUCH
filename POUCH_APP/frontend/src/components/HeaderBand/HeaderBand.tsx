@@ -11,6 +11,7 @@ export function HeaderBand({
   users,
   selectedUserId,
   onSelectUser,
+  selectDisabled = false,
   consoleId,
   pouchId,
   connected,
@@ -82,9 +83,16 @@ export function HeaderBand({
       <select
         id="header-user"
         className="header-band__select"
+        disabled={selectDisabled}
         value={selectedUserId ?? ''}
-        onChange={(e) => onSelectUser(Number(e.target.value))}
+        onChange={(e) =>
+          onSelectUser(e.target.value === '' ? null : Number(e.target.value))
+        }
       >
+        {/* Explicit empty option: without it the browser renders the first
+            patient's name when nothing is selected, which reads as a loaded
+            user that is not actually loaded. */}
+        <option value="">{t('diagnostics.noData')}</option>
         {users.map((user) => (
           <option key={user.id} value={user.id}>
             {user.name}
