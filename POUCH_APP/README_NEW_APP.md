@@ -153,25 +153,32 @@ a patient is deleted, so a retired MRN silently reappears on a different person.
 **National ID is optional and check-digit validated** (Israeli teudat zehut, validated on
 both sides). Random 9-digit strings fail ~90% of the time. The internal MRN is the key.
 
-## Firmware work this depends on
+## Protocol
+
+The app speaks the FOLLI text grammar of the rewritten Gen4 ESP32 firmware
+(2026-08 rewrite, bench-verified). **`POUCH_ESP_GEN4/POUCH_ESP.md` is the source of
+truth** for commands (`setpressure:…`, `stop`, `setvibration:…`, `read*`) and the
+tagged response format (`T:`/`R:`/`OK:`/`ERR:`). App-side, the grammar lives in one
+place — `backend/app/transport/protocol.py` — shared by every transport:
+
+- **serial** (`serial_link.py`) — the pouch is a CP2102 bridge (VID:PID 10C4:EA60),
+  COM6 on the bench PC, 9600 baud. Opening the port resets the ESP32 (~7 s boot).
+- **ble** (`ble_link.py`) — interface-ready stub; the firmware's NimBLE server carries
+  the same text lines. Implement with `bleak` per the module docstring.
+- **mock** (`mock_link.py`) — same grammar, no hardware.
+
+Telemetry is a `T:`-prefixed CSV every 200 ms (firmware `SERIAL_LOG_INTERVAL_MS` —
+deliberately throttled; printing every loop capped the firmware control loop at ~7 Hz
+and wrecked pressure regulation).
+
+The Gen3-era workarounds are gone: `stop` really vents (no more sending `r`), and
+RE-ZERO sends the real `restart` command. Old firmware-dependency list, updated:
 
 | Needed | Why | Status in app |
 |---|---|---|
-| `v` identity command | Gen4 is a byte-for-byte copy of Gen3 and prints the Gen3 banner, so a board cannot identify itself | header shows `fw unknown` |
-| `z` re-zero command | baseline is captured 500 ms after boot, before sensors settle; `r` vents without re-capturing | RE-ZERO button vents instead |
-| `s` must stop the pump | see above | STOP sends `r` |
+| device identity (`POUCH_ID`) | a board still cannot identify itself over the wire | header shows `fw unknown` |
 | phase-2 pump timeout | `pneumatics.ino` holds `PUMP_PIN` HIGH until the manifold reads target; with a dead manifold sensor that never happens | manifold fault raises an alert |
-| firmware pressure clamp | app-side ceiling is not a safety control | ceiling clamps input only |
-| pump / valve / purge state in telemetry | the CSV carries only time, targets, actuals, manifold and FSRs — the mock's pump-duty and valve LEDs have no data source | shown as "not reported", never inferred |
+| firmware pressure clamp | `setpressure` accepts any value; the app-side ceiling is not a safety control | ceiling clamps input only |
+| pump / valve state in telemetry | diagnostics not implemented firmware-side | shown as "not reported", never inferred |
 | vibration time-remaining in telemetry | firmware auto-times vibration out but never reports the countdown | duration shown, not a live count |
-| `vib:` parsing in `serial.ino` | listed in the protocol, not implemented | levels are stored, not sent |
-| a true PAUSE | `s` freezes the state machine without stopping the pump | PAUSE vents and holds the session |
-
-Measured ceiling: **~12 Hz telemetry, ~80 ms command latency** at 9600 baud. 115200 would
-move the bottleneck to the sensor oversampling (~45 Hz) — firmware and both apps must agree.
-
-> Caveat on that 12 Hz: measured directly off the port it was 12.3 Hz, but the first
-> `test_real_serial.py` run reported **16 Hz** through the app. Most likely the 3-second
-> sliding window in `Link.rate_hz` catching buffered lines just after the port-open reset,
-> rather than a true sustained rate. Not chased — but don't treat 12 Hz as exact until
-> someone measures it over a longer window.
+| a true PAUSE | firmware has no hold state that keeps the pump off with targets retained | PAUSE vents and holds the session |

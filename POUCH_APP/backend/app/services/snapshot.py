@@ -179,6 +179,7 @@ def build(
     if include_technical:
         snapshot["technical"] = {
             "log_tail": runtime.log_tail[-25:],
+            "last_responses": runtime.last_responses[-10:],  # tagged OK:/ERR:/R: lines
             "raw_frame": frame,
         }
 

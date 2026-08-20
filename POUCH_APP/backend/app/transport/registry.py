@@ -13,6 +13,7 @@ import time
 
 from ..core.zones import ZONES
 from .base import Link
+from .ble_link import BleLink
 from .mock_link import MockLink
 from .serial_link import SerialLink
 
@@ -34,6 +35,7 @@ class DeviceRuntime:
         self.link: Link | None = None
         self.last_frame: dict | None = None
         self.log_tail: list[str] = []
+        self.last_responses: list[str] = []   # tagged OK:/ERR:/R: lines, newest last
         self.fw_version: str | None = None
 
         # session state
@@ -60,13 +62,25 @@ class DeviceRuntime:
         if self.link and self.link.connected:
             return
 
+        # Transport selection — the one switch point. "wifi" joins here once the
+        # firmware grows a WiFi server (SRC_WIFI is still just a placeholder there).
         if self.transport == "mock":
-            self.link = MockLink(self.device_id, self._on_telemetry, self._on_log)
+            self.link = MockLink(
+                self.device_id, self._on_telemetry, self._on_log, self._on_response
+            )
+        elif self.transport == "ble":
+            if not self.port:
+                raise ValueError(f"{self.device_id} has no BLE address configured")
+            self.link = BleLink(
+                self.device_id, self.port, self._on_telemetry, self._on_log,
+                self._on_response,
+            )
         else:
             if not self.port:
                 raise ValueError(f"{self.device_id} has no serial port configured")
             self.link = SerialLink(
-                self.device_id, self.port, self._on_telemetry, self._on_log
+                self.device_id, self.port, self._on_telemetry, self._on_log,
+                self._on_response,
             )
 
         self.link.connect()
@@ -131,6 +145,12 @@ class DeviceRuntime:
         self.log_tail.append(line)
         if len(self.log_tail) > 60:
             self.log_tail = self.log_tail[-60:]
+
+    def _on_response(self, tag: str, payload: str) -> None:
+        """Tagged command responses (OK:/ERR:/R:) — kept separate from log noise."""
+        self.last_responses.append(f"{tag}:{payload}")
+        if len(self.last_responses) > 20:
+            self.last_responses = self.last_responses[-20:]
 
     # ── fault helpers ───────────────────────────────────────────────────────
 

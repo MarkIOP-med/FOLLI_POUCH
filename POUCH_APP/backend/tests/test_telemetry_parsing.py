@@ -1,32 +1,52 @@
-"""CSV parsing against lines actually captured from the Due on COM5."""
+"""Telemetry parsing against lines actually captured from the pouch.
+
+REAL_LINE is a frame captured from the Gen4 ESP32 on COM6 during the 2026-08-20
+bench session ("T:" prefix, 200ms cadence). Everything that is not a well-formed
+"T:" frame must be rejected by parse_telemetry — tagged responses are classified
+separately by decode_line (see test_protocol.py).
+"""
 
 import pytest
 
 from app.transport.base import parse_telemetry
 
-REAL_LINE = "11566,0,15,0,44,0,0,0,0,0,4095,4095,4095,3294,0,0,4095,4095"
+REAL_LINE = "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4"
 
 
 def test_parses_a_real_frame():
     frame = parse_telemetry(REAL_LINE)
 
     assert frame is not None
-    assert frame["device_ms"] == 11566
-    assert frame["manifold"] == 0
-    assert frame["zones"]["TEMPLE"]["actual"] == 44
-    assert frame["zones"]["FRONT"]["fsr_l"] == 4095
-    assert frame["zones"]["EAR"]["fsr_l"] == 0
+    assert frame["device_ms"] == 14287
+    assert frame["manifold"] == 138
+    assert frame["zones"]["TEMPLE"]["target"] == 80
+    assert frame["zones"]["TEMPLE"]["actual"] == 76
+    assert frame["zones"]["EAR"]["actual"] == 78
+    assert frame["zones"]["FRONT"]["fsr_l"] == 0
+    assert frame["zones"]["EAR"]["fsr_l"] == 12
 
 
 @pytest.mark.parametrize(
     "line",
     [
-        "=== FOLLI_CNTRL_Gen3 - FOLLISAVE Controller ===",
-        "time,FRN_T,FRN_A",
+        # the CSV header carries the T: prefix but is not a frame
+        "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
+        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7",
+        # boot banners / state prints
+        "Venting system to atmosphere...",
         "Ready. No pressure applied.",
+        "All channels at target → MAINTENANCE",
+        "BLE GATT server started — advertising as FOLLISAVE-POUCH",
+        # tagged responses are not telemetry
+        "OK:START",
+        "ERR:UNKNOWN:bogus",
+        "R:STATE:IDLE",
+        # malformed
         "",
-        "1,2,3",
-        "notanumber,0,15,0,44,0,0,0,0,0,4095,4095,4095,3294,0,0,4095,4095",
+        "T:1,2,3",
+        "T:notanumber,0,15,0,44,0,0,0,0,0,0,0,0,0,0,0,0,0",
+        # a Gen3-era un-prefixed frame must no longer parse
+        "11566,0,15,0,44,0,0,0,0,0,4095,4095,4095,3294,0,0,4095,4095",
     ],
 )
 def test_rejects_non_telemetry(line):

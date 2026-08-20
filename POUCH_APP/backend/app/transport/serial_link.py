@@ -11,10 +11,14 @@ from .base import Link
 
 BAUD = 9600
 
-# The board on the bench is an Arduino Due (VID 2341, PID 003D). On the Due
-# programming port, opening at 1200 baud is the bootloader erase trigger and wipes
-# flash. The baud rate is therefore not configurable here, by design.
+# The retired Arduino Due bench board had a footgun: opening its programming port at
+# 1200 baud is the bootloader erase trigger and wipes flash. The current ESP32 board
+# has no such trap, but the guard is free and the Due may reappear — baud stays
+# non-configurable by design.
 FORBIDDEN_BAUD = 1200
+
+# The current pouch (ESP32 devkit) enumerates through a CP2102 USB-UART bridge.
+CP2102_VID_PID = "10C4:EA60"
 
 
 def list_ports() -> list[dict]:
@@ -24,13 +28,23 @@ def list_ports() -> list[dict]:
             "port": p.device,
             "description": p.description,
             "hwid": p.hwid,
+            # CP2102 bridge == almost certainly the pouch on this bench
+            "likely_pouch": CP2102_VID_PID in (p.hwid or ""),
         })
     return out
 
 
 class SerialLink(Link):
-    def __init__(self, device_id, port, on_telemetry, on_log):
-        super().__init__(device_id, on_telemetry, on_log)
+    """One pouch on one COM port.
+
+    Opening the port toggles DTR, which RESETS the ESP32: expect ~7s of boot
+    (startup vent + reference capture) before commands are honored. The boot
+    banners ("Venting system to atmosphere...", "Ready. No pressure applied.")
+    arrive through the log callback.
+    """
+
+    def __init__(self, device_id, port, on_telemetry, on_log, on_response=None):
+        super().__init__(device_id, on_telemetry, on_log, on_response)
         self.port = port
         self._ser: serial.Serial | None = None
 

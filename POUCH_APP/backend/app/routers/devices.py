@@ -182,10 +182,7 @@ def stop_device(
     runtime: DeviceRuntime = Depends(get_connected_runtime),
     db: sqlite3.Connection = Depends(get_db),
 ) -> CommandResult:
-    """STOP ALL.
-
-    Sends 'r', not 's'. See transport/base.py — 's' does not turn the pump off.
-    """
+    """STOP ALL — the firmware's `stop` vents every channel and halts vibration."""
     assert runtime.link is not None
     sent = runtime.link.stop()
     audit.log_event(db, runtime.device_id, "warn", "stop", f"sent {sent!r}", runtime.session_id)
@@ -215,9 +212,8 @@ def pause_device(
 ) -> CommandResult:
     """Hold: vent the pads but keep the session and prescriptions loaded.
 
-    The firmware has no true pause. 's' freezes the state machine without turning
-    the pump off, so it cannot be used here — venting and keeping the session is the
-    only honest implementation. START/APPLY resumes.
+    The firmware has no true pause — venting (`stop`) while the app retains the
+    session is the only honest implementation. START/APPLY resumes.
     """
     assert runtime.link is not None
     sent = runtime.link.emergency()
@@ -241,7 +237,7 @@ def rezero_device(
     audit.log_event(db, runtime.device_id, "info", "rezero", sent, runtime.session_id)
     db.commit()
     return CommandResult(
-        sent=sent, note="firmware has no re-zero command yet; vented instead"
+        sent=sent, note="vented and re-captured the atmospheric reference"
     )
 
 
@@ -339,7 +335,20 @@ def set_vibration(
         body.model_dump(),
     )
     db.commit()
-    return snapshot_service.build(runtime, db)
+
+    payload = snapshot_service.build(runtime, db)
+
+    # Push to the device too — the firmware's setvibration is positional and
+    # full-vector only, so send every zone's stored level, not just the edited one.
+    if runtime.connected and runtime.link is not None:
+        by_zone = {z["zone"]: z.get("massage_level", 0) for z in payload["zones"]}
+        sent = runtime.link.set_vibration([by_zone.get(z, 0) for z in ZONES])
+        audit.log_event(
+            db, runtime.device_id, "info", "set_vibration", sent, runtime.session_id
+        )
+        db.commit()
+
+    return payload
 
 
 @router.post("/{device_id}/alerts/{event_id}/ack")

@@ -1,7 +1,9 @@
 """Transport abstraction.
 
-The pouch speaks USB serial today. The Due on the bench has no radio at all, so BLE
-is a future ESP32 swap -- this interface exists so that swap touches one file.
+A Link ships text lines to and from one pouch; the FOLLI grammar itself lives in
+protocol.py and is identical on every transport (serial today, BLE next — the
+firmware's NimBLE server carries the same lines — WiFi when the firmware grows it).
+Adding a transport means one new file implementing _open/_close/_write/_read_line.
 """
 
 from __future__ import annotations
@@ -10,51 +12,31 @@ import threading
 import time
 from collections.abc import Callable
 
-from ..core.zones import ZONES
+from . import protocol
+from .protocol import (  # re-exported for existing importers/tests
+    ACTUAL_COLUMNS,
+    FSR_COLUMNS,
+    TARGET_COLUMNS,
+    TELEMETRY_FIELDS,
+    parse_telemetry,
+)
 
-# Telemetry CSV emitted by POUCH_ESP_GEN4/serial.ino, one line per loop().
-TELEMETRY_FIELDS = ["time", "FRN_T", "FRN_A", "TMP_T", "TMP_A", "EAR_T", "EAR_A", "BCK_T", "BCK_A", "MAN", "FSR_FRN_L", "FSR_FRN_R", "FSR_TMP_L", "FSR_TMP_R", "FSR_EAR_L", "FSR_EAR_R", "FSR_BCK_L", "FSR_BCK_R"]
-
-FSR_COLUMNS = {
-    "FRONT": ("FSR_FRN_L", "FSR_FRN_R"),
-    "TEMPLE": ("FSR_TMP_L", "FSR_TMP_R"),
-    "EAR": ("FSR_EAR_L", "FSR_EAR_R"),      # stubbed to 0 in firmware
-    "BACK": ("FSR_BCK_L", "FSR_BCK_R"),
-}
-TARGET_COLUMNS = {"FRONT": "FRN_T", "TEMPLE": "TMP_T", "EAR": "EAR_T", "BACK": "BCK_T"}
-ACTUAL_COLUMNS = {"FRONT": "FRN_A", "TEMPLE": "TMP_A", "EAR": "EAR_A", "BACK": "BCK_A"}
-
-
-def parse_telemetry(line: str) -> dict | None:
-    """Parse one CSV line. Returns None for banners, logs and anything malformed."""
-    parts = [p.strip() for p in line.split(",")]
-    if len(parts) != len(TELEMETRY_FIELDS) or not parts[0].isdigit():
-        return None
-    try:
-        raw = {name: int(parts[i]) for i, name in enumerate(TELEMETRY_FIELDS)}
-    except ValueError:
-        return None
-
-    zones = {}
-    for zone in ZONES:
-        left, right = FSR_COLUMNS[zone]
-        zones[zone] = {
-            "target": raw[TARGET_COLUMNS[zone]],
-            "actual": raw[ACTUAL_COLUMNS[zone]],
-            "fsr_l": raw[left],
-            "fsr_r": raw[right],
-        }
-    return {"device_ms": raw["time"], "manifold": raw["MAN"], "zones": zones}
+__all__ = [
+    "Link", "parse_telemetry", "TELEMETRY_FIELDS",
+    "FSR_COLUMNS", "TARGET_COLUMNS", "ACTUAL_COLUMNS",
+]
 
 
 class Link:
     """Base transport. Subclasses implement _open/_close/_write/_read_line."""
 
     def __init__(self, device_id: str, on_telemetry: Callable[[dict], None],
-                 on_log: Callable[[str], None]):
+                 on_log: Callable[[str], None],
+                 on_response: Callable[[str, str], None] | None = None):
         self.device_id = device_id
         self._on_telemetry = on_telemetry
         self._on_log = on_log
+        self._on_response = on_response or (lambda kind, payload: None)
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self.connected = False
@@ -104,47 +86,56 @@ class Link:
                 return
             if not line:
                 continue
-            frame = parse_telemetry(line)
-            if frame is None:
-                self._on_log(line)
-            else:
+            kind, payload = protocol.decode_line(line)
+            if kind == protocol.TELEMETRY:
                 self._note_frame()
-                self._on_telemetry(frame)
+                self._on_telemetry(payload)
+            elif kind == protocol.RESPONSE:
+                tag, rest = payload
+                self._on_response(tag, rest)
+            else:
+                self._on_log(payload)
 
     # -- commands ----------------------------------------------------------
-    def set_targets(self, targets: dict[str, int]) -> str:
-        """targets maps zone name -> mmHg. Sent as the batch 'ch,val;ch,val' form."""
-        from ..core.zones import index_of
-        parts = [f"{index_of(z)},{int(v)}" for z, v in targets.items()]
-        cmd = ";".join(parts)
+    # Thin wrappers over protocol encoders; each returns the wire string sent
+    # so callers can audit it.
+
+    def _send(self, cmd: str) -> str:
         self._write(cmd + "\n")
         return cmd
 
-    def stop(self) -> str:
-        """Sends 'r', NOT 's'.
+    def set_targets(self, targets: dict[str, int]) -> str:
+        """targets maps zone name -> mmHg."""
+        return self._send(protocol.encode_set_pressure(targets))
 
-        Verified on hardware: 's' sets currentState = STOPPED, runStateMachine()
-        returns at its first line, and nothing writes PUMP_PIN LOW -- the pump keeps
-        running. Only reliefAllPads(), reached via 'r', actually shuts it off.
-        A control labelled STOP must actually stop the pump.
+    def start(self) -> str:
+        return self._send(protocol.encode_start())
+
+    def stop(self) -> str:
+        """Vent every channel and stop vibration — OK:STOP, bench-verified.
+
+        (Gen3 needed 'r' here because its 's' left the pump running; the rewritten
+        firmware's stop vents properly, so that workaround is gone.)
         """
-        self._write("r\n")
-        return "r"
+        return self._send(protocol.encode_stop())
 
     def emergency(self) -> str:
-        self._write("r\n")
-        return "r"
+        """The new grammar has no separate emergency token; stop IS the full vent."""
+        return self._send(protocol.encode_stop())
 
     def rezero(self) -> str:
-        """Re-capture the atmospheric baseline.
+        """Vent + re-capture the atmospheric baseline (real 'restart' command now)."""
+        return self._send(protocol.encode_restart())
 
-        The firmware has no such command yet: setup() captures the reference 500 ms
-        after boot, before the sensors settle, and 'r' vents without re-capturing.
-        Bench-measured consequence is ~44 mmHg of phantom pressure on TEMPLE.
-        Venting is the closest available approximation until a 'z' command exists.
-        """
-        self._write("r\n")
-        return "r (no re-zero command in firmware yet)"
+    def reset_all(self) -> str:
+        return self._send(protocol.encode_reset_all())
+
+    def set_vibration(self, levels: list[int]) -> str:
+        """Positional levels for channels 0..3, clamped to 0-3. Full vector only."""
+        return self._send(protocol.encode_set_vibration(levels))
+
+    def read(self, what: str) -> str:
+        return self._send(protocol.encode_read(what))
 
     # -- subclass hooks ----------------------------------------------------
     def _open(self) -> None: raise NotImplementedError

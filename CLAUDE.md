@@ -74,8 +74,10 @@ No keyboard/LEDs/display files — this hardware revision has none; all control/
 shared parser, `commandParser.ino`) and produce an identical tagged response format
 (`T:`/`R:`/`OK:`/`ERR:`). Full command list, response format, data model, and known
 limitations are documented in `POUCH_ESP_GEN4/POUCH_ESP.md` — that file is the source of
-truth for the protocol; none of it is mirrored by `POUCH_APP/app.py` yet, which is a
-separate app-side task not done as part of the firmware work.
+truth for the protocol. App-side it is mirrored by
+`POUCH_APP/backend/app/transport/protocol.py` (one grammar module shared by the serial,
+mock, and future BLE/WiFi links); the legacy `POUCH_APP/app.py` still speaks the retired
+Gen3 dialect and stays frozen.
 
 `POUCH_ESP_GEN4/POUCH_ESP.md` is the full architecture + protocol reference for this
 firmware (pins, loop order, state machine, data model, commands, limitations). It

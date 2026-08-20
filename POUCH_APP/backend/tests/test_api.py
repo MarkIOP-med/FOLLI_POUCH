@@ -173,10 +173,10 @@ class TestAdminActions:
 
 
 class TestSafetyCommands:
-    def test_stop_sends_r_not_s(self, client: TestClient, mock_device: str):
-        """'s' sets STOPPED but never writes PUMP_PIN LOW — the pump keeps running."""
+    def test_stop_sends_the_stop_command(self, client: TestClient, mock_device: str):
+        """Gen4 firmware's `stop` vents everything (bench-verified 2026-08-20)."""
         response = client.post(f"/api/devices/{mock_device}/stop")
-        assert response.json()["sent"] == "r"
+        assert response.json()["sent"] == "stop"
 
     def test_pause_vents_and_keeps_the_session(
         self, client: TestClient, mock_device: str, edna: dict
