@@ -47,6 +47,9 @@ export function DiagnosticsScreen() {
   const [trimDrafts, setTrimDrafts] = useState<Record<string, string>>({});
   // Per-zone vibration-duration drafts (seconds), committed on blur/Enter.
   const [durationDrafts, setDurationDrafts] = useState<Record<string, string>>({});
+  // Alerts list popover — clicking the strip badge shows the alerts instead of
+  // silently erasing them.
+  const [alertsOpen, setAlertsOpen] = useState(false);
   const sessionActive = snapshot?.session_id != null;
 
   useEffect(() => {
@@ -320,52 +323,6 @@ export function DiagnosticsScreen() {
             ))}
           </div>
 
-          {/* Patient trim, ±trim_range% off the prescription. Committed per zone
-              on blur/Enter; greyed when the band is inside the controller's
-              deadband (moving it would change nothing measurable). */}
-          {sessionActive && snapshot?.patient && (
-            <div className="regime__trim">
-              <span className="regime__trim-label">
-                {t('device.vnodes.trim')}
-              </span>
-              {zones.map((z) => {
-                const commitTrim = (raw: string) => {
-                  if (raw.trim() === '') return;
-                  const range = snapshot?.trim_range_pct ?? 10;
-                  const pct = Math.max(-range, Math.min(range, Math.round(Number(raw) || 0)));
-                  void run('settingTarget', () => api.setTrim(id, z.zone as Zone, pct));
-                  setTrimDrafts((d) => {
-                    const next = { ...d };
-                    delete next[z.zone];
-                    return next;
-                  });
-                };
-                return (
-                  <input
-                    key={`${z.zone}-trim`}
-                    className="regime__trim-input"
-                    type="number"
-                    disabled={disabled || !z.trim_meaningful}
-                    title={
-                      z.trim_meaningful
-                        ? t('device.vnodes.trim')
-                        : t('device.vnodes.belowDeadband')
-                    }
-                    value={trimDrafts[z.zone] ?? String(z.trim_pct)}
-                    onChange={(e) =>
-                      setTrimDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
-                    }
-                    onBlur={(e) => commitTrim(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === 'Enter' && commitTrim((e.target as HTMLInputElement).value)
-                    }
-                    aria-label={`${t(`zones.${z.zone}`)} ${t('device.vnodes.trim')}`}
-                  />
-                );
-              })}
-            </div>
-          )}
-
           <p className="regime__label regime__label--user">
             {t('diagnostics.regime.userRegime')}
           </p>
@@ -398,6 +355,47 @@ export function DiagnosticsScreen() {
                 aria-label={t(`zones.${z.zone}`)}
               />
             ))}
+            {/* Patient trim (±trim_range% off the prescription), a third grid
+                row so each box aligns under its zone's pressure. Session-only —
+                trim is live-treatment data. Committed on blur/Enter; greyed when
+                the band is inside the controller's deadband. */}
+            {sessionActive &&
+              snapshot?.patient &&
+              zones.map((z) => {
+                const commitTrim = (raw: string) => {
+                  if (raw.trim() === '') return;
+                  const range = snapshot?.trim_range_pct ?? 10;
+                  const pct = Math.max(-range, Math.min(range, Math.round(Number(raw) || 0)));
+                  void run('settingTarget', () => api.setTrim(id, z.zone as Zone, pct));
+                  setTrimDrafts((d) => {
+                    const next = { ...d };
+                    delete next[z.zone];
+                    return next;
+                  });
+                };
+                return (
+                  <input
+                    key={`${z.zone}-trim`}
+                    className="regime__trim-input"
+                    type="number"
+                    disabled={disabled || !z.trim_meaningful}
+                    title={
+                      z.trim_meaningful
+                        ? `${t('device.vnodes.trim')} ±${snapshot?.trim_range_pct ?? 10}%`
+                        : t('device.vnodes.belowDeadband')
+                    }
+                    value={trimDrafts[z.zone] ?? String(z.trim_pct)}
+                    onChange={(e) =>
+                      setTrimDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
+                    }
+                    onBlur={(e) => commitTrim(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' && commitTrim((e.target as HTMLInputElement).value)
+                    }
+                    aria-label={`${t(`zones.${z.zone}`)} ${t('device.vnodes.trim')}`}
+                  />
+                );
+              })}
           </div>
 
           {/* Commits every edited regime input: to the loaded patient (or
@@ -594,29 +592,69 @@ export function DiagnosticsScreen() {
             {t('device.hardware.manifoldFault')}
           </span>
         )}
-        {/* Alerts collapse to a count + one-click CLEAR — rendering each one
-            inline turned the strip into overlapping log soup. The full history
-            stays in the audit log. */}
+        {/* Alerts collapse to a count that OPENS the list — rendering each one
+            inline turned the strip into overlapping log soup, and clearing on
+            click erased them before anyone could read them. */}
         {(snapshot?.alerts?.length ?? 0) > 0 && (
           <button
             type="button"
             className="diagnostics__status-item diagnostics__status-item--warn"
-            disabled={busyKey !== null}
-            onClick={() =>
-              run('acking', async () => {
-                for (const alert of snapshot?.alerts ?? []) {
-                  await api.ackAlert(id, alert.id);
-                }
-              })
-            }
-            title={t('common.acknowledge')}
+            onClick={() => setAlertsOpen((o) => !o)}
           >
             ⚠ {t('diagnostics.alertsCount', { count: snapshot?.alerts?.length ?? 0 })}
-            {' — '}
-            {t('diagnostics.clearAll')}
           </button>
         )}
       </div>
+
+      {/* ── Alerts popover ──────────────────────────────────────────────── */}
+      {alertsOpen && (snapshot?.alerts?.length ?? 0) > 0 && (
+        <div className="diagnostics__alerts">
+          <div className="diagnostics__alerts-head">
+            <span>{t('device.alerts.title')}</span>
+            <button
+              type="button"
+              className="diagnostics__alerts-btn"
+              disabled={busyKey !== null}
+              onClick={() =>
+                run('acking', async () => {
+                  for (const alert of snapshot?.alerts ?? []) {
+                    await api.ackAlert(id, alert.id);
+                  }
+                  setAlertsOpen(false);
+                })
+              }
+            >
+              {t('diagnostics.clearAll')}
+            </button>
+            <button
+              type="button"
+              className="diagnostics__alerts-btn"
+              onClick={() => setAlertsOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+          {(snapshot?.alerts ?? []).map((alert) => (
+            <div key={alert.id} className={`diagnostics__alert diagnostics__alert--${alert.severity}`}>
+              <span className="diagnostics__alert-time">
+                {new Date(alert.ts * 1000).toLocaleTimeString()}
+              </span>
+              <span className="diagnostics__alert-text">
+                {alert.code}
+                {alert.detail ? ` — ${alert.detail}` : ''}
+              </span>
+              <button
+                type="button"
+                className="diagnostics__alerts-btn"
+                disabled={busyKey !== null}
+                onClick={() => run('acking', () => api.ackAlert(id, alert.id))}
+              >
+                {t('device.alerts.ack')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </DiagLayout>
   );
 }

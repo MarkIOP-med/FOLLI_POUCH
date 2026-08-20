@@ -194,10 +194,21 @@ def apply_targets(
     assert runtime.link is not None
     sent = send_or_502(lambda: runtime.link.set_targets(targets))
 
-    audit.log_event(db, runtime.device_id, "info", "apply", sent, runtime.session_id)
+    # Apply the WHOLE regime: the prescription's vibration levels go out with the
+    # pressures — without this, levels stored on the patient never reached the
+    # device and START gave no way to start the motors. (Firmware note: motors
+    # auto-stop after its VIBRATION_DURATION_MS, 20s by default.)
+    levels = {z["zone"]: z.get("massage_level", 0) for z in payload["zones"]}
+    sent_vib = send_or_502(
+        lambda: runtime.link.set_vibration([levels.get(z, 0) for z in ZONES])
+    )
+
+    audit.log_event(
+        db, runtime.device_id, "info", "apply", f"{sent}; {sent_vib}", runtime.session_id
+    )
     audit.record(db, "apply", f"device:{runtime.device_id}", None, targets)
     db.commit()
-    return {"sent": sent, "targets": targets}
+    return {"sent": sent, "targets": targets, "sent_vibration": sent_vib}
 
 
 @router.post("/{device_id}/stop", response_model=CommandResult)

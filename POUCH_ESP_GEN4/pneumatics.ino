@@ -32,11 +32,35 @@ void reliefStartup() {
 
 void reliefAllPads() {
   digitalWrite(PUMP_PIN, LOW);
-  digitalWrite(RELIEF_PIN, HIGH);
-  for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], HIGH);
-  delay(RELIEF_VENT_DURATION_MS);
-  digitalWrite(RELIEF_PIN, LOW);
-  for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], LOW);
+
+  // Pulsed vent: burst → close → settle → measure → repeat. The pad sensors
+  // CANNOT see the load's pressure while the vent path is open — the sensor
+  // line empties instantly through the relief while a high-volume load (bench
+  // balloons at 125 mmHg) drains slowly through its narrow tubing, so both a
+  // fixed 1s vent and a naive "vent until sensors read 0" left the load
+  // visibly inflated and, worse, let the next reference capture hide its real
+  // pressure. Only a reading taken with the valves CLOSED, after the line
+  // re-equalises with the load, can be trusted. Blocking is fine here — a full
+  // vent is a terminal action — and the timeout guards a dead sensor.
+  unsigned long ventStart = millis();
+  while (millis() - ventStart < RELIEF_VENT_TIMEOUT_MS) {
+    digitalWrite(RELIEF_PIN, HIGH);
+    for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], HIGH);
+    delay(RELIEF_VENT_DURATION_MS);
+
+    digitalWrite(RELIEF_PIN, LOW);
+    for (int i = 0; i < 4; i++) digitalWrite(valvePins[i], LOW);
+    delay(VENT_SETTLE_MS);
+
+    readAnalogSensors();
+    updateCurrentPressures();
+    bool vented = actualManifoldPressure <= VENT_COMPLETE_MMHG;
+    for (int i = 0; vented && i < 4; i++) {
+      if (actualPressure[i] > VENT_COMPLETE_MMHG) vented = false;
+    }
+    if (vented) break;
+  }
+
   for (int i = 0; i < 4; i++) currentTargetPressure[i] = 0;
   resetChannelState();
   currentState = IDLE;

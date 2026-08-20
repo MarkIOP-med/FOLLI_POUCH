@@ -91,7 +91,15 @@ channels total, read over SPI from an MCP3008 ADC).
 
 **Pressure control:** increase a PAD by opening its valve and running the pump
 together; decrease by opening its valve and the relief valve together; a full vent
-opens all 4 valves and relief simultaneously.
+opens all 4 valves and relief simultaneously. A full vent (STOP/START/RESTART/RESET)
+is PULSED: burst (`RELIEF_VENT_DURATION_MS`) → valves closed → settle
+(`VENT_SETTLE_MS`) → measure, repeated until every pad reads ≤ `VENT_COMPLETE_MMHG`
+with the valves closed, bounded by `RELIEF_VENT_TIMEOUT_MS`. Pad sensors cannot see
+the load's pressure while the vent path is open (the sensor line empties instantly;
+a high-volume load drains slowly), so only settled readings count — a fixed 1s vent
+left bench balloons at 125 mmHg visibly inflated after STOP, and the subsequent
+reference capture then hid their real pressure. The vent blocks the loop while it
+runs (worst case ~15s).
 
 | Pins | Values |
 |---|---|

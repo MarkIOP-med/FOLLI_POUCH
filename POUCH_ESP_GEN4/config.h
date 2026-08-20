@@ -108,7 +108,10 @@ int PRESSURE_ACTUATION_THRESHOLD_MMHG = 10; // below this + target=0, a channel 
 
 // Valve/pump timing — CORE. const, not in SET VARIABLE (higher-risk to change live).
 const unsigned long CHANNEL_PHASE_TICK_MS   = 30;    // min time between updateChannels() phase advances
-const unsigned long RELIEF_VENT_DURATION_MS = 1000;  // how long relief+valves stay open during a full vent
+const unsigned long RELIEF_VENT_DURATION_MS = 1000;  // one vent burst (startup vent uses exactly this)
+const unsigned long RELIEF_VENT_TIMEOUT_MS  = 15000; // max total time a full vent keeps pulsing
+const unsigned long VENT_SETTLE_MS          = 300;   // valves-closed settle between bursts, so sensors see the load
+const int           VENT_COMPLETE_MMHG      = 5;     // every pad at/below this AFTER settling = vented
 const unsigned long STARTUP_SETTLE_MS       = 150;   // settle time after startup vent, before capturing reference
 
 // Sensor oversampling — CORE. const, not in SET VARIABLE.
