@@ -42,6 +42,10 @@ export function DiagnosticsScreen() {
   const [stagedPatient, setStagedPatient] = useState<Patient | null>(null);
   // Drafts for the User Pressure Regime inputs; committed by the panel's SET.
   const [regimeDrafts, setRegimeDrafts] = useState<Record<string, string>>({});
+  // Per-zone patient-trim drafts (%), committed on blur/Enter.
+  const [trimDrafts, setTrimDrafts] = useState<Record<string, string>>({});
+  // Per-zone vibration-duration drafts (seconds), committed on blur/Enter.
+  const [durationDrafts, setDurationDrafts] = useState<Record<string, string>>({});
   const sessionActive = snapshot?.session_id != null;
 
   useEffect(() => {
@@ -274,6 +278,52 @@ export function DiagnosticsScreen() {
             ))}
           </div>
 
+          {/* Patient trim, ±trim_range% off the prescription. Committed per zone
+              on blur/Enter; greyed when the band is inside the controller's
+              deadband (moving it would change nothing measurable). */}
+          {sessionActive && snapshot?.patient && (
+            <div className="regime__trim">
+              <span className="regime__trim-label">
+                {t('device.vnodes.trim')}
+              </span>
+              {zones.map((z) => {
+                const commitTrim = (raw: string) => {
+                  if (raw.trim() === '') return;
+                  const range = snapshot?.trim_range_pct ?? 10;
+                  const pct = Math.max(-range, Math.min(range, Math.round(Number(raw) || 0)));
+                  void run('settingTarget', () => api.setTrim(id, z.zone as Zone, pct));
+                  setTrimDrafts((d) => {
+                    const next = { ...d };
+                    delete next[z.zone];
+                    return next;
+                  });
+                };
+                return (
+                  <input
+                    key={`${z.zone}-trim`}
+                    className="regime__trim-input"
+                    type="number"
+                    disabled={disabled || !z.trim_meaningful}
+                    title={
+                      z.trim_meaningful
+                        ? t('device.vnodes.trim')
+                        : t('device.vnodes.belowDeadband')
+                    }
+                    value={trimDrafts[z.zone] ?? String(z.trim_pct)}
+                    onChange={(e) =>
+                      setTrimDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
+                    }
+                    onBlur={(e) => commitTrim(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' && commitTrim((e.target as HTMLInputElement).value)
+                    }
+                    aria-label={`${t(`zones.${z.zone}`)} ${t('device.vnodes.trim')}`}
+                  />
+                );
+              })}
+            </div>
+          )}
+
           <p className="regime__label regime__label--user">
             {t('diagnostics.regime.userRegime')}
           </p>
@@ -396,12 +446,49 @@ export function DiagnosticsScreen() {
                   );
                 })}
               </span>
+              {/* Duration is editable per zone (blur/Enter commits with the
+                  current level); it was previously presented as configured but
+                  had no way to be configured. */}
               <span className="vib-panel__duration">
-                {t('units.duration', {
-                  value: previewing
-                    ? stagedRx.get(zone.zone)?.massage_seconds ?? 30
-                    : zone.massage_seconds,
-                })}
+                {!snapshot?.patient || previewing ? (
+                  t('units.duration', {
+                    value: previewing
+                      ? stagedRx.get(zone.zone)?.massage_seconds ?? 30
+                      : zone.massage_seconds,
+                  })
+                ) : (
+                  <>
+                    [{' '}
+                    <input
+                      className="vib-panel__duration-input"
+                      type="number"
+                      min={0}
+                      max={600}
+                      disabled={disabled}
+                      value={durationDrafts[zone.zone] ?? String(zone.massage_seconds)}
+                      onChange={(e) =>
+                        setDurationDrafts((d) => ({
+                          ...d,
+                          [zone.zone]: e.target.value,
+                        }))
+                      }
+                      onBlur={(e) => {
+                        if (e.target.value.trim() === '') return;
+                        const secs = Math.max(0, Math.min(600, Math.round(Number(e.target.value) || 0)));
+                        void run('settingVibration', () =>
+                          api.setVibration(id, zone.zone as Zone, zone.massage_level, secs),
+                        );
+                        setDurationDrafts((d) => {
+                          const next = { ...d };
+                          delete next[zone.zone];
+                          return next;
+                        });
+                      }}
+                      aria-label={`${t(`zones.${zone.zone}`)} ${t('device.vibration.duration')}`}
+                    />{' '}
+                    {t('common.secondsLong')} ]
+                  </>
+                )}
               </span>
             </div>
           ))}

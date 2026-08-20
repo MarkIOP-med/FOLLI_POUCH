@@ -1,11 +1,15 @@
+import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '@/api/client';
+import type { SerialPort, Settings, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
 import { DiagLayout } from '@/components/DiagLayout';
 import { BUTTONS } from '@/domain/diagnosticsAssets';
+import { parseTarget } from '@/domain/pressure';
 import { useDeviceActions } from '@/domain/useDeviceActions';
+import { useRoster } from '@/domain/useRoster';
 import {
   APP_VERSION,
   headerFromSnapshot,
@@ -15,25 +19,119 @@ import {
 import { TABLE_ROWS, adminActions } from './AdminScreen.lib';
 import './AdminScreen.scss';
 
-/** PAGE_04 — Admin Actions. */
+/** PAGE_04 — Admin Actions, plus app settings and device management. */
 export function AdminScreen() {
   // No device id, no screen — the old fallback silently pointed at a mock id.
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { snapshot } = useDeviceStream(id);
-  const { busyKey, run } = useDeviceActions();
+  const { busyKey, error, run, clearError } = useDeviceActions();
   const { users } = useHeaderUsers();
-  const sticky = useStickyDevice(snapshot, id);
+  const sticky = useStickyDevice(snapshot, id ?? '');
+  const { devices, refresh: refreshRoster, toggleConnection } = useRoster();
+
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  // Device management state.
+  const [ports, setPorts] = useState<SerialPort[]>([]);
+  const [newId, setNewId] = useState('');
+  const [newTransport, setNewTransport] = useState<'serial' | 'mock' | 'ble'>('serial');
+  const [newPort, setNewPort] = useState('');
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+
+  const loadSettings = useCallback(() => {
+    api.settings().then(setSettings).catch(() => setSettings(null));
+  }, []);
+
+  useEffect(loadSettings, [loadSettings]);
+  useEffect(() => {
+    api
+      .serialPorts()
+      .then((next) => {
+        setPorts(next);
+        // Preselect the CP2102 bridge — almost certainly the pouch.
+        const likely = next.find((p) => p.likely_pouch);
+        if (likely) setNewPort((prev) => prev || likely.port);
+      })
+      .catch(() => setPorts([]));
+  }, []);
 
   // No early return while the stream connects: bailing out here used to unmount
-  // the whole canvas — frame, gradient, status bar and rail — and replace it with
-  // a bare line of text for the ~200ms until the first SSE frame, which read as a
-  // flash of unrelated content on every navigation. The chrome now stays put and
-  // only the values are absent.
-  const rows = adminActions(snapshot);
+  // the whole canvas and flash bare text on every navigation.
+  const rows = adminActions(snapshot, settings);
   const blanks = Math.max(0, TABLE_ROWS - rows.length);
   const noData = t('diagnostics.noData');
-  const disabled = !snapshot?.connected || busyKey !== null || !snapshot.patient;
+  const sessionActive = snapshot?.session_id != null;
+  const busy = busyKey !== null;
+  // Zone/vibration rows need a connected pouch with a session; app-settings rows
+  // need neither, so the table is never wholesale-disabled anymore.
+  const sessionRowsDisabled = !snapshot?.connected || !sessionActive || busy;
+
+  const rowDisabled = (needsSession: boolean) =>
+    needsSession ? sessionRowsDisabled : busy;
+
+  const saveDrafts = () =>
+    run('promoting', async () => {
+      let nextSettings = settings ?? {
+        max_pressure_mmhg: snapshot?.ceiling_mmhg ?? 70,
+        trim_range_pct: snapshot?.trim_range_pct ?? 10,
+        default_massage_seconds: 30,
+      };
+      let settingsChanged = false;
+
+      for (const row of rows) {
+        const raw = drafts[row.key];
+        if (raw == null || raw.trim() === '') continue;
+        const value = Number(raw);
+        if (!Number.isFinite(value)) continue;
+
+        if (row.kind === 'zone' && row.zone && id) {
+          const mmhg = parseTarget(raw, nextSettings.max_pressure_mmhg);
+          if (snapshot?.service_mode) await api.setSetpoint(id, row.zone, mmhg);
+          else await api.setZoneRx(id, row.zone, mmhg);
+        } else if (row.kind === 'vibration' && id) {
+          const level = Math.max(0, Math.min(3, Math.round(value)));
+          for (const z of ['FRONT', 'TEMPLE', 'EAR', 'BACK'] as Zone[]) {
+            await api.setVibration(id, z, level);
+          }
+        } else if (row.kind === 'ceiling') {
+          nextSettings = { ...nextSettings, max_pressure_mmhg: Math.round(value) };
+          settingsChanged = true;
+        } else if (row.kind === 'trimRange') {
+          nextSettings = { ...nextSettings, trim_range_pct: Math.round(value) };
+          settingsChanged = true;
+        } else if (row.kind === 'massageSeconds') {
+          nextSettings = {
+            ...nextSettings,
+            default_massage_seconds: Math.round(value),
+          };
+          settingsChanged = true;
+        }
+      }
+
+      if (settingsChanged) setSettings(await api.saveSettings(nextSettings));
+      setDrafts({});
+    });
+
+  const addDevice = () =>
+    run('startingService', async () => {
+      await api.addDevice({
+        id: newId.trim(),
+        label: newId.trim(),
+        transport: newTransport,
+        port: newTransport === 'mock' ? null : newPort || null,
+      });
+      setNewId('');
+      await refreshRoster();
+    });
+
+  const removeDevice = (deviceId: string) =>
+    run('endingSession', async () => {
+      await api.removeDevice(deviceId);
+      setConfirmRemove(null);
+      await refreshRoster();
+    });
 
   if (!id) return <Navigate to="/" replace />;
 
@@ -77,12 +175,18 @@ export function AdminScreen() {
                 {row.value ?? t('diagnostics.admin.unset')}
               </td>
               <td className="admin-screen__table-set">
-                <input
-                  className="admin-screen__set-input"
-                  type="number"
-                  disabled={disabled || !row.editable}
-                  aria-label={t(row.labelKey)}
-                />
+                {row.kind !== 'readonly' && (
+                  <input
+                    className="admin-screen__set-input"
+                    type="number"
+                    value={drafts[row.key] ?? ''}
+                    disabled={rowDisabled(row.needsSession)}
+                    aria-label={t(row.labelKey)}
+                    onChange={(e) =>
+                      setDrafts((d) => ({ ...d, [row.key]: e.target.value }))
+                    }
+                  />
+                )}
               </td>
               <td>{t(row.descriptionKey)}</td>
             </tr>
@@ -97,6 +201,17 @@ export function AdminScreen() {
           ))}
         </tbody>
       </table>
+
+      {error && (
+        <button
+          type="button"
+          className="admin-screen__error"
+          onClick={clearError}
+          title={t('common.dismiss')}
+        >
+          {error} ✕
+        </button>
+      )}
 
       <aside className="admin-screen__side">
         <h3 className="admin-screen__side-caption">
@@ -126,11 +241,12 @@ export function AdminScreen() {
           <span className="admin-screen__save-label">
             {t('diagnostics.admin.saveChanges')}
           </span>
+          {/* SAVE commits every filled Set Value draft above. */}
           <button
             type="button"
             className="admin-screen__pill admin-screen__pill--save"
-            disabled={disabled}
-            onClick={() => run('promoting', () => api.setCurrentAsDefault(id))}
+            disabled={busy || Object.values(drafts).every((v) => v.trim() === '')}
+            onClick={saveDrafts}
           >
             <img src={BUTTONS.save} alt={t('diagnostics.admin.save')} />
           </button>
@@ -141,11 +257,102 @@ export function AdminScreen() {
           <button
             type="button"
             className="admin-screen__pill admin-screen__pill--reset"
-            disabled={disabled}
+            disabled={sessionRowsDisabled || !snapshot?.patient}
             onClick={() => run('resetting', () => api.resetDefaults(id))}
           >
             <img src={BUTTONS.resetAll} alt={t('diagnostics.admin.resetAll')} />
           </button>
+        </div>
+
+        {/* ── Device management ─────────────────────────────────────────── */}
+        <div className="admin-screen__devices">
+          <h3 className="admin-screen__side-caption">
+            {t('diagnostics.admin.devices.title')}
+          </h3>
+
+          {devices.map((device) => (
+            <div key={device.id} className="admin-screen__device-row">
+              <span className="admin-screen__device-id">
+                {device.id}
+                <span className="admin-screen__device-meta">
+                  {' '}
+                  {device.transport}
+                  {device.port ? ` · ${device.port}` : ''}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="admin-screen__device-btn"
+                disabled={busy}
+                onClick={() => void toggleConnection(device)}
+              >
+                {device.connected
+                  ? t('diagnostics.admin.devices.disconnect')
+                  : t('diagnostics.admin.devices.connect')}
+              </button>
+              {/* Two-click remove: first click arms, second confirms. */}
+              <button
+                type="button"
+                className="admin-screen__device-btn admin-screen__device-btn--danger"
+                disabled={busy}
+                onClick={() =>
+                  confirmRemove === device.id
+                    ? void removeDevice(device.id)
+                    : setConfirmRemove(device.id)
+                }
+              >
+                {confirmRemove === device.id
+                  ? t('diagnostics.admin.devices.confirmRemove')
+                  : t('diagnostics.admin.devices.remove')}
+              </button>
+            </div>
+          ))}
+
+          <div className="admin-screen__device-add">
+            <input
+              className="admin-screen__device-input"
+              placeholder={t('diagnostics.admin.devices.idPlaceholder')}
+              value={newId}
+              disabled={busy}
+              onChange={(e) => setNewId(e.target.value)}
+            />
+            <select
+              className="admin-screen__device-input"
+              value={newTransport}
+              disabled={busy}
+              onChange={(e) =>
+                setNewTransport(e.target.value as 'serial' | 'mock' | 'ble')
+              }
+            >
+              <option value="serial">serial</option>
+              <option value="mock">mock</option>
+              <option value="ble">ble</option>
+            </select>
+            {newTransport !== 'mock' && (
+              <select
+                className="admin-screen__device-input"
+                value={newPort}
+                disabled={busy}
+                onChange={(e) => setNewPort(e.target.value)}
+              >
+                <option value="">{t('diagnostics.admin.devices.portPlaceholder')}</option>
+                {ports.map((p) => (
+                  <option key={p.port} value={p.port}>
+                    {p.port}
+                    {p.likely_pouch ? ` ${t('diagnostics.admin.devices.likelyPouch')}` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              type="button"
+              className="admin-screen__device-btn"
+              disabled={busy || newId.trim() === ''}
+              onClick={addDevice}
+            >
+              {t('diagnostics.admin.devices.add')}
+            </button>
+          </div>
         </div>
       </aside>
     </DiagLayout>

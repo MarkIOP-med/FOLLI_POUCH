@@ -99,3 +99,42 @@
   // Firmware supplies none of the session-timing fields yet.
   &__pending { color: $text-muted; }
 }
+
+// Patient create/edit/delete controls, under the picker.
+.users-screen__crud {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.users-screen__crud-btn {
+  font: inherit;
+  font-size: 13px;
+  color: $text;
+  background: $btn-face-dark;
+  border: 1px solid $btn-edge;
+  border-radius: 10px;
+  padding: 4px 14px;
+  cursor: pointer;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &--danger { color: $alert-red; }
+}
+
+.users-screen__crud-error {
+  margin-top: 10px;
+  font-size: 14px;
+  color: $alert-red;
+}
+
+// Inputs reuse the field grid the read-only values sit in.
+.users-screen__edit {
+  font: inherit;
+  font-size: 15px;
+  color: $text;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid $btn-edge;
+  border-radius: 6px;
+  padding: 2px 8px;
+  min-width: 0;
+}

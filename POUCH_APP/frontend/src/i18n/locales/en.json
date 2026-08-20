@@ -256,7 +256,17 @@
       "treatmentNo": "Treatment No.:",
       "console": "Console:",
       "pouch": "Pouch:",
-      "timeRemain": "Time Elapsed:"
+      "timeRemain": "Time Elapsed:",
+      "crud": {
+        "new": "+ NEW",
+        "edit": "EDIT",
+        "delete": "DELETE",
+        "confirmDelete": "SURE?",
+        "save": "SAVE",
+        "cancel": "CANCEL",
+        "idHint": "national ID (optional)",
+        "birthYear": "Birth year:"
+      }
     },
     "admin": {
       "heading": "ADMIN ACTIONS",
@@ -277,13 +287,28 @@
         "back": "Back pair Levels",
         "backDesc": "Set back pair levels modal",
         "manifold": "Manifold Target",
-        "manifoldDesc": "Set manifold target",
+        "manifoldDesc": "Derived — the pump charges to the highest commanded zone",
         "vibration": "Vibration Levels",
-        "vibrationDesc": "Set vibration levels modal",
+        "vibrationDesc": "One level (0–3) applied to all four zones",
         "collaborative": "Collaborative Functions",
-        "collaborativeDesc": "Set collaborative functions",
-        "defaults": "Default Values",
-        "defaultsDesc": "Set default values modal"
+        "collaborativeDesc": "Not implemented in the protocol yet",
+        "defaults": "Max Pressure Ceiling",
+        "defaultsDesc": "Clinical ceiling (mmHg) — clamps every prescription and setpoint",
+        "trimRange": "Patient Trim Range",
+        "trimRangeDesc": "± percent a patient may trim off the prescription",
+        "massageSeconds": "Default Vibration Duration",
+        "massageSecondsDesc": "Seconds a vibration run lasts for new prescriptions"
+      },
+      "devices": {
+        "title": "Devices",
+        "connect": "CONNECT",
+        "disconnect": "DISCONNECT",
+        "remove": "REMOVE",
+        "confirmRemove": "SURE?",
+        "add": "ADD",
+        "idPlaceholder": "POUCH-ID",
+        "portPlaceholder": "— port —",
+        "likelyPouch": "★ pouch"
       },
       "generalData": "General Data",
       "saveChanges": "Save Changes",

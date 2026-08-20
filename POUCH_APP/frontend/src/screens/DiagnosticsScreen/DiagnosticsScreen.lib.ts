@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { api } from '@/api/client';
 import type { DeviceSnapshot, Patient } from '@/api/types';
@@ -18,8 +18,8 @@ let cachedPatients: Patient[] = [];
 export function useHeaderUsers() {
   const [patients, setPatients] = useState<Patient[]>(cachedPatients);
 
-  useEffect(() => {
-    api
+  const reload = useCallback(() => {
+    return api
       .patients()
       .then((next) => {
         cachedPatients = next;
@@ -28,13 +28,17 @@ export function useHeaderUsers() {
       .catch(() => setPatients(cachedPatients));
   }, []);
 
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
   const users: HeaderUser[] = patients.map((p) => ({
     id: p.id,
     name: p.full_name,
     nationalId: p.national_id,
   }));
 
-  return { patients, users };
+  return { patients, users, reload };
 }
 
 /**

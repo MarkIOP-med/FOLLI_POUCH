@@ -395,3 +395,44 @@
 
   button.diagnostics__status-item { cursor: pointer; }
 }
+
+// Patient trim row in the User Regime panel.
+.regime__trim {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 300px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.regime__trim-label { opacity: 0.75; }
+
+.regime__trim-input {
+  width: 52px;
+  font: inherit;
+  font-size: 14px;
+  color: $text;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid $btn-edge;
+  border-radius: 6px;
+  padding: 1px 6px;
+  text-align: center;
+
+  &:disabled { opacity: 0.35; }
+}
+
+// Editable vibration duration.
+.vib-panel__duration-input {
+  width: 46px;
+  font: inherit;
+  font-size: 14px;
+  color: $text;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid $btn-edge;
+  border-radius: 6px;
+  padding: 0 4px;
+  text-align: center;
+}
