@@ -74,13 +74,13 @@ pressure → `currentState = IDLE`.
 ```
          [PUMP]
             |
-         [MANIFOLD] ──── [Manifold Pressure Sensor]  GPIO36
+         [MANIFOLD] ──── [Manifold Pressure Sensor]  GPIO32
             |
      ┌──────┼──────┬──────────┐
   valve[0] valve[1] valve[2] valve[3]     [RELIEF] → atmosphere
      |       |       |       |
    FRONT   TEMPLE   EAR     BACK
-  (GPIO32) (GPIO33) (GPIO34) (GPIO35)
+  (GPIO33) (GPIO34) (GPIO35) (GPIO36)
 ```
 
 One pump feeds a shared manifold; each of 4 V_NODEs (FRONT/TEMPLE/EAR/BACK) has its own
@@ -98,7 +98,7 @@ opens all 4 valves and relief simultaneously.
 | Valves (FRONT/TEMPLE/EAR/BACK) | GPIO 26, 4, 13, 14 |
 | Relief valve | GPIO 25 |
 | Pump | GPIO 27 |
-| Pressure sensors (FRONT/TEMPLE/EAR/BACK/Manifold) | GPIO 32, 33, 34, 35, 36 |
+| Pressure sensors (FRONT/TEMPLE/EAR/BACK/Manifold) | GPIO 33, 34, 35, 36, 32 — verified against the physical harness on the balloon bench 2026-08-20; the manifold sensor is on GPIO32, not GPIO36 |
 | Vibration motors (FRONT/TEMPLE/EAR/BACK) | GPIO 16, 17, 21, 22 |
 | MCP3008 chip-select (FSR) | GPIO 5 |
 
@@ -240,7 +240,10 @@ notify characteristic — that's the only way a BLE caller sees it.
 
 **Telemetry verbosity differs by transport, deliberately:** Serial's periodic `T:` line
 is a full CSV (time, target/actual per channel, manifold, all 8 FSR channels) printed
-every loop. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
+every `SERIAL_LOG_INTERVAL_MS` (200ms). It must never be printed every loop: at 9600
+baud one CSV line takes ~130ms to ship, which throttles `loop()` to ~7Hz and makes the
+pump badly overshoot the manifold between pressure checks (bench-measured spikes to
+~400 mmHg against a 125 target before this was fixed, 2026-08-20). BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
 byte, pushed every `TELEMETRY_INTERVAL_MS`) — anything more detailed is available on
 demand via the `READ` commands instead of being pushed continuously over a
 bandwidth-constrained link.
@@ -249,6 +252,16 @@ bandwidth-constrained link.
 
 ## 9. Known Limitations
 
+- **Valve paths 0 (FRONT) and 3 (BACK) have a physical fault** (bench finding
+  2026-08-20): their solenoids click but air never reaches the load — balloons on those
+  ports don't inflate, while channels 1 (TEMPLE) and 2 (EAR) work. Until the hardware is
+  repaired, `systemDefaultPressure[]` keeps those two channels at 0 so the control loop
+  skips them.
+- **One FLOW_LINK side is electrically dead** (bench finding 2026-08-20): its vibration
+  motors don't run and its four FSR channels (0–3) never respond, while the other side's
+  motors and FSR channels 4–7 all work (~950/1023 on press). Since one GPIO drives each
+  L/R motor pair, this is the harness/connector, not firmware. FSR channel→position
+  mapping is still unconfirmed (config.h TODO stands) — map it once both sides respond.
 - **No real-time clock.** The ESP32 has no RTC and no WiFi/NTP sync — only relative
   `millis()` since boot. Session start time and wall-clock timestamps must be tracked
   by CONSOLE or POUCH_APP, not the pouch.

@@ -5,6 +5,14 @@ void clearSerialBuffer() {
 }
 
 void printSerialLog() {
+  // Throttled: a full CSV line at 9600 baud takes ~130ms to ship, and printing it every
+  // loop was capping the whole control loop at ~7Hz — the pump then overshot the
+  // manifold badly between pressure checks (seen spiking to ~400 mmHg against a 125
+  // target on the bench). 200ms keeps the dashboard fed while letting loop() run fast.
+  static unsigned long lastLogMs = 0;
+  if (millis() - lastLogMs < SERIAL_LOG_INTERVAL_MS) return;
+  lastLogMs = millis();
+
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"

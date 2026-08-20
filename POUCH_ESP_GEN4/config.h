@@ -28,10 +28,13 @@ const int valvePins[6] = {26, 4, 13, 14, 25, 27};
 // Pressure sensor pins — CORE
 #define NUM_SENSORS  5
 #define PUMP_SENSOR  4   // index of manifold sensor in p[] / analogPressureSensorPins[]
-const int analogPressureSensorPins[NUM_SENSORS] = {32, 33, 34, 35, 36};
-// [0]=32 FRONT  [1]=33 TEMPLE  [2]=34 EAR  [3]=35 BACK  [4]=36 Manifold — same GPIOs as
-// before, reordered to match valvePins[]'s convention (named channels first, the
-// manifold/pump-equivalent one last).
+const int analogPressureSensorPins[NUM_SENSORS] = {33, 34, 35, 36, 32};
+// [0]=33 FRONT  [1]=34 TEMPLE  [2]=35 EAR  [3]=36 BACK  [4]=32 Manifold
+// Verified against the physical harness on the balloon bench, 2026-08-20: the manifold
+// sensor is on GPIO32 (tracks pump stall ~310 mmHg with all valves closed) and the pad
+// sensors follow on 33/34/35/36 in channel order. The previously documented order
+// {32,33,34,35,36} (manifold last) is wrong for this board and made "FRONT" mirror the
+// manifold while the real manifold read 0, so no pad valve ever opened.
 
 // Sensor voltage→pressure calibration curve (3.3V supply, 0–100 kPa sensor) — CORE
 // A bad value here corrupts every pressure reading — reflash-only, not in SET VARIABLE.
@@ -59,7 +62,7 @@ int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per chann
 // Per-user record — PERIPHERAL, RAM only (userProfile.ino). Not durable across a
 // power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
 // TEMPLE=1, EAR=2, BACK=3.
-int systemDefaultPressure[4] = {80, 80, 80, 80};  // TEMP DEV-DEBUG: TEMPLE/EAR/BACK zeroed to isolate FRONT — real default is {25,120,85,130}, revert when done
+int systemDefaultPressure[4] = {0, 95, 125, 0};  // TEMP BENCH: FRONT/BACK zeroed — their valve paths have a physical fault (balloons don't inflate, found 2026-08-20); TEMPLE=95/EAR=125 per bench request. Real product default is {25,120,85,130}; restore once valves 0/3 are repaired.
 int userDefaultPressure[4];                          // this user's saved default — RAM only
 
 // The only per-user data on the device — vibration and thresholds are system-wide,
@@ -114,6 +117,8 @@ const int overSamplingDelay  = 5;    // ms between oversampling cycles
 const int sensorDelayMeasur  = 50;   // µs between sensors in one cycle
 
 int TELEMETRY_INTERVAL_MS = 250;  // BLE telemetry push cadence, ms — PERIPHERAL, SET VARIABLE
+
+const int SERIAL_LOG_INTERVAL_MS = 200;  // serial CSV telemetry cadence, ms — PERIPHERAL. Was every loop; see printSerialLog() for why that broke pressure control.
 
 
 // ============================================================
