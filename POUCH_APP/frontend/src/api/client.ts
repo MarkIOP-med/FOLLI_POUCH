@@ -50,6 +50,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ mmhg }),
     }),
+  vibrateZone: (id: string, zone: Zone, level: number) =>
+    req<{ sent: string }>(`/api/devices/${id}/vibrate`, {
+      method: 'POST',
+      body: JSON.stringify({ zone, level }),
+    }),
   setVibration: (id: string, zone: Zone, massageLevel: number, seconds?: number) =>
     req<DeviceSnapshot>(`/api/devices/${id}/vibration`, {
       method: 'PUT',

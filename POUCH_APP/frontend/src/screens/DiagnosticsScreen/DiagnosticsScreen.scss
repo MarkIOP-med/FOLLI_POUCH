@@ -311,9 +311,10 @@
     position: absolute;
     left: 16px;
     display: grid;
-    grid-template-columns: 140px 240px 1fr;
+    // Fourth column: the per-zone vibration trigger.
+    grid-template-columns: 140px 215px 1fr 40px;
     align-items: center;
-    width: 485px;
+    width: 501px;
     white-space: nowrap;
   }
 
@@ -495,4 +496,21 @@
 .diagnostics__alert-text {
   flex: 1;
   min-width: 0;
+}
+
+// Per-zone vibration trigger.
+.vib-panel__go {
+  justify-self: end;
+  width: 34px;
+  height: 30px;
+  font: inherit;
+  font-size: 15px;
+  color: $ok-green;
+  background: $btn-face-dark;
+  border: 1px solid $btn-edge;
+  border-radius: 8px;
+  cursor: pointer;
+  line-height: 1;
+
+  &:disabled { opacity: 0.35; cursor: not-allowed; color: $text-muted; }
 }

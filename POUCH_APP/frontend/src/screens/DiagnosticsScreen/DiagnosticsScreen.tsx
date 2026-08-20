@@ -468,6 +468,7 @@ export function DiagnosticsScreen() {
             <span className="vib-panel__duration">
               {t('device.vibration.duration')}
             </span>
+            <span />
           </div>
 
           {zones.map((zone, i) => (
@@ -482,11 +483,12 @@ export function DiagnosticsScreen() {
                   const shown = previewing
                     ? stagedRx.get(zone.zone)?.massage_level ?? 0
                     : zone.massage_level;
-                  // In-session: live command to the loaded patient. Staged:
-                  // edit the stored prescription (needs no connection).
-                  const editable = sessionActive
-                    ? !disabled && !!snapshot?.patient
-                    : previewing && busyKey === null;
+                  // Selecting a level only STORES it on the patient — nothing
+                  // buzzes until the operator presses the zone's ▶ trigger.
+                  const editable =
+                    (previewing || (sessionActive && !!snapshot?.patient)) &&
+                    busyKey === null &&
+                    stagedPatient != null;
                   return (
                     <button
                       key={level}
@@ -495,11 +497,7 @@ export function DiagnosticsScreen() {
                       disabled={!editable}
                       aria-pressed={shown === level}
                       onClick={() =>
-                        sessionActive
-                          ? run('settingVibration', () =>
-                              api.setVibration(id, zone.zone as Zone, level),
-                            )
-                          : updateStagedRx({ [zone.zone]: { massage_level: level } })
+                        updateStagedRx({ [zone.zone]: { massage_level: level } })
                       }
                     >
                       {level}
@@ -538,13 +536,8 @@ export function DiagnosticsScreen() {
                       onBlur={(e) => {
                         if (e.target.value.trim() === '') return;
                         const secs = Math.max(0, Math.min(600, Math.round(Number(e.target.value) || 0)));
-                        if (previewing) {
-                          void updateStagedRx({ [zone.zone]: { massage_seconds: secs } });
-                        } else {
-                          void run('settingVibration', () =>
-                            api.setVibration(id, zone.zone as Zone, zone.massage_level, secs),
-                          );
-                        }
+                        // Stored only — never triggers the motors.
+                        void updateStagedRx({ [zone.zone]: { massage_seconds: secs } });
                         setDurationDrafts((d) => {
                           const next = { ...d };
                           delete next[zone.zone];
@@ -557,6 +550,30 @@ export function DiagnosticsScreen() {
                   </>
                 )}
               </span>
+              {/* One-shot trigger: buzz THIS zone now at its stored level. The
+                  firmware auto-stops after its vibration window; pressing again
+                  re-triggers, as many times as the client wants. Levels alone
+                  never start anything. */}
+              {(() => {
+                const level = previewing
+                  ? stagedRx.get(zone.zone)?.massage_level ?? 0
+                  : zone.massage_level;
+                return (
+                  <button
+                    type="button"
+                    className="vib-panel__go"
+                    disabled={!snapshot?.connected || busyKey !== null || level === 0}
+                    title={t('device.vibration.trigger')}
+                    onClick={() =>
+                      run('settingVibration', () =>
+                        api.vibrateZone(id, zone.zone as Zone, level),
+                      )
+                    }
+                  >
+                    ▶
+                  </button>
+                );
+              })()}
             </div>
           ))}
         </div>

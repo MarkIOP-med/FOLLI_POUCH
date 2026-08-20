@@ -25,6 +25,7 @@ from ..schemas.device import (
     SetpointIn,
     StartSessionIn,
     TrimIn,
+    VibrateIn,
     VibrationIn,
     ZoneRxIn,
 )
@@ -194,21 +195,10 @@ def apply_targets(
     assert runtime.link is not None
     sent = send_or_502(lambda: runtime.link.set_targets(targets))
 
-    # Apply the WHOLE regime: the prescription's vibration levels go out with the
-    # pressures — without this, levels stored on the patient never reached the
-    # device and START gave no way to start the motors. (Firmware note: motors
-    # auto-stop after its VIBRATION_DURATION_MS, 20s by default.)
-    levels = {z["zone"]: z.get("massage_level", 0) for z in payload["zones"]}
-    sent_vib = send_or_502(
-        lambda: runtime.link.set_vibration([levels.get(z, 0) for z in ZONES])
-    )
-
-    audit.log_event(
-        db, runtime.device_id, "info", "apply", f"{sent}; {sent_vib}", runtime.session_id
-    )
+    audit.log_event(db, runtime.device_id, "info", "apply", sent, runtime.session_id)
     audit.record(db, "apply", f"device:{runtime.device_id}", None, targets)
     db.commit()
-    return {"sent": sent, "targets": targets, "sent_vibration": sent_vib}
+    return {"sent": sent, "targets": targets}
 
 
 @router.post("/{device_id}/stop", response_model=CommandResult)
@@ -349,6 +339,33 @@ def set_trim(
     )
     db.commit()
     return snapshot_service.build(runtime, db)
+
+
+@router.post("/{device_id}/vibrate", response_model=CommandResult)
+def vibrate_zone(
+    body: VibrateIn,
+    runtime: DeviceRuntime = Depends(get_connected_runtime),
+    db: sqlite3.Connection = Depends(get_db),
+) -> CommandResult:
+    """Run one zone's vibration motor NOW, at the given level.
+
+    Deliberately transient: nothing is stored, and vibration is never started
+    implicitly (START does not buzz — an operator triggers it per zone, as many
+    times as the client wants). The firmware auto-stops the motor after its
+    VIBRATION_DURATION_MS (20s default); re-triggering restarts the window.
+    setvibration is positional/full-vector, so the other zones are sent 0 —
+    triggering a zone stops any other zone still running.
+    """
+    zone = validate_zone(body.zone)
+    assert runtime.link is not None
+    vector = [body.level if z == zone else 0 for z in ZONES]
+    sent = send_or_502(lambda: runtime.link.set_vibration(vector))
+    audit.log_event(
+        db, runtime.device_id, "info", "vibrate", f"{zone} level {body.level}",
+        runtime.session_id,
+    )
+    db.commit()
+    return CommandResult(sent=sent)
 
 
 @router.put("/{device_id}/vibration")

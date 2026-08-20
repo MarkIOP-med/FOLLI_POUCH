@@ -149,7 +149,8 @@
       "zonePair": "Zone Pair",
       "levels": "Levels",
       "duration": "Duration",
-      "note": "Configured duration, not a live countdown — the firmware does not report remaining vibration time. Levels are stored with the prescription and pushed to the device (setvibration)."
+      "trigger": "Vibrate this zone now",
+      "note": "Levels and duration are stored with the prescription; nothing buzzes until ▶ triggers that zone. The firmware auto-stops after its vibration window — press ▶ again to repeat."
     },
 
     "technical": {

@@ -42,6 +42,13 @@ class VibrationIn(BaseModel):
     massage_seconds: int | None = Field(default=None, ge=0, le=600)
 
 
+class VibrateIn(BaseModel):
+    """One-shot vibration trigger for a single zone — transient, never stored."""
+
+    zone: str
+    level: int = Field(ge=0, le=3)
+
+
 class CommandResult(BaseModel):
     sent: str
     note: str | None = None
