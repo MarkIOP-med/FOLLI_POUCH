@@ -88,9 +88,11 @@ static void applySetTarget(int channel, int pressure) {
   currentState = PRESSURIZING;
 }
 
-// --- SET VIBRATION ---
+// --- SET VIBRATION --- level -1 = leave that channel as it is (running or not),
+// so triggering one zone doesn't stop another mid-run.
 static void applySetVibrationAll(const int* levels, int count) {
   for (int ch = 0; ch < count && ch < 4; ch++) {
+    if (levels[ch] < 0) continue;
     vibrationLevel[ch] = levels[ch];
     if (levels[ch] > 0) vibStartTime[ch] = millis();
   }

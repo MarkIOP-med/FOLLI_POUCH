@@ -179,7 +179,9 @@ void parseCommandString(String incoming, CommandSource source) {
       return;
     }
     for (int i = 0; i < cmd.vibLevelsCount; i++) {
-      cmd.vibLevels[i] = constrain(cmd.vibLevels[i], 0, 3);
+      // -1 = leave that channel unchanged, so one zone can be (re)triggered
+      // without stopping the others mid-run.
+      cmd.vibLevels[i] = constrain(cmd.vibLevels[i], -1, 3);
     }
     enqueueCommand(cmd);
 

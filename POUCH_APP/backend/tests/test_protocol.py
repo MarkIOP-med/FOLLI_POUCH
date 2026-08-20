@@ -37,7 +37,9 @@ def test_set_pressure_rejects_empty():
 
 
 def test_set_vibration_clamps_levels():
-    assert protocol.encode_set_vibration([0, 5, -1, 2]) == "setvibration:0,3,0,2"
+    # -1 passes through: it means "leave that channel unchanged" on the firmware.
+    assert protocol.encode_set_vibration([0, 5, -1, 2]) == "setvibration:0,3,-1,2"
+    assert protocol.encode_set_vibration([-9, 3]) == "setvibration:-1,3"
 
 
 def test_set_vibration_rejects_bad_count():

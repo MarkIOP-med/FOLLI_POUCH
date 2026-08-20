@@ -89,6 +89,8 @@ class MockLink(Link):
                 self._lines.put("ERR:SETVIBRATION:no values given")
                 return
             for i, lv in enumerate(levels[:4]):
+                if lv < 0:
+                    continue  # -1 = leave unchanged, like the firmware
                 self._vib[i] = max(0, min(3, lv))
             self._lines.put("OK:SETVIBRATION")
         elif word == "readstate":

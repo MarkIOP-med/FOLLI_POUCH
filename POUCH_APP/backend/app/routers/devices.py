@@ -353,12 +353,12 @@ def vibrate_zone(
     implicitly (START does not buzz — an operator triggers it per zone, as many
     times as the client wants). The firmware auto-stops the motor after its
     VIBRATION_DURATION_MS (20s default); re-triggering restarts the window.
-    setvibration is positional/full-vector, so the other zones are sent 0 —
-    triggering a zone stops any other zone still running.
+    Other zones are sent -1 ("leave unchanged"), so zones run simultaneously —
+    triggering one never stops another mid-run.
     """
     zone = validate_zone(body.zone)
     assert runtime.link is not None
-    vector = [body.level if z == zone else 0 for z in ZONES]
+    vector = [body.level if z == zone else -1 for z in ZONES]
     sent = send_or_502(lambda: runtime.link.set_vibration(vector))
     audit.log_event(
         db, runtime.device_id, "info", "vibrate", f"{zone} level {body.level}",

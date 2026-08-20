@@ -214,7 +214,7 @@ be truncated without a negotiated MTU.
 | **SET PRESSURE** | `setpressure:<p0>,<p1>,<p2>,<p3>` (all 4, positional) — or `setpressure:<channel>,<value>` (one channel; batch: `setpressure:0,80;3,120`) | Set live target pressure; begins pressurizing. The two forms are told apart by count — 4 numbers with no `;` is the positional vector, anything else is indexed pairs. |
 | **SAVE AS DEFAULT** | `saveasdefault` | Save whatever's currently running as this user's saved default |
 | **SET USER DEFAULT PRESSURE** | `setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>` | Set this user's saved default directly, independent of the live session |
-| **SET VIBRATION** | `setvibration:<L0>,<L1>,<L2>,<L3>` | Set vibration level per channel (0–3); auto-off after `VIBRATION_DURATION_MS` |
+| **SET VIBRATION** | `setvibration:<L0>,<L1>,<L2>,<L3>` | Set vibration level per channel (0–3); auto-off after `VIBRATION_DURATION_MS`. `-1` leaves that channel unchanged, so one zone can be (re)triggered without stopping the others. |
 | **SET VARIABLE** | `setvariable:<NAME>,<VALUE>` (or `,default`) | Set one system-wide tuning constant, or reset it to its compiled default. Valid names: `PRESSURE_TOLERANCE`, `ACTUATION_THRESHOLD`, `VIBRATION_DURATION`, `TELEMETRY_INTERVAL`. |
 | **READ PRESSURE** | `readpressure` | Actual pressure (4 channels + manifold) and current target (4 channels) |
 | **READ FSR** | `readfsr` | All 8 raw force-sensor readings |

@@ -142,14 +142,15 @@ def encode_set_pressure(targets: dict[str, int]) -> str:
 
 
 def encode_set_vibration(levels: list[int]) -> str:
-    """Positional levels for channels 0..N-1 (max 4), each clamped to 0-3.
+    """Positional levels for channels 0..N-1 (max 4), each clamped to -1..3.
 
-    The firmware applies the values positionally from channel 0 — there is no
-    single-channel form, so callers updating one zone must send the full vector.
+    The firmware applies the values positionally from channel 0. -1 means
+    "leave that channel unchanged" — the way to (re)trigger one zone without
+    stopping the others mid-run.
     """
     if not 1 <= len(levels) <= 4:
         raise ValueError("setvibration takes 1-4 levels")
-    clamped = [max(0, min(3, int(lv))) for lv in levels]
+    clamped = [max(-1, min(3, int(lv))) for lv in levels]
     return "setvibration:" + ",".join(str(lv) for lv in clamped)
 
 
