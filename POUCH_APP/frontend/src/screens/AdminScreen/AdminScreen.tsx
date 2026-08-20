@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/api/client';
 import type { SerialPort, Settings, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
+import { CanvasSelect } from '@/components/CanvasSelect';
 import { DiagLayout } from '@/components/DiagLayout';
 import { BUTTONS } from '@/domain/diagnosticsAssets';
 import { parseTarget } from '@/domain/pressure';
@@ -264,11 +265,14 @@ export function AdminScreen() {
           </button>
         </div>
 
-        {/* ── Device management ─────────────────────────────────────────── */}
+        {/* ── Device management ─────────────────────────────────────────────
+            Absolutely placed into the band between the strip (y≈349) and the
+            "Save Changes" label (y≈520) — the side column is a measured layout
+            and flow content lands on top of the General Data block. */}
         <div className="admin-screen__devices">
-          <h3 className="admin-screen__side-caption">
+          <h4 className="admin-screen__devices-title">
             {t('diagnostics.admin.devices.title')}
-          </h3>
+          </h4>
 
           {devices.map((device) => (
             <div key={device.id} className="admin-screen__device-row">
@@ -316,33 +320,34 @@ export function AdminScreen() {
               disabled={busy}
               onChange={(e) => setNewId(e.target.value)}
             />
-            <select
-              className="admin-screen__device-input"
+            <CanvasSelect
+              className="admin-screen__device-input admin-screen__device-input--select"
               value={newTransport}
               disabled={busy}
-              onChange={(e) =>
-                setNewTransport(e.target.value as 'serial' | 'mock' | 'ble')
+              placeholder="serial"
+              ariaLabel="transport"
+              options={[
+                { value: 'serial', label: 'serial' },
+                { value: 'mock', label: 'mock' },
+                { value: 'ble', label: 'ble' },
+              ]}
+              onChange={(v) =>
+                setNewTransport((v || 'serial') as 'serial' | 'mock' | 'ble')
               }
-            >
-              <option value="serial">serial</option>
-              <option value="mock">mock</option>
-              <option value="ble">ble</option>
-            </select>
+            />
             {newTransport !== 'mock' && (
-              <select
-                className="admin-screen__device-input"
+              <CanvasSelect
+                className="admin-screen__device-input admin-screen__device-input--select"
                 value={newPort}
                 disabled={busy}
-                onChange={(e) => setNewPort(e.target.value)}
-              >
-                <option value="">{t('diagnostics.admin.devices.portPlaceholder')}</option>
-                {ports.map((p) => (
-                  <option key={p.port} value={p.port}>
-                    {p.port}
-                    {p.likely_pouch ? ` ${t('diagnostics.admin.devices.likelyPouch')}` : ''}
-                  </option>
-                ))}
-              </select>
+                placeholder={t('diagnostics.admin.devices.portPlaceholder')}
+                ariaLabel="port"
+                options={ports.map((p) => ({
+                  value: p.port,
+                  label: `${p.port}${p.likely_pouch ? ` ${t('diagnostics.admin.devices.likelyPouch')}` : ''}`,
+                }))}
+                onChange={setNewPort}
+              />
             )}
             <button
               type="button"

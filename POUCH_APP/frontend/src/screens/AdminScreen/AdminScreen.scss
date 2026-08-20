@@ -233,11 +233,23 @@
   cursor: pointer;
 }
 
-// Device management block — below the mockup's action pills in the side column.
+// Device management block — absolutely placed into the empty band between the
+// #27475a strip (ends y≈349) and the "Save Changes" label (y≈520.5). The side
+// column is a measured absolute layout; flow content overlays General Data.
 .admin-screen__devices {
-  margin-top: 26px;
+  position: absolute;
+  top: 360px;
+  left: 17.5px;
+  right: 17.5px;
+  max-height: 150px;
+  overflow-y: auto;
+  color: $text;
+}
 
-  .admin-screen__side-caption { margin-bottom: 10px; }
+.admin-screen__devices-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: $fw-label;
 }
 
 .admin-screen__device-row {
@@ -290,4 +302,10 @@
   padding: 3px 8px;
   min-width: 0;
   flex: 1;
+
+  // Dropdown variant: the menu anchors to the flex item.
+  &--select {
+    position: relative;
+    height: 26px;
+  }
 }

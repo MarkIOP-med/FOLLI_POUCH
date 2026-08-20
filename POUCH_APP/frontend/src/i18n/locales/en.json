@@ -215,6 +215,9 @@
   "diagnostics": {
     "title": "POUCH DIAGNOSTICS OVERVIEW",
     "version": "v{{version}}",
+    "alertsCount_one": "{{count}} alert",
+    "alertsCount_other": "{{count}} alerts",
+    "clearAll": "CLEAR ALL",
     "rail": {
       "label": "Sections",
       "home": "Home",

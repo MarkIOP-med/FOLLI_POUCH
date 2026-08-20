@@ -93,6 +93,43 @@ export function DiagnosticsScreen() {
   );
   const previewing = !sessionActive && stagedPatient != null;
 
+  // Edits made while a patient is only staged write straight to their stored
+  // prescription (no session, no device connection needed) and refresh the
+  // preview — so vibration/regime controls are usable before START.
+  const updateStagedRx = (
+    patch: Partial<
+      Record<
+        string,
+        Partial<{ prescribed_mmhg: number; massage_level: number; massage_seconds: number }>
+      >
+    >,
+  ) =>
+    run('settingTarget', async () => {
+      if (!stagedPatient) return;
+      const zoneNames: Zone[] = ['FRONT', 'TEMPLE', 'EAR', 'BACK'];
+      const prescriptions = zoneNames.map((z) => {
+        const rx = stagedRx.get(z);
+        return {
+          zone: z,
+          prescribed_mmhg: rx?.prescribed_mmhg ?? 0,
+          massage_level: rx?.massage_level ?? 0,
+          massage_seconds: rx?.massage_seconds ?? 30,
+          ...patch[z],
+        };
+      });
+      const saved = await api.updatePatient(stagedPatient.id, {
+        full_name: stagedPatient.full_name,
+        national_id: stagedPatient.national_id,
+        gender: stagedPatient.gender,
+        birth_year: stagedPatient.birth_year,
+        protocol: stagedPatient.protocol,
+        treatment_start_date: stagedPatient.treatment_start_date,
+        treatment_number: stagedPatient.treatment_number,
+        prescriptions,
+      });
+      setStagedPatient(saved);
+    });
+
   // No device id, no screen — the old fallback to a hardcoded mock id silently
   // pointed this screen at a different pouch. (After the hooks: hook order.)
   if (!id) return <Navigate to="/" replace />;
@@ -340,7 +377,7 @@ export function DiagnosticsScreen() {
                 type="number"
                 min={0}
                 max={snapshot?.ceiling_mmhg}
-                readOnly={!sessionActive}
+                readOnly={!sessionActive && !previewing}
                 value={
                   regimeDrafts[z.zone] ??
                   String(
@@ -350,7 +387,7 @@ export function DiagnosticsScreen() {
                   )
                 }
                 onChange={(e) =>
-                  sessionActive &&
+                  (sessionActive || previewing) &&
                   setRegimeDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
                 }
                 aria-label={t(`zones.${z.zone}`)}
@@ -358,15 +395,29 @@ export function DiagnosticsScreen() {
             ))}
           </div>
 
-          {/* Commits every edited regime input to the loaded patient (or, in
-              service mode, as direct setpoints). Was a button with no handler. */}
+          {/* Commits every edited regime input: to the loaded patient (or
+              service setpoints) in a session, to the stored prescription while
+              staged. Was a button with no handler. */}
           <button
             type="button"
             className="regime__btn regime__btn--set"
-            disabled={disabled || !sessionActive || Object.keys(regimeDrafts).length === 0}
-            onClick={() =>
-              run('settingTarget', async () => {
-                const ceiling = snapshot?.ceiling_mmhg ?? 0;
+            disabled={
+              Object.keys(regimeDrafts).length === 0 ||
+              (sessionActive ? disabled : !previewing || busyKey !== null)
+            }
+            onClick={() => {
+              const ceiling = snapshot?.ceiling_mmhg ?? 0;
+              if (previewing) {
+                const patch: Record<string, { prescribed_mmhg: number }> = {};
+                for (const [zoneName, raw] of Object.entries(regimeDrafts)) {
+                  if (raw.trim() === '') continue;
+                  patch[zoneName] = { prescribed_mmhg: parseTarget(raw, ceiling || 999) };
+                }
+                setRegimeDrafts({});
+                void updateStagedRx(patch);
+                return;
+              }
+              void run('settingTarget', async () => {
                 for (const [zoneName, raw] of Object.entries(regimeDrafts)) {
                   if (raw.trim() === '') continue;
                   const mmhg = parseTarget(raw, ceiling);
@@ -377,8 +428,8 @@ export function DiagnosticsScreen() {
                   }
                 }
                 setRegimeDrafts({});
-              })
-            }
+              });
+            }}
           >
             <img src={BUTTONS.set} alt={t('diagnostics.regime.set')} />
           </button>
@@ -428,17 +479,24 @@ export function DiagnosticsScreen() {
                   const shown = previewing
                     ? stagedRx.get(zone.zone)?.massage_level ?? 0
                     : zone.massage_level;
+                  // In-session: live command to the loaded patient. Staged:
+                  // edit the stored prescription (needs no connection).
+                  const editable = sessionActive
+                    ? !disabled && !!snapshot?.patient
+                    : previewing && busyKey === null;
                   return (
                     <button
                       key={level}
                       type="button"
                       className={`vib-panel__level${shown === level ? ' is-on' : ''}`}
-                      disabled={disabled || !snapshot?.patient}
+                      disabled={!editable}
                       aria-pressed={shown === level}
                       onClick={() =>
-                        run('settingVibration', () =>
-                          api.setVibration(id, zone.zone as Zone, level),
-                        )
+                        sessionActive
+                          ? run('settingVibration', () =>
+                              api.setVibration(id, zone.zone as Zone, level),
+                            )
+                          : updateStagedRx({ [zone.zone]: { massage_level: level } })
                       }
                     >
                       {level}
@@ -446,16 +504,11 @@ export function DiagnosticsScreen() {
                   );
                 })}
               </span>
-              {/* Duration is editable per zone (blur/Enter commits with the
-                  current level); it was previously presented as configured but
-                  had no way to be configured. */}
+              {/* Duration is editable per zone (blur/Enter commits): live to the
+                  device in a session, to the stored prescription while staged. */}
               <span className="vib-panel__duration">
-                {!snapshot?.patient || previewing ? (
-                  t('units.duration', {
-                    value: previewing
-                      ? stagedRx.get(zone.zone)?.massage_seconds ?? 30
-                      : zone.massage_seconds,
-                  })
+                {!(previewing || (sessionActive && snapshot?.patient)) ? (
+                  t('units.duration', { value: zone.massage_seconds })
                 ) : (
                   <>
                     [{' '}
@@ -464,8 +517,15 @@ export function DiagnosticsScreen() {
                       type="number"
                       min={0}
                       max={600}
-                      disabled={disabled}
-                      value={durationDrafts[zone.zone] ?? String(zone.massage_seconds)}
+                      disabled={busyKey !== null || (sessionActive && disabled)}
+                      value={
+                        durationDrafts[zone.zone] ??
+                        String(
+                          previewing
+                            ? stagedRx.get(zone.zone)?.massage_seconds ?? 30
+                            : zone.massage_seconds,
+                        )
+                      }
                       onChange={(e) =>
                         setDurationDrafts((d) => ({
                           ...d,
@@ -475,9 +535,13 @@ export function DiagnosticsScreen() {
                       onBlur={(e) => {
                         if (e.target.value.trim() === '') return;
                         const secs = Math.max(0, Math.min(600, Math.round(Number(e.target.value) || 0)));
-                        void run('settingVibration', () =>
-                          api.setVibration(id, zone.zone as Zone, zone.massage_level, secs),
-                        );
+                        if (previewing) {
+                          void updateStagedRx({ [zone.zone]: { massage_seconds: secs } });
+                        } else {
+                          void run('settingVibration', () =>
+                            api.setVibration(id, zone.zone as Zone, zone.massage_level, secs),
+                          );
+                        }
                         setDurationDrafts((d) => {
                           const next = { ...d };
                           delete next[zone.zone];
@@ -525,18 +589,28 @@ export function DiagnosticsScreen() {
             {t('device.hardware.manifoldFault')}
           </span>
         )}
-        {(snapshot?.alerts ?? []).slice(0, 3).map((alert) => (
+        {/* Alerts collapse to a count + one-click CLEAR — rendering each one
+            inline turned the strip into overlapping log soup. The full history
+            stays in the audit log. */}
+        {(snapshot?.alerts?.length ?? 0) > 0 && (
           <button
-            key={alert.id}
             type="button"
-            className={`diagnostics__status-item diagnostics__status-item--${alert.severity}`}
-            onClick={() => run('acking', () => api.ackAlert(id, alert.id))}
+            className="diagnostics__status-item diagnostics__status-item--warn"
+            disabled={busyKey !== null}
+            onClick={() =>
+              run('acking', async () => {
+                for (const alert of snapshot?.alerts ?? []) {
+                  await api.ackAlert(id, alert.id);
+                }
+              })
+            }
             title={t('common.acknowledge')}
           >
-            ⚠ {alert.code}
-            {alert.detail ? ` — ${alert.detail}` : ''} ✕
+            ⚠ {t('diagnostics.alertsCount', { count: snapshot?.alerts?.length ?? 0 })}
+            {' — '}
+            {t('diagnostics.clearAll')}
           </button>
-        ))}
+        )}
       </div>
     </DiagLayout>
   );

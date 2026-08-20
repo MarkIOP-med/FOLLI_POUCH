@@ -100,21 +100,25 @@
   &__pending { color: $text-muted; }
 }
 
-// Patient create/edit/delete controls, under the picker.
+// Patient create/edit/delete controls — absolutely placed under the picker
+// sub-box (which spans y 70.5..166.5 in panel coordinates); flow layout put
+// them behind the "Name:" label.
 .users-screen__crud {
+  position: absolute;
+  left: 14px;
+  top: 184px;
   display: flex;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 12px;
 }
 
 .users-screen__crud-btn {
   font: inherit;
-  font-size: 13px;
+  font-size: 17px;
   color: $text;
   background: $btn-face-dark;
   border: 1px solid $btn-edge;
-  border-radius: 10px;
-  padding: 4px 14px;
+  border-radius: 12px;
+  padding: 8px 22px;
   cursor: pointer;
 
   &:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -122,9 +126,19 @@
 }
 
 .users-screen__crud-error {
-  margin-top: 10px;
-  font-size: 14px;
+  position: absolute;
+  left: 14px;
+  top: 244px;
+  right: 14px;
+  font-size: 15px;
   color: $alert-red;
+}
+
+// The gender dropdown reuses the edit-input look; the menu needs an anchor.
+.users-screen__edit--select {
+  position: relative;
+  height: 36px;
+  align-self: center;
 }
 
 // Inputs reuse the field grid the read-only values sit in.

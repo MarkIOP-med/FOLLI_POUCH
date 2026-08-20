@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
+import { CanvasSelect } from '@/components/CanvasSelect';
 import { batteryArt } from '@/domain/diagnosticsAssets';
 import { formatClockDuration } from '@/domain/status';
 import type { HeaderBandProps } from './HeaderBand.types';
@@ -80,25 +81,19 @@ export function HeaderBand({
       <label className="header-band__user-label" htmlFor="header-user">
         {t('diagnostics.header.user')}
       </label>
-      <select
+      {/* In-canvas dropdown: a native select popup ignores the canvas's
+          transform scale and renders at OS-scaled design pixels — on the bench
+          that meant a full-screen menu. */}
+      <CanvasSelect
         id="header-user"
         className="header-band__select"
         disabled={selectDisabled}
-        value={selectedUserId ?? ''}
-        onChange={(e) =>
-          onSelectUser(e.target.value === '' ? null : Number(e.target.value))
-        }
-      >
-        {/* Explicit empty option: without it the browser renders the first
-            patient's name when nothing is selected, which reads as a loaded
-            user that is not actually loaded. */}
-        <option value="">{t('diagnostics.noData')}</option>
-        {users.map((user) => (
-          <option key={user.id} value={user.id}>
-            {user.name}
-          </option>
-        ))}
-      </select>
+        value={selectedUserId != null ? String(selectedUserId) : ''}
+        placeholder={t('diagnostics.noData')}
+        ariaLabel={t('diagnostics.header.user')}
+        options={users.map((user) => ({ value: String(user.id), label: user.name }))}
+        onChange={(v) => onSelectUser(v === '' ? null : Number(v))}
+      />
 
       <div className="header-band__id">
         <span>{t('diagnostics.header.id')}</span>

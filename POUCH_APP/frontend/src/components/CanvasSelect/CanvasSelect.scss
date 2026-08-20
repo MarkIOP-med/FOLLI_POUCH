@@ -1,0 +1,60 @@
+// In-canvas dropdown. The root carries the caller's existing select class for
+// position/size/chevron artwork; these rules cover the control and the menu.
+
+.canvas-select {
+  // Callers position the root exactly where the native select used to sit.
+  // The control fills it and carries the padding, so any padding the caller's
+  // select class declared must not apply twice.
+  padding: 0 !important;
+  .canvas-select__control {
+    width: 100%;
+    height: 100%;
+    padding: 0 36px 0 10px;
+    background: none;   // root keeps the caller's background + chevron artwork
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+
+  .canvas-select__value {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .canvas-select__menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    max-height: 320px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+    background: #10222e;
+    border: 1px solid $border;
+    border-radius: 4px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+    z-index: 50;
+  }
+
+  .canvas-select__option {
+    padding: 6px 12px;
+    font-size: inherit;
+    color: $text;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover { background: $panel-title-bg; }
+    &.is-selected { background: $select-bg; }
+  }
+}

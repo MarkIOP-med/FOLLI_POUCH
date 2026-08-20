@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/api/client';
 import type { Gender, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
+import { CanvasSelect } from '@/components/CanvasSelect';
 import { DiagLayout } from '@/components/DiagLayout';
 import { DiagPanel } from '@/components/DiagPanel';
 import { PROFILE } from '@/domain/diagnosticsAssets';
@@ -169,77 +170,70 @@ export function UsersScreen() {
           <label className="users-screen__picker-label" htmlFor="user-picker">
             {t('diagnostics.users.name')}
           </label>
-          <select
+          <CanvasSelect
             id="user-picker"
             className="users-screen__select"
-            value={selectedId ?? ''}
+            value={selectedId != null ? String(selectedId) : ''}
             disabled={editing !== null}
-            onChange={(e) =>
-              setSelectedId(e.target.value === '' ? null : Number(e.target.value))
-            }
-          >
-            {/* Without an explicit empty option the browser paints the first
-                patient's name while nothing is actually selected. */}
-            <option value="">{noData}</option>
-            {patients.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-          </select>
-
-          <div className="users-screen__crud">
-            {editing === null ? (
-              <>
-                <button type="button" className="users-screen__crud-btn" onClick={beginCreate}>
-                  {t('diagnostics.users.crud.new')}
-                </button>
-                <button
-                  type="button"
-                  className="users-screen__crud-btn"
-                  disabled={!selected}
-                  onClick={beginEdit}
-                >
-                  {t('diagnostics.users.crud.edit')}
-                </button>
-                {/* Two-click delete: first click arms, second confirms. */}
-                <button
-                  type="button"
-                  className="users-screen__crud-btn users-screen__crud-btn--danger"
-                  disabled={!selected || busy}
-                  onClick={() =>
-                    confirmDelete ? void deletePatient() : setConfirmDelete(true)
-                  }
-                  onBlur={() => setConfirmDelete(false)}
-                >
-                  {confirmDelete
-                    ? t('diagnostics.users.crud.confirmDelete')
-                    : t('diagnostics.users.crud.delete')}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="users-screen__crud-btn"
-                  disabled={busy || form.full_name.trim() === ''}
-                  onClick={() => void savePatient()}
-                >
-                  {t('diagnostics.users.crud.save')}
-                </button>
-                <button
-                  type="button"
-                  className="users-screen__crud-btn"
-                  disabled={busy}
-                  onClick={() => setEditing(null)}
-                >
-                  {t('diagnostics.users.crud.cancel')}
-                </button>
-              </>
-            )}
-          </div>
-          {error && <div className="users-screen__crud-error">{error}</div>}
+            placeholder={noData}
+            ariaLabel={t('diagnostics.users.name')}
+            options={patients.map((p) => ({ value: String(p.id), label: p.full_name }))}
+            onChange={(v) => setSelectedId(v === '' ? null : Number(v))}
+          />
         </div>
+
+        {/* CRUD row sits under the picker sub-box, on the panel itself. */}
+        <div className="users-screen__crud">
+          {editing === null ? (
+            <>
+              <button type="button" className="users-screen__crud-btn" onClick={beginCreate}>
+                {t('diagnostics.users.crud.new')}
+              </button>
+              <button
+                type="button"
+                className="users-screen__crud-btn"
+                disabled={!selected}
+                onClick={beginEdit}
+              >
+                {t('diagnostics.users.crud.edit')}
+              </button>
+              {/* Two-click delete: first click arms, second confirms. */}
+              <button
+                type="button"
+                className="users-screen__crud-btn users-screen__crud-btn--danger"
+                disabled={!selected || busy}
+                onClick={() =>
+                  confirmDelete ? void deletePatient() : setConfirmDelete(true)
+                }
+                onBlur={() => setConfirmDelete(false)}
+              >
+                {confirmDelete
+                  ? t('diagnostics.users.crud.confirmDelete')
+                  : t('diagnostics.users.crud.delete')}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="users-screen__crud-btn"
+                disabled={busy || form.full_name.trim() === ''}
+                onClick={() => void savePatient()}
+              >
+                {t('diagnostics.users.crud.save')}
+              </button>
+              <button
+                type="button"
+                className="users-screen__crud-btn"
+                disabled={busy}
+                onClick={() => setEditing(null)}
+              >
+                {t('diagnostics.users.crud.cancel')}
+              </button>
+            </>
+          )}
+        </div>
+        {error && <div className="users-screen__crud-error">{error}</div>}
       </DiagPanel>
 
       <DiagPanel
@@ -275,15 +269,17 @@ export function UsersScreen() {
             />
 
             <span className="users-screen__label">{t('diagnostics.users.gender')}</span>
-            <select
-              className="users-screen__edit"
+            <CanvasSelect
+              className="users-screen__edit users-screen__edit--select"
               value={form.gender}
-              onChange={(e) => field('gender', e.target.value)}
-            >
-              <option value="">{noData}</option>
-              <option value="female">{t('diagnostics.users.gender_female')}</option>
-              <option value="male">{t('diagnostics.users.gender_male')}</option>
-            </select>
+              placeholder={noData}
+              ariaLabel={t('diagnostics.users.gender')}
+              options={[
+                { value: 'female', label: t('diagnostics.users.gender_female') },
+                { value: 'male', label: t('diagnostics.users.gender_male') },
+              ]}
+              onChange={(v) => field('gender', v)}
+            />
 
             <span className="users-screen__label">{t('diagnostics.users.crud.birthYear')}</span>
             <input
