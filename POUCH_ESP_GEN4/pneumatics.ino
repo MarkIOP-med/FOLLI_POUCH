@@ -11,6 +11,22 @@ void resetChannelState() {
   channelTimer  = 0;
 }
 
+// One-char state for the telemetry lines, so both transports report identically.
+char stateChar() {
+  switch (currentState) {
+    case IDLE:             return 'I';
+    case PRESSURIZING:     return 'P';
+    case MAINTENANCE:      return 'M';
+    case EMERGENCY_RELIEF: return 'E';
+    case STOPPED:          return 'S';
+  }
+  return '?';
+}
+
+unsigned long sessionElapsedS() {
+  return sessionStartMs ? (millis() - sessionStartMs) / 1000UL : 0UL;
+}
+
 void initValves() {
   for (int i = 0; i < 6; i++) {
     pinMode(valvePins[i], OUTPUT);
@@ -64,6 +80,7 @@ void reliefAllPads() {
   for (int i = 0; i < 4; i++) currentTargetPressure[i] = 0;
   resetChannelState();
   currentState = IDLE;
+  sessionStartMs = 0;   // a full vent ends the session; the clock stops on both UIs
   Serial.println("All PADs relieved to zero.");
 }
 

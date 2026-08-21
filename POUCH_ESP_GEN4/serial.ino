@@ -16,7 +16,7 @@ void printSerialLog() {
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7");
+                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED");
     headerPrinted = true;
   }
 
@@ -28,9 +28,12 @@ void printSerialLog() {
   }
   Serial.print((int)actualManifoldPressure);      Serial.print(',');
   for (int i = 0; i < NUM_FSR; i++) {
-    Serial.print(fsrData[i]);
-    Serial.print(i < NUM_FSR - 1 ? ',' : '\n');
+    Serial.print(fsrData[i]);                    Serial.print(',');
   }
+  // Appended (not inserted) so old parsers fail loudly on field count rather
+  // than silently misreading shifted columns.
+  Serial.print(stateChar());                     Serial.print(',');
+  Serial.println((unsigned long)sessionElapsedS());
 }
 
 void handleSerialCommands() {

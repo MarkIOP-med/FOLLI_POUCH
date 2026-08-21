@@ -81,9 +81,11 @@ def test_read_commands():
 # ── inbound routing ──────────────────────────────────────────────────────────
 
 def test_decode_telemetry_frame():
-    kind, frame = decode_line("T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4")
+    kind, frame = decode_line("T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,P,5")
     assert kind == TELEMETRY
     assert frame["zones"]["TEMPLE"]["actual"] == 76
+    assert frame["device_state"] == "PRESSURIZING"
+    assert frame["device_elapsed_s"] == 5
 
 
 @pytest.mark.parametrize(
@@ -109,7 +111,7 @@ def test_decode_responses(line, tag, payload):
         "Ready. No pressure applied.",
         "All PADs relieved to zero.",
         "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7",  # header → log, not telemetry
+        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED",  # header → log
         "garbage",
     ],
 )

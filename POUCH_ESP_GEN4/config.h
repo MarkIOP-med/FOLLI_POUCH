@@ -92,6 +92,12 @@ enum SystemState {
 SystemState currentState = IDLE;
 
 int   currentChannel          = 0;                    // which channel updateChannels() is servicing
+
+// Session clock — CORE. Set on the transition into PRESSURIZING (whichever
+// transport caused it), cleared by a full vent. Reported in every telemetry
+// line so BOTH UIs (serial admin app, BLE console) mirror the same run state
+// and the same elapsed time regardless of who started the session.
+unsigned long sessionStartMs = 0;   // 0 = no session running
 float p[NUM_SENSORS];                                 // converted sensor readings, mmHg, pre-reference
 float referencePressure[NUM_SENSORS] = {0};           // atmospheric baseline, captured after a full relief
 float actualPressure[4]         = {0.0};              // measured pressure per channel — read-only telemetry
@@ -192,6 +198,10 @@ void resetChannelState();
 void readAnalogSensors();
 void updateCurrentPressures();
 void captureReferencePressure();
+
+// pneumatics.ino — telemetry helpers (CORE owns the state machine)
+char stateChar();                 // I/P/M/E/S — one char for telemetry lines
+unsigned long sessionElapsedS();  // seconds since the session started, 0 when idle
 
 // --- PERIPHERAL ---
 // commandQueue.ino

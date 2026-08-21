@@ -27,55 +27,32 @@ The FOLLI Comfort Console relies on a split-architecture layout. The user interf
 
 ---
 
-## 3. BLE GATT Profile Architecture
-The system utilizes a single custom GATT Service over a secure, bonded Bluetooth channel.
+## 3. BLE Protocol
 
-* **FOLLI Custom Service UUID:** `4fafc201-1fb5-459e-8fcc-c5c9c331914b`
+**The wire protocol is the Gen4 text grammar — `POUCH_ESP_GEN4/POUCH_ESP.md` is the
+source of truth.** The 4-byte command / 6-byte telemetry binary protocol that used to
+be specified here was retired on 2026-08-21; the same GATT endpoints now carry the
+identical text lines the USB-serial admin app uses, so the pouch behaves the same no
+matter which transport is talking.
 
-### Characteristic A: Command Channel
-* **UUID:** `beb5483e-36e1-4688-b7f5-ea07361b26a8`
-* **Properties:** `WRITE_ONLY` or `WRITE_NO_RESPONSE`
-* **Payload Size:** 4-Byte Array
-* **Data Mapping:**
-  * **Byte 0 (Target V-Node):** 
-    * `0x01` = Forehead
-    * `0x02` = Left Temple
-    * `0x03` = Right Temple
-    * `0x04` = Back of Head
-  * **Byte 1 (Target Pressure):** `0x00` to `0x46` (maps directly to 0 to 70 mmHg)
-  * **Byte 2 (Massage Level):**
-    * `0x00` = Off
-    * `0x01` = Low Speed
-    * `0x02` = Medium Speed
-    * `0x03` = High Speed
-  * **Byte 3 (Operation Mode Trigger):**
-    * `0x00` = Hard Emergency System Shutoff / Dump Pressure
-    * `0x01` = Static Hold Mode (apply Byte 1 pressure + Byte 2 massage level to the Byte 0 V-Node)
-    * `0x02` = Dynamic Burst / Pulse Mode — **not implemented on the firmware side yet**, ignored if sent
-    * `0x03` = Restore — recall last-set pressures for all 4 V-Nodes (Bytes 0-2 ignored)
-    * `0x04` = Reset — recall factory-default pressures for all 4 V-Nodes (Bytes 0-2 ignored)
-    * `0x05` = Device Off — vent all + stop vibration + halt (Bytes 0-2 ignored)
-    * `0x06` = Device On — resume from Device Off (Bytes 0-2 ignored)
-    * `0x03`-`0x06` are firmware extensions beyond the original spec, added to cover system-level actions (restore/reset/on-off) that the original physical keyboard supported. See `POUCH_ESP_GEN4/ble.ino`.
-
-* **V-Node byte note:** the firmware maps this positionally onto its 4 real pads — `0x01`=FRONT, `0x02`=TEMPLE, `0x03`=EAR, `0x04`=BACK. There is no split Left/Right Temple channel; the "Left Temple"/"Right Temple" labels above predate the EAR pad and should be read as position 2 and 3 respectively.
-
-### Characteristic B: Live Telemetry Channel
-* **UUID:** `d68a2a54-7f15-4ba5-bc44-59368d400d3b`
-* **Properties:** `NOTIFY` (Pushed automatically by ESP32 every 250 milliseconds)
-* **Payload Size:** 6-Byte Array
-* **Data Mapping:**
-  * **Byte 0:** Real-time reading from Forehead pressure sensor (mmHg)
-  * **Byte 1:** Real-time reading from Left Temple pressure sensor (mmHg)
-  * **Byte 2:** Real-time reading from Right Temple pressure sensor (mmHg)
-  * **Byte 3:** Real-time reading from Back pressure sensor (mmHg)
-  * **Byte 4:** Control Unit Battery State of Charge (%)
-  * **Byte 5 (System Error Flag):**
-    * `0x00` = System Healthy / Normal Operation
-    * `0x01` = Critical Pressure Leak Detected
-    * `0x02` = Over-temperature condition warning
-
----
+* **Service UUID:** `4fafc201-1fb5-459e-8fcc-c5c9c331914b`
+* **Command characteristic** `beb5483e-36e1-4688-b7f5-ea07361b26a8` (write /
+  write-no-response): one UTF-8 command line per write (`start`, `stop`,
+  `setpressure:1,55`, `setvibration:-1,2,-1,-1`, `readuser`, ...). The console uses
+  write-WITH-response so commands longer than one ATT packet reassemble.
+* **Telemetry characteristic** `d68a2a54-7f15-4ba5-bc44-59368d400d3b` (notify): one
+  text line per notify — the periodic enriched frame
+  `T:<state>,<elapsed_s>,<a0..a3>,<t0..t3>,<batt>,<err>` every 250 ms, plus the tagged
+  `OK:` / `ERR:` / `R:` responses to commands this client sent.
+* **MTU:** the enriched frame is ~55 bytes — the client MUST negotiate a larger MTU
+  (the console requests 185) or notifies arrive truncated; BLE has no long-notify
+  reassembly. Battery and the error flag are firmware stubs today.
+* **State mirroring:** state + session clock in every frame is what lets this console
+  and the serial admin app mirror each other — whoever starts or stops a session,
+  both UIs flip together and show the same elapsed time.
+* **Conformance:** the console implementation (`src/services/pouch/protocol.ts`), the
+  admin app's Python mirror and the firmware are held together by
+  `shared/protocol-vectors.json`, run by both test suites.
 
 ## 4. UI/UX Visual Layout Specifications
 

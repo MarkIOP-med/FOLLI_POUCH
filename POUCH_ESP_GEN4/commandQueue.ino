@@ -41,6 +41,7 @@ static void applyStart() {
   currentChannel = 0;
   resetChannelState();
   currentState = PRESSURIZING;
+  sessionStartMs = millis();   // fresh session, fresh clock
 }
 
 // --- STOP --- stop vibration + vent all to zero. Venting happens this same tick:
@@ -64,6 +65,7 @@ static void applyResetAll() {
   currentChannel = 0;
   resetChannelState();
   currentState = PRESSURIZING;
+  sessionStartMs = millis();   // fresh session, fresh clock
 }
 
 // --- RESTART --- re-init the control loop only; identity/regime untouched
@@ -86,6 +88,8 @@ static void applySetTarget(int channel, int pressure) {
   currentChannel = 0;
   resetChannelState();
   currentState = PRESSURIZING;
+  // Mid-session target edits keep the running clock; only a cold start sets it.
+  if (sessionStartMs == 0) sessionStartMs = millis();
 }
 
 // --- SET VIBRATION --- level -1 = leave that channel as it is (running or not),

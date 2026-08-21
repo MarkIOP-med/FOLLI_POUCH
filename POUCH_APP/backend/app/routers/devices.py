@@ -36,6 +36,28 @@ from .dependencies import get_connected_runtime, get_runtime, validate_zone
 router = APIRouter(prefix="/devices", tags=["devices"])
 
 
+def _push_user_regime(
+    db: sqlite3.Connection, runtime: DeviceRuntime, patient_id: int
+) -> None:
+    """Send the patient's prescribed regime to the firmware's user record.
+
+    Best-effort: a failed push must not block the session — the app still
+    drives targets explicitly via apply; only the console's `start` depends on
+    the device-side record.
+    """
+    patient = patients_repo.get(db, patient_id)
+    if patient is None:
+        return
+    rx = {p["zone"]: p["prescribed_mmhg"] for p in patient["prescriptions"]}
+    pressures = [int(rx.get(z, 0)) for z in ZONES]
+    with contextlib.suppress(Exception):
+        assert runtime.link is not None
+        sent = runtime.link.load_user(patient_id, pressures)
+        audit.log_event(
+            db, runtime.device_id, "info", "push_user_regime", sent, runtime.session_id
+        )
+
+
 def send_or_502(action) -> str:
     """Run one link command; a transport that died since the dependency check
     (unplugged cable, reader thread flipping connected=False) becomes a clean
@@ -312,6 +334,13 @@ def set_zone_rx(
         {"prescribed_mmhg": mmhg},
     )
     db.commit()
+
+    # Keep the device-side user record current, so a console START after this
+    # edit applies the edited regime, not a stale copy.
+    if runtime.connected and runtime.link is not None:
+        _push_user_regime(db, runtime, runtime.patient_id)
+        db.commit()
+
     return snapshot_service.build(runtime, db)
 
 
@@ -489,6 +518,12 @@ def start_session(
 
     session_id = repo.start_session(db, runtime.device_id, body.patient_id)
     runtime.begin_session(session_id, body.patient_id)
+
+    # Check the patient out to the DEVICE too (user:<id>:<regime>), so the BLE
+    # console's `readuser` and its START button operate on the same prescription
+    # the app loaded — the two UIs must agree on whose regime is on the pouch.
+    if body.patient_id is not None and runtime.connected and runtime.link is not None:
+        _push_user_regime(db, runtime, body.patient_id)
 
     audit.log_event(
         db,

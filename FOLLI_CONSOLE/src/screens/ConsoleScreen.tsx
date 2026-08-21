@@ -16,16 +16,16 @@ import { colors, font, layout } from '../theme';
 // hunt.
 const HERO_IMG: Record<'female' | 'male', Record<VNode, ReturnType<typeof require>>> = {
   female: {
-    0x01: require('../../assets/buttons/Female_Profile_FRONT_01.png'),
-    0x02: require('../../assets/buttons/Female_Profile_TEMPLE_01.png'),
-    0x03: require('../../assets/buttons/Female_Profile_EAR_01.png'),
-    0x04: require('../../assets/buttons/Female_Profile_BACK_01.png'),
+    0: require('../../assets/buttons/Female_Profile_FRONT_01.png'),
+    1: require('../../assets/buttons/Female_Profile_TEMPLE_01.png'),
+    2: require('../../assets/buttons/Female_Profile_EAR_01.png'),
+    3: require('../../assets/buttons/Female_Profile_BACK_01.png'),
   },
   male: {
-    0x01: require('../../assets/buttons/Male_Profile_FRONT_01.png'),
-    0x02: require('../../assets/buttons/Male_Profile_TEMPLE_01.png'),
-    0x03: require('../../assets/buttons/Male_Profile_EAR_01.png'),
-    0x04: require('../../assets/buttons/Male_Profile_BACK_01.png'),
+    0: require('../../assets/buttons/Male_Profile_FRONT_01.png'),
+    1: require('../../assets/buttons/Male_Profile_TEMPLE_01.png'),
+    2: require('../../assets/buttons/Male_Profile_EAR_01.png'),
+    3: require('../../assets/buttons/Male_Profile_BACK_01.png'),
   },
 };
 
@@ -34,19 +34,19 @@ const HERO_GENDER: 'female' | 'male' = 'female';
 
 // Zone selector tiles. The labels are baked into the artwork.
 const ZONE_TILE: Record<VNode, { on: ReturnType<typeof require>; off: ReturnType<typeof require> }> = {
-  0x01: {
+  0: {
     on: require('../../assets/buttons/front_on.png'),
     off: require('../../assets/buttons/front_off.png'),
   },
-  0x02: {
+  1: {
     on: require('../../assets/buttons/temples_on.png'),
     off: require('../../assets/buttons/temples_off.png'),
   },
-  0x03: {
+  2: {
     on: require('../../assets/buttons/ears_on.png'),
     off: require('../../assets/buttons/ears_off.png'),
   },
-  0x04: {
+  3: {
     on: require('../../assets/buttons/back_on.png'),
     off: require('../../assets/buttons/back_off.png'),
   },
@@ -67,7 +67,7 @@ type Props = {
   onOpenSettings: () => void;
 };
 
-const ZONES: VNode[] = [0x01, 0x02, 0x03, 0x04];
+const ZONES: VNode[] = [0, 1, 2, 3];
 const SPEEDS: MassageLevel[] = [0, 1, 2, 3];
 
 /** How long STOP must be held before the emergency stop fires. */
@@ -161,6 +161,7 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
     hasTelemetry,
     isConnected,
     sendCommandToPouch,
+    triggerMassage,
     handleEmergencyStop,
     startSession,
   } = useConsole();
@@ -277,9 +278,9 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
                     style={[
                       styles.pouchBatteryFill,
                       {
-                        width: `${Math.max(0, Math.min(100, liveTelemetry.batteryPercentage))}%`,
+                        width: `${Math.max(0, Math.min(100, liveTelemetry.battery))}%`,
                         backgroundColor:
-                          liveTelemetry.batteryPercentage <= 30
+                          liveTelemetry.battery <= 30
                             ? colors.disconnected
                             : colors.white,
                       },
@@ -289,7 +290,7 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
               </View>
               <View style={styles.pouchBatteryCap} />
               <Text style={styles.pouchBatteryText}>
-                {hasTelemetry ? `${liveTelemetry.batteryPercentage}%` : '—'}
+                {hasTelemetry ? `${liveTelemetry.battery}%` : '—'}
               </Text>
             </View>
             <View style={styles.pouchIdRow}>
@@ -433,7 +434,7 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
                 testID="massage-set-button"
                 disabled={locked}
                 activeOpacity={0.7}
-                onPress={sendCommandToPouch}
+                onPress={triggerMassage}
               >
                 <DualImage on={BTN.setOn} off={BTN.setOff} showOn={!locked} width={150} height={81} />
               </TouchableOpacity>

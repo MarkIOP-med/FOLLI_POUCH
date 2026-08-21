@@ -68,6 +68,13 @@ export interface DeviceSnapshot {
   trim_range_pct: number;
   alerts: Alert[];
   manifold_mmhg: number | null;
+  /** The device's own state machine (IDLE/PRESSURIZING/MAINTENANCE/…), from telemetry. */
+  device_state: string | null;
+  /** The device's own session clock, seconds — shared with the BLE console. */
+  device_elapsed_s: number | null;
+  /** App session running but device idle with zero targets: stopped out-of-band
+      (e.g. the patient's console STOP). */
+  stopped_externally: boolean;
   manifold_target_mmhg: number;
   manifold_fault: boolean;
   /** Pump/valve state is NOT in the telemetry CSV — `reported` is false and the

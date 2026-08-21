@@ -74,10 +74,14 @@ No keyboard/LEDs/display files — this hardware revision has none; all control/
 shared parser, `commandParser.ino`) and produce an identical tagged response format
 (`T:`/`R:`/`OK:`/`ERR:`). Full command list, response format, data model, and known
 limitations are documented in `POUCH_ESP_GEN4/POUCH_ESP.md` — that file is the source of
-truth for the protocol. App-side it is mirrored by
-`POUCH_APP/backend/app/transport/protocol.py` (one grammar module shared by the serial,
-mock, and future BLE/WiFi links); the legacy `POUCH_APP/app.py` still speaks the retired
-Gen3 dialect and stays frozen.
+truth for the protocol. It is mirrored twice: Python
+(`POUCH_APP/backend/app/transport/protocol.py`, serial/mock/future-BLE links) and
+TypeScript (`FOLLI_CONSOLE/src/services/pouch/protocol.ts`, the patient console's BLE
+client). `shared/protocol-vectors.json` is the cross-language conformance file both
+test suites run, so the three implementations cannot silently drift. Telemetry carries
+the state machine + session clock on both transports, which is how the admin app and
+the console mirror each other's sessions. The legacy `POUCH_APP/app.py` still speaks
+the retired Gen3 dialect and stays frozen.
 
 `POUCH_ESP_GEN4/POUCH_ESP.md` is the full architecture + protocol reference for this
 firmware (pins, loop order, state machine, data model, commands, limitations). It

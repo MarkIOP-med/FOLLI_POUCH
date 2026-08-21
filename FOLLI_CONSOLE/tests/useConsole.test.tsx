@@ -1,34 +1,53 @@
 import { act, renderHook } from '@testing-library/react-native';
-import { useConsole } from '../src/viewmodels/useConsole';
-import {
-  FolliBleClient,
-  ConnectionState,
-  TelemetryListener,
-  ConnectionListener,
-} from '../src/services/ble';
-import { PouchCommand } from '../src/models/telemetry';
 
-// A fully controllable fake pouch so we can assert exactly what the ViewModel
-// sends and feed telemetry/connection events into the hook.
+import { useConsole } from '../src/viewmodels/useConsole';
+import type { PouchTelemetry } from '../src/models/telemetry';
+import type {
+  ConnectionListener,
+  ConnectionState,
+  PouchClient,
+  ResponseListener,
+  TelemetryListener,
+} from '../src/services/pouch';
+import type { DeviceUser } from '../src/services/pouch';
+
+// A fully controllable fake pouch client so we can assert exactly what the
+// ViewModel commands and feed telemetry/user/connection events into the hook.
 function makeFakeClient() {
   let telemetryListener: TelemetryListener | null = null;
+  let userListener: ((user: DeviceUser) => void) | null = null;
   let connectionListener: ConnectionListener | null = null;
-  const client: FolliBleClient & {
-    sendCommand: jest.Mock<Promise<void>, [PouchCommand]>;
-    sendEmergencyStop: jest.Mock;
-    emitTelemetry: TelemetryListener;
-    emitConnection: ConnectionListener;
+
+  const client: PouchClient & {
+    start: jest.Mock;
+    stop: jest.Mock;
+    setZonePressure: jest.Mock;
+    vibrateZone: jest.Mock;
+    requestUser: jest.Mock;
+    emitTelemetry: (t: PouchTelemetry) => void;
+    emitUser: (u: DeviceUser) => void;
+    emitConnection: (s: ConnectionState) => void;
   } = {
     connect: jest.fn().mockResolvedValue(undefined),
     disconnect: jest.fn().mockResolvedValue(undefined),
-    sendCommand: jest.fn().mockResolvedValue(undefined),
-    sendEmergencyStop: jest.fn().mockResolvedValue(undefined),
+    start: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
+    setZonePressure: jest.fn().mockResolvedValue(undefined),
+    vibrateZone: jest.fn().mockResolvedValue(undefined),
+    requestUser: jest.fn().mockResolvedValue(undefined),
     onTelemetry: (l: TelemetryListener) => {
       telemetryListener = l;
       return () => {
         telemetryListener = null;
       };
     },
+    onUser: (l: (user: DeviceUser) => void) => {
+      userListener = l;
+      return () => {
+        userListener = null;
+      };
+    },
+    onResponse: (_l: ResponseListener) => () => undefined,
     onConnectionChange: (l: ConnectionListener) => {
       connectionListener = l;
       return () => {
@@ -37,121 +56,136 @@ function makeFakeClient() {
     },
     getState: () => 'connected' as ConnectionState,
     emitTelemetry: (t) => telemetryListener && telemetryListener(t),
+    emitUser: (u) => userListener && userListener(u),
     emitConnection: (s) => connectionListener && connectionListener(s),
   };
   return client;
 }
 
-describe('useConsole controls', () => {
-  it('boots PENDING with the UI_01 control defaults and connects', () => {
+const frame = (over: Partial<PouchTelemetry> = {}): PouchTelemetry => ({
+  state: 'IDLE',
+  elapsedSeconds: 0,
+  actuals: [0, 0, 0, 0],
+  targets: [0, 0, 0, 0],
+  battery: 80,
+  error: 0,
+  ...over,
+});
+
+const BENCH_USER: DeviceUser = {
+  userId: 8,
+  assigned: true,
+  pressures: [0, 25, 60, 0],
+};
+
+describe('useConsole — device-mirrored session', () => {
+  it('boots PENDING, unprescribed, and connects', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
     expect(result.current.sessionState).toBe('pending');
     expect(result.current.isSessionActive).toBe(false);
     expect(result.current.elapsedSeconds).toBe(0);
-    // Defaults mirror the mock: Temples selected at 25 mmHg / level 2.
-    expect(result.current.activeZone).toBe(0x02);
-    expect(result.current.targetPressure).toBe(25);
-    expect(result.current.massageLevel).toBe(2);
+    // No prescription until the board's user record arrives — every zone inert.
+    expect(result.current.canTrim).toBe(false);
     expect(client.connect).toHaveBeenCalledTimes(1);
   });
 
-  it('controls are adjustable while PENDING and each zone keeps its own settings', () => {
+  it("takes its prescription from the board's user record", () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Forehead has to be prescribed before it can be trimmed at all.
-    act(() => result.current.applyPrescription({ 0x01: 10 }));
-    act(() => result.current.setActiveZone(0x01));
-    act(() => result.current.updateTargetPressure(10));
-    act(() => result.current.setMassageLevel(1));
-    expect(result.current.targetPressure).toBe(10);
-    expect(result.current.massageLevel).toBe(1);
+    act(() => client.emitUser(BENCH_USER));
 
-    // Temples still has its own values...
-    act(() => result.current.setActiveZone(0x02));
+    act(() => result.current.setActiveZone(1));
+    expect(result.current.zoneSettings[1].prescribed).toBe(25);
     expect(result.current.targetPressure).toBe(25);
-    expect(result.current.massageLevel).toBe(2);
-
-    // ...and Forehead remembered what we set.
-    act(() => result.current.setActiveZone(0x01));
-    expect(result.current.targetPressure).toBe(10);
-    expect(result.current.massageLevel).toBe(1);
-
-    // Nothing was sent to the pouch — configuration only.
-    expect(client.sendCommand).not.toHaveBeenCalled();
+    expect(result.current.canTrim).toBe(true);
+    // Unprescribed zones stay off.
+    expect(result.current.zoneSettings[0].prescribed).toBe(0);
   });
 
-  it('START pushes the full per-zone configuration to the pouch', () => {
+  it('START sends the start command; ACTIVE arrives from telemetry, not locally', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
     act(() => result.current.startSession());
+    expect(client.start).toHaveBeenCalledTimes(1);
+    // Mirroring: the console does not declare itself active — the board does.
+    expect(result.current.sessionState).toBe('pending');
+
+    act(() => client.emitTelemetry(frame({ state: 'PRESSURIZING' })));
+    expect(result.current.sessionState).toBe('active');
+  });
+
+  it('mirrors an ADMIN-started session: active state and the board clock', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // No local START ever happened — the admin app drove the board over serial.
+    act(() =>
+      client.emitTelemetry(
+        frame({ state: 'MAINTENANCE', elapsedSeconds: 754, targets: [0, 95, 125, 0] }),
+      ),
+    );
 
     expect(result.current.sessionState).toBe('active');
-    expect(client.sendCommand).toHaveBeenCalledTimes(4);
-    expect(client.sendCommand).toHaveBeenCalledWith({
-      targetNode: 0x02,
-      targetPressure: 25,
-      massageLevel: 2,
-      operationMode: 0x01,
-    });
-    expect(client.sendCommand).toHaveBeenCalledWith({
-      targetNode: 0x01,
-      targetPressure: 0,
-      massageLevel: 0,
-      operationMode: 0x01,
-    });
+    expect(result.current.elapsedSeconds).toBe(754);
   });
 
-  it('the timer counts seconds only while active', () => {
-    jest.useFakeTimers();
+  it('the clock is the board clock — no local ticking', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => {
-      jest.advanceTimersByTime(3000);
-    });
-    expect(result.current.elapsedSeconds).toBe(0); // pending: no ticking
-
-    act(() => result.current.startSession());
-    act(() => {
-      jest.advanceTimersByTime(3000);
-    });
+    act(() => client.emitTelemetry(frame({ state: 'PRESSURIZING', elapsedSeconds: 3 })));
     expect(result.current.elapsedSeconds).toBe(3);
-
-    jest.useRealTimers();
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE', elapsedSeconds: 9 })));
+    expect(result.current.elapsedSeconds).toBe(9);
   });
 
-  it('SET pushes only the selected zone as a Static Hold (mode 0x01)', () => {
+  it('SET pushes only the selected zone, by zone name', async () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => result.current.startSession());
-    client.sendCommand.mockClear();
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 25, 40, 0] }));
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
 
-    act(() => result.current.applyPrescription({ 0x03: 40 }));
-    act(() => result.current.setActiveZone(0x03));
-    act(() => result.current.updateTargetPressure(40));
-    act(() => result.current.setMassageLevel(3));
+    act(() => result.current.setActiveZone(2));
+    act(() => result.current.updateTargetPressure(43));
+    await act(async () => result.current.sendCommandToPouch());
+
+    expect(client.setZonePressure).toHaveBeenCalledTimes(1);
+    expect(client.setZonePressure).toHaveBeenLastCalledWith('EAR', 43);
+  });
+
+  it('ignores SET while the board is idle — trimming adjusts a running treatment', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => client.emitUser(BENCH_USER));
     act(() => result.current.sendCommandToPouch());
-
-    expect(client.sendCommand).toHaveBeenCalledTimes(1);
-    expect(client.sendCommand).toHaveBeenLastCalledWith({
-      targetNode: 0x03,
-      targetPressure: 40,
-      massageLevel: 3,
-      operationMode: 0x01,
-    });
+    expect(client.setZonePressure).not.toHaveBeenCalled();
   });
 
-  it('confines pressure to the trim band, not to the full 0..70 range', () => {
+  it('massage SET is a one-shot trigger for the selected zone', async () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Temples is prescribed 25. 10% of that is 2.5, below the controller's
-    // 3 mmHg deadband, so the 3 mmHg floor applies and the band is 22..28.
+    act(() => client.emitUser(BENCH_USER));
+    act(() => result.current.setActiveZone(1));
+    act(() => result.current.setMassageLevel(2));
+    await act(async () => result.current.triggerMassage());
+
+    expect(client.vibrateZone).toHaveBeenCalledWith('TEMPLE', 2);
+  });
+
+  it('confines pressure to the trim band, not the full 0..70 range', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => client.emitUser(BENCH_USER));
+    act(() => result.current.setActiveZone(1));
+    // Prescribed 25: 10% is 2.5, below the 3 mmHg deadband floor → band 22..28.
     expect(result.current.trimMin).toBe(22);
     expect(result.current.trimMax).toBe(28);
 
@@ -161,167 +195,103 @@ describe('useConsole controls', () => {
     expect(result.current.targetPressure).toBe(22);
   });
 
-  it('uses whichever is larger, 10% or the 3 mmHg deadband floor', () => {
-    const client = makeFakeClient();
-    const { result } = renderHook(() => useConsole(client));
-
-    // Below 30 the percentage would be smaller than the controller can resolve,
-    // so the floor governs: +/-3 rather than +/-1.
-    act(() => result.current.applyPrescription({ 0x02: 10 }));
-    expect(result.current.trimMin).toBe(7);
-    expect(result.current.trimMax).toBe(13);
-
-    // At and above 30 the percentage is the larger of the two and takes over.
-    act(() => result.current.applyPrescription({ 0x02: 30 }));
-    expect(result.current.trimMin).toBe(27);
-    expect(result.current.trimMax).toBe(33);
-
-    act(() => result.current.applyPrescription({ 0x02: 60 }));
-    expect(result.current.trimMin).toBe(54);
-    expect(result.current.trimMax).toBe(66);
-  });
-
   it('will not let an unprescribed zone be turned on', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Forehead is prescribed 0 — switched off by the clinician. The patient may
-    // trim a treatment that was ordered, not start one that was not.
-    act(() => result.current.setActiveZone(0x01));
+    act(() => client.emitUser(BENCH_USER));
+    act(() => result.current.setActiveZone(0));
     expect(result.current.canTrim).toBe(false);
     act(() => result.current.updateTargetPressure(40));
     expect(result.current.targetPressure).toBe(0);
   });
 
-  it('re-centres the band when a new prescription arrives', () => {
+  it('never exceeds the 70 mmHg ceiling, even at the top of a band', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => result.current.updateTargetPressure(28)); // trimmed to the top
-    act(() => result.current.applyPrescription({ 0x02: 50 }));
-
-    // The new order takes effect at its own value, rather than inheriting the
-    // previous patient's trim.
-    expect(result.current.targetPressure).toBe(50);
-    expect(result.current.trimMin).toBe(45);
-    expect(result.current.trimMax).toBe(55);
-  });
-
-  it('never exceeds the 70 mmHg hardware ceiling, even at the top of a band', () => {
-    const client = makeFakeClient();
-    const { result } = renderHook(() => useConsole(client));
-
-    // 68 +10% is 74.8, which the pouch must never be asked for.
-    act(() => result.current.applyPrescription({ 0x02: 68 }));
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 68, 0, 0] }));
+    act(() => result.current.setActiveZone(1));
     expect(result.current.trimMax).toBe(70);
     act(() => result.current.updateTargetPressure(999));
     expect(result.current.targetPressure).toBe(70);
   });
 
-  it('held STOP sends the emergency stop and zeroes every zone', () => {
+  it('held STOP sends stop; STOPPED shows once the board reports idle', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => result.current.startSession());
+    act(() => client.emitUser(BENCH_USER));
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE', elapsedSeconds: 60 })));
     act(() => result.current.handleEmergencyStop());
 
-    expect(client.sendEmergencyStop).toHaveBeenCalledTimes(1);
-    expect(result.current.sessionState).toBe('stopped');
-    ([0x01, 0x02, 0x03, 0x04] as const).forEach((zone) => {
-      expect(result.current.zoneSettings[zone].pressure).toBe(0);
-      expect(result.current.zoneSettings[zone].massage).toBe(0);
-    });
-    // The prescription survives: the next session resumes the clinical order
-    // rather than starting from nothing.
-    expect(result.current.zoneSettings[0x02].prescribed).toBe(25);
-  });
-
-  it('START begins a fresh session (timer reset, config re-pushed) after a stop', () => {
-    jest.useFakeTimers();
-    const client = makeFakeClient();
-    const { result } = renderHook(() => useConsole(client));
-
-    act(() => result.current.startSession());
-    act(() => {
-      jest.advanceTimersByTime(5000);
-    });
-    act(() => result.current.handleEmergencyStop());
-    expect(result.current.sessionState).toBe('stopped');
-    expect(result.current.elapsedSeconds).toBe(5);
-
-    client.sendCommand.mockClear();
-    act(() => result.current.startSession());
+    expect(client.stop).toHaveBeenCalledTimes(1);
+    // Still active until the board actually vents...
     expect(result.current.sessionState).toBe('active');
-    expect(result.current.elapsedSeconds).toBe(0);
-    expect(client.sendCommand).toHaveBeenCalledTimes(4); // full config re-push
-
-    jest.useRealTimers();
+    act(() => client.emitTelemetry(frame({ state: 'IDLE', elapsedSeconds: 0 })));
+    expect(result.current.sessionState).toBe('stopped');
+    // Dials reset onto the surviving prescription.
+    expect(result.current.zoneSettings[1].pressure).toBe(25);
+    expect(result.current.zoneSettings[1].prescribed).toBe(25);
   });
 
-  it('ignores SET unless a session is active', () => {
+  it("a stop from the ADMIN side shows as PENDING here, not this console's STOPPED", () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // PENDING: ignored.
-    act(() => result.current.sendCommandToPouch());
-    expect(client.sendCommand).not.toHaveBeenCalled();
-
-    // STOPPED: ignored too.
-    act(() => result.current.startSession());
-    act(() => result.current.handleEmergencyStop());
-    client.sendCommand.mockClear();
-    act(() => result.current.sendCommandToPouch());
-    expect(client.sendCommand).not.toHaveBeenCalled();
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE', elapsedSeconds: 30 })));
+    expect(result.current.sessionState).toBe('active');
+    act(() => client.emitTelemetry(frame({ state: 'IDLE' })));
+    expect(result.current.sessionState).toBe('pending');
   });
 
-  it('flags unapplied changes until SET succeeds (and clears when values match again)', async () => {
+  it('re-requests the board user record on run boundaries', () => {
+    const client = makeFakeClient();
+    renderHook(() => useConsole(client));
+    client.requestUser.mockClear();
+
+    act(() => client.emitTelemetry(frame({ state: 'PRESSURIZING' })));
+    expect(client.requestUser).toHaveBeenCalledTimes(1);
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
+    expect(client.requestUser).toHaveBeenCalledTimes(1); // still the same run
+    act(() => client.emitTelemetry(frame({ state: 'IDLE' })));
+    expect(client.requestUser).toHaveBeenCalledTimes(2); // run ended
+  });
+
+  it('flags unapplied changes until SET succeeds', async () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Not active yet — nothing to apply.
-    expect(result.current.hasUnappliedChanges).toBe(false);
+    act(() => client.emitUser(BENCH_USER));
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
+    act(() => result.current.setActiveZone(1));
 
-    await act(async () => result.current.startSession());
-    // START pushed the config, board and app agree.
-    expect(result.current.hasUnappliedChanges).toBe(false);
-
-    // Change pressure -> dirty until SET.
     act(() => result.current.updateTargetPressure(27));
     expect(result.current.hasUnappliedChanges).toBe(true);
 
     await act(async () => result.current.sendCommandToPouch());
     expect(result.current.hasUnappliedChanges).toBe(false);
 
-    // Change and change back -> values match what the board has, not dirty.
-    act(() => result.current.updateTargetPressure(30));
-    expect(result.current.hasUnappliedChanges).toBe(true);
-    act(() => result.current.updateTargetPressure(27));
-    expect(result.current.hasUnappliedChanges).toBe(false);
-
-    // Failed write keeps the change flagged as unapplied.
-    client.sendCommand.mockRejectedValueOnce(new Error('link down'));
-    act(() => result.current.setMassageLevel(3));
+    // Failed write keeps the zone dirty.
+    client.setZonePressure.mockRejectedValueOnce(new Error('link down'));
+    act(() => result.current.updateTargetPressure(24));
     await act(async () => result.current.sendCommandToPouch());
     expect(result.current.hasUnappliedChanges).toBe(true);
   });
 
-  it('reflects live telemetry frames pushed by the pouch', () => {
+  it('reflects live telemetry and battery', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
     act(() =>
-      client.emitTelemetry({
-        foreheadPressure: 33,
-        leftTemplePressure: 0,
-        rightTemplePressure: 0,
-        backPressure: 0,
-        batteryPercentage: 77,
-        errorFlag: 0x00,
-      }),
+      client.emitTelemetry(
+        frame({ state: 'MAINTENANCE', actuals: [0, 33, 0, 0], battery: 77 }),
+      ),
     );
 
-    expect(result.current.liveTelemetry.foreheadPressure).toBe(33);
-    expect(result.current.liveTelemetry.batteryPercentage).toBe(77);
+    expect(result.current.liveTelemetry.actuals[1]).toBe(33);
+    expect(result.current.liveTelemetry.battery).toBe(77);
+    expect(result.current.hasTelemetry).toBe(true);
   });
 
   it('tracks connection state', () => {
@@ -330,7 +300,6 @@ describe('useConsole controls', () => {
 
     act(() => client.emitConnection('connected'));
     expect(result.current.isConnected).toBe(true);
-
     act(() => client.emitConnection('disconnected'));
     expect(result.current.isConnected).toBe(false);
   });

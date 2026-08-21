@@ -1,0 +1,124 @@
+{
+  "_readme": [
+    "FOLLI protocol conformance vectors — the single cross-language source of truth.",
+    "Three implementations must agree: POUCH_ESP_GEN4 firmware (C++, anchored by the",
+    "bench-captured lines below), POUCH_APP/backend/app/transport/protocol.py (pytest:",
+    "tests/test_protocol_vectors.py), and FOLLI_CONSOLE src/services/pouch/protocol.ts",
+    "(jest: tests/protocolVectors.test.ts). Change the grammar => change this file =>",
+    "both suites fail until every implementation catches up. Wire strings exclude the",
+    "trailing newline. Channels are 0-indexed: FRONT=0, TEMPLE=1, EAR=2, BACK=3."
+  ],
+  "constants": {
+    "pressure_ceiling_mmhg": 70,
+    "controller_tolerance_mmhg": 3,
+    "trim_range_pct": 10,
+    "vibration_levels": [0, 3],
+    "vibration_leave_unchanged": -1,
+    "ble": {
+      "service_uuid": "4fafc201-1fb5-459e-8fcc-c5c9c331914b",
+      "command_char_uuid": "beb5483e-36e1-4688-b7f5-ea07361b26a8",
+      "telemetry_char_uuid": "d68a2a54-7f15-4ba5-bc44-59368d400d3b",
+      "advertised_name": "FOLLISAVE-POUCH",
+      "min_mtu": 185
+    }
+  },
+  "encode": [
+    { "name": "start",            "fn": "start",  "args": {},                                          "wire": "start" },
+    { "name": "stop",             "fn": "stop",   "args": {},                                          "wire": "stop" },
+    { "name": "reset_all",        "fn": "reset_all", "args": {},                                       "wire": "resetall" },
+    { "name": "restart",          "fn": "restart", "args": {},                                         "wire": "restart" },
+    { "name": "assign",           "fn": "assign", "args": {},                                          "wire": "assign" },
+    { "name": "save_as_default",  "fn": "save_as_default", "args": {},                                 "wire": "saveasdefault" },
+    { "name": "pressure_single",  "fn": "set_pressure", "args": { "targets": { "TEMPLE": 95 } },       "wire": "setpressure:1,95" },
+    { "name": "pressure_batch",   "fn": "set_pressure", "args": { "targets": { "TEMPLE": 95, "EAR": 125 } }, "wire": "setpressure:1,95;2,125" },
+    { "name": "pressure_zero",    "fn": "set_pressure", "args": { "targets": { "BACK": 0 } },          "wire": "setpressure:3,0" },
+    { "name": "vib_full",         "fn": "set_vibration", "args": { "levels": [0, 3, 2, 0] },           "wire": "setvibration:0,3,2,0" },
+    { "name": "vib_one_shot",     "fn": "set_vibration", "args": { "levels": [-1, -1, 2, -1] },        "wire": "setvibration:-1,-1,2,-1" },
+    { "name": "vib_clamped",      "fn": "set_vibration", "args": { "levels": [0, 5, -9, 2] },          "wire": "setvibration:0,3,-1,2" },
+    { "name": "load_user",        "fn": "load_user", "args": { "user_id": 8, "pressures": [0, 95, 125, 0] }, "wire": "user:8:0,95,125,0" },
+    { "name": "user_default",     "fn": "set_user_default_pressure", "args": { "pressures": [0, 95, 125, 0] }, "wire": "setuserdefaultpressure:0,95,125,0" },
+    { "name": "set_variable",     "fn": "set_variable", "args": { "variable": "TELEMETRY_INTERVAL", "value": 500 }, "wire": "setvariable:TELEMETRY_INTERVAL,500" },
+    { "name": "set_variable_default", "fn": "set_variable", "args": { "variable": "PRESSURE_TOLERANCE", "value": "default" }, "wire": "setvariable:PRESSURE_TOLERANCE,default" },
+    { "name": "read_user",        "fn": "read", "args": { "what": "user" },                            "wire": "readuser" },
+    { "name": "read_pressure",    "fn": "read", "args": { "what": "pressure" },                        "wire": "readpressure" },
+    { "name": "read_state",       "fn": "read", "args": { "what": "state" },                           "wire": "readstate" }
+  ],
+  "decode_serial": [
+    {
+      "name": "bench_captured_running_frame",
+      "comment": "Real frame captured from the pouch on COM6, 2026-08-21 (TEMPLE target 15, PRESSURIZING).",
+      "line": "T:2408,0,0,15,1,0,0,0,0,66,0,0,0,0,0,0,0,0,P,0",
+      "expect": {
+        "kind": "telemetry",
+        "device_ms": 2408,
+        "manifold": 66,
+        "device_state": "PRESSURIZING",
+        "device_elapsed_s": 0,
+        "zones": {
+          "FRONT":  { "target": 0,  "actual": 0 },
+          "TEMPLE": { "target": 15, "actual": 1 },
+          "EAR":    { "target": 0,  "actual": 0 },
+          "BACK":   { "target": 0,  "actual": 0 }
+        }
+      }
+    },
+    {
+      "name": "maintenance_frame_with_elapsed",
+      "line": "T:96123,0,0,95,93,125,124,0,0,12,0,0,0,0,11,6,9,4,M,142",
+      "expect": {
+        "kind": "telemetry",
+        "device_ms": 96123,
+        "manifold": 12,
+        "device_state": "MAINTENANCE",
+        "device_elapsed_s": 142,
+        "zones": {
+          "FRONT":  { "target": 0,   "actual": 0 },
+          "TEMPLE": { "target": 95,  "actual": 93 },
+          "EAR":    { "target": 125, "actual": 124 },
+          "BACK":   { "target": 0,   "actual": 0 }
+        }
+      }
+    },
+    { "name": "header_is_log",       "line": "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED", "expect": { "kind": "log" } },
+    { "name": "legacy_18_field_is_log", "line": "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4", "expect": { "kind": "log" } },
+    { "name": "unknown_state_is_log", "line": "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0", "expect": { "kind": "log" } },
+    { "name": "ok_ack",              "line": "OK:SETPRESSURE:1,95",  "expect": { "kind": "response", "tag": "OK",  "payload": "SETPRESSURE:1,95" } },
+    { "name": "err_line",            "line": "ERR:SETPRESSURE:channel out of range (7)", "expect": { "kind": "response", "tag": "ERR", "payload": "SETPRESSURE:channel out of range (7)" } },
+    { "name": "read_user_response",  "line": "R:USER:8,true,0,95,125,0", "expect": { "kind": "response", "tag": "R", "payload": "USER:8,true,0,95,125,0" } },
+    { "name": "boot_banner_is_log",  "line": "Ready. No pressure applied.", "expect": { "kind": "log" } },
+    { "name": "empty_prefix_is_log", "line": "T:", "expect": { "kind": "log" } }
+  ],
+  "decode_ble": [
+    {
+      "_comment": "BLE periodic telemetry — consumed by the console's protocol.ts only (Python never parses BLE lines).",
+      "name": "ble_running_frame",
+      "line": "T:M,142,0,93,124,0,0,95,125,0,0,0",
+      "expect": {
+        "kind": "telemetry",
+        "state": "MAINTENANCE",
+        "elapsed_s": 142,
+        "actuals": [0, 93, 124, 0],
+        "targets": [0, 95, 125, 0],
+        "battery": 0,
+        "error": 0
+      }
+    },
+    {
+      "name": "ble_idle_frame",
+      "line": "T:I,0,0,0,0,0,0,0,0,0,0,0",
+      "expect": {
+        "kind": "telemetry",
+        "state": "IDLE",
+        "elapsed_s": 0,
+        "actuals": [0, 0, 0, 0],
+        "targets": [0, 0, 0, 0],
+        "battery": 0,
+        "error": 0
+      }
+    },
+    { "name": "ble_truncated_is_invalid", "line": "T:M,142,0,93", "expect": { "kind": "invalid" } },
+    { "name": "ble_user_response", "line": "R:USER:8,true,0,95,125,0", "expect": { "kind": "response", "tag": "R", "payload": "USER:8,true,0,95,125,0" } },
+    { "name": "ble_ok_ack", "line": "OK:START", "expect": { "kind": "response", "tag": "OK", "payload": "START" } },
+    { "name": "ble_garbage_is_invalid", "line": "binary-noise", "expect": { "kind": "invalid" } }
+  ]
+}

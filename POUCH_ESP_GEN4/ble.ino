@@ -73,19 +73,29 @@ void sendBLEResponse(const String& line) {
   telemetryChar->notify();
 }
 
-// Periodic, unprompted, deliberately light — full detail is available on demand via
-// the READ commands instead of paying for it every TELEMETRY_INTERVAL_MS.
+// Periodic, unprompted. Carries everything the console needs to MIRROR the device —
+// state, session clock, actuals AND targets — so a session started from the serial
+// admin app shows up on the console (and vice versa) with the same clock, without
+// polling. ~55 bytes: the client MUST negotiate a larger MTU (console requests 185);
+// an un-negotiated 20-byte MTU truncates this line.
 void updateBLE() {
   if (millis() - lastTelemetryMs < TELEMETRY_INTERVAL_MS) return;
   lastTelemetryMs = millis();
 
   String line = "T:";
+  line += stateChar();                     // I/P/M/E/S
+  line += ",";
+  line += (unsigned long)sessionElapsedS();
   for (int i = 0; i < 4; i++) {
-    line += (int)constrain((int)actualPressure[i], 0, 255);  // FRONT, TEMPLE, EAR, BACK
     line += ",";
+    line += (int)constrain((int)actualPressure[i], 0, 255);  // FRONT, TEMPLE, EAR, BACK
   }
-  line += "0,";  // battery SoC — not measured on this hardware yet
-  line += "0";   // system error flag — no leak/over-temp detection wired up yet
+  for (int i = 0; i < 4; i++) {
+    line += ",";
+    line += currentTargetPressure[i];
+  }
+  line += ",0";  // battery SoC — not measured on this hardware yet
+  line += ",0";  // system error flag — no leak/over-temp detection wired up yet
 
   if (telemetryChar == nullptr) return;
   telemetryChar->setValue((uint8_t*)line.c_str(), line.length());

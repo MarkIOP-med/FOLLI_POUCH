@@ -576,6 +576,11 @@ export function DiagnosticsScreen() {
             {t('device.hardware.manifoldFault')}
           </span>
         )}
+        {snapshot?.stopped_externally && (
+          <span className="diagnostics__status-item diagnostics__status-item--warn">
+            {t('device.stoppedExternally')}
+          </span>
+        )}
         {/* Alerts collapse to a count that OPENS the list — rendering each one
             inline turned the strip into overlapping log soup, and clearing on
             click erased them before anyone could read them. */}

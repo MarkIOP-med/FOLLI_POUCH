@@ -1,34 +1,34 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+
 import {
-  VNode,
+  ALL_ZONES,
+  EMPTY_TELEMETRY,
   MassageLevel,
   PouchTelemetry,
-  EMPTY_TELEMETRY,
+  VNode,
   clampPressure,
-  OperationModes,
+  isDeviceRunning,
+  zoneName,
 } from '../models/telemetry';
-import { FolliBleClient, ConnectionState, createBleClient } from '../services/ble';
+import { createPouchClient } from '../services/pouch';
+import type { ConnectionState, PouchClient } from '../services/pouch';
 
-// Session lifecycle: the console boots PENDING (yellow, timer at 00:00).
-// Controls are always adjustable — the patient configures zones first, then
-// START pushes the whole configuration to the pouch and runs the timer.
-// A held STOP dumps pressure and moves to STOPPED; START then begins a fresh
-// session from 00:00.
+// Session lifecycle — MIRRORED FROM THE DEVICE, not tracked locally. The pouch
+// may equally be driven by the admin app over USB serial: whoever starts or
+// stops it, this console reflects the board's own state machine and its own
+// session clock (both arrive in every telemetry frame). PENDING and STOPPED
+// only differ in how the idle board got idle: STOPPED right after a stop this
+// console issued, PENDING otherwise.
 export type SessionState = 'pending' | 'active' | 'stopped';
 
-// Per the BLE protocol every command is per-zone, so each zone carries its own
-// target pressure and massage level.
 export interface ZoneSettings {
+  /** The patient's dialled target — starts at the prescription. */
   pressure: number;
   massage: MassageLevel;
   /**
-   * The clinician's prescribed pressure for this zone, and the centre of the
-   * band the patient may move within.
-   *
-   * The console is not allowed to set pressure outright — it may only trim what
-   * it was given. Today this is seeded from the defaults below; once the pouch
-   * (or POUCH_APP through it) sends a prescription, that value lands here and
-   * the band moves with it.
+   * The clinician's prescribed pressure for this zone — the centre of the band
+   * the patient may trim within. Arrives from the BOARD's user record
+   * (readuser), which the admin app keeps in sync with its loaded patient.
    */
   prescribed: number;
 }
@@ -39,10 +39,9 @@ export type ZoneSettingsMap = Record<VNode, ZoneSettings>;
 export const TRIM_RANGE_PCT = 10;
 
 /**
- * The controller's own deadband. It holds pressure to about this accuracy, so a
- * trim narrower than this is a control the patient can move without anything
- * measurable happening. Mirrors CONTROLLER_TOLERANCE_MMHG in
- * POUCH_APP/frontend/src/domain/pressure.ts — change one, change both.
+ * The controller's own deadband. Mirrors CONTROLLER_TOLERANCE_MMHG in
+ * POUCH_APP/frontend/src/domain/pressure.ts and services/pouch/protocol.ts —
+ * conformance-tested against shared/protocol-vectors.json.
  */
 export const CONTROLLER_TOLERANCE_MMHG = 3;
 
@@ -53,7 +52,6 @@ export const CONTROLLER_TOLERANCE_MMHG = 3;
  * 10% collapses below the controller's deadband on small prescriptions — at 25
  * mmHg it is +/-2.5, so the whole travel of the control sits inside the error
  * the controller already has, and the patient gets a slider that does nothing.
- * The floor keeps the adjustment real at every prescription.
  *
  * A zone prescribed 0 is switched off, and stays off — the patient can trim a
  * treatment the clinician ordered, not start one they did not.
@@ -70,104 +68,89 @@ export function trimBounds(
   };
 }
 
-// Defaults mirror the UI_01 mock: Temples at 25 mmHg / level 2, others off.
+// Before the board reports its user record, every zone is unprescribed/inert.
 export const DEFAULT_ZONE_SETTINGS: ZoneSettingsMap = {
-  0x01: { pressure: 0, massage: 0, prescribed: 0 },
-  0x02: { pressure: 25, massage: 2, prescribed: 25 },
-  0x03: { pressure: 0, massage: 0, prescribed: 0 },
-  0x04: { pressure: 0, massage: 0, prescribed: 0 },
+  0: { pressure: 0, massage: 0, prescribed: 0 },
+  1: { pressure: 0, massage: 0, prescribed: 0 },
+  2: { pressure: 0, massage: 0, prescribed: 0 },
+  3: { pressure: 0, massage: 0, prescribed: 0 },
 };
-
-const ALL_ZONES: VNode[] = [0x01, 0x02, 0x03, 0x04];
 
 export interface ConsoleController {
   sessionState: SessionState;
   isSessionActive: boolean;
+  /** The BOARD's session clock — identical to the admin app's view of it. */
   elapsedSeconds: number;
   activeZone: VNode;
   setActiveZone: (zone: VNode) => void;
   zoneSettings: ZoneSettingsMap;
   targetPressure: number;
   updateTargetPressure: (pressure: number) => void;
-  /** Take a prescription from the pouch/app; re-centres each zone's band. */
+  /** Take a prescription (from the board's user record); re-centres each band. */
   applyPrescription: (rx: Partial<Record<VNode, number>>) => void;
-  /** Inclusive bounds of the prescription's trim band for the selected zone. */
   trimMin: number;
   trimMax: number;
-  /** False when the zone has no prescription, so there is nothing to trim. */
   canTrim: boolean;
   massageLevel: MassageLevel;
   setMassageLevel: (level: MassageLevel) => void;
-  // True while the selected zone's settings differ from what the pouch last
-  // received — the SET button flickers until the change is actually applied.
+  /** Selected zone's dialled pressure differs from what the pouch last took. */
   hasUnappliedChanges: boolean;
   liveTelemetry: PouchTelemetry;
-  /** True once the pouch has actually sent a frame. */
   hasTelemetry: boolean;
   connectionState: ConnectionState;
   isConnected: boolean;
+  /** SET — push the selected zone's dialled pressure to the running session. */
   sendCommandToPouch: () => void;
+  /** Massage SET — one-shot vibration run for the selected zone. */
+  triggerMassage: () => void;
   handleEmergencyStop: () => void;
   startSession: () => void;
 }
 
-// The console ViewModel. Owns all UI state and translates user intent into BLE
-// commands. Accepts an injected client purely so tests can supply a fake — the
-// app uses the default factory (real BLE with a mock fallback).
-export function useConsole(injectedClient?: FolliBleClient): ConsoleController {
-  // Create the client once and keep it stable across renders.
-  const client = useMemo<FolliBleClient>(
-    () => injectedClient ?? createBleClient(),
+// The console ViewModel. Owns UI state and translates patient intent into
+// protocol commands via the injected PouchClient (tests supply a fake; the app
+// uses the explicit factory).
+export function useConsole(injectedClient?: PouchClient): ConsoleController {
+  const client = useMemo<PouchClient>(
+    () => injectedClient ?? createPouchClient(),
     [injectedClient],
   );
 
-  const [sessionState, setSessionState] = useState<SessionState>('pending');
-  const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [activeZone, setActiveZone] = useState<VNode>(0x02); // Temples (mock default)
+  const [activeZone, setActiveZone] = useState<VNode>(1); // Temples
   const [zoneSettings, setZoneSettings] = useState<ZoneSettingsMap>(DEFAULT_ZONE_SETTINGS);
-  // Starts genuinely empty. It previously seeded batteryPercentage at 80, which
-  // meant a console with no pouch in range displayed a confident 80% charge for
-  // a device it had never spoken to.
   const [liveTelemetry, setLiveTelemetry] = useState<PouchTelemetry>(EMPTY_TELEMETRY);
-  // False until a telemetry frame actually lands, so readings that have never
-  // been reported render as no-data instead of as zero.
   const [hasTelemetry, setHasTelemetry] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
-  // What each zone last SUCCESSFULLY sent to the pouch. Compared against the
-  // live zoneSettings to know whether a change is still unapplied.
-  const [sentSettings, setSentSettings] = useState<Partial<Record<VNode, ZoneSettings>>>({});
+  // True between a stop issued HERE and the next run — distinguishes the
+  // STOPPED banner from plain PENDING on an idle board.
+  const [stoppedHere, setStoppedHere] = useState(false);
+  // What each zone's pressure was when last successfully pushed.
+  const [sentPressure, setSentPressure] = useState<Partial<Record<VNode, number>>>({});
 
-  const isSessionActive = sessionState === 'active';
+  // ── device-mirrored session state ─────────────────────────────────────────
+  const deviceRunning = hasTelemetry && isDeviceRunning(liveTelemetry.state);
+  const sessionState: SessionState = deviceRunning
+    ? 'active'
+    : stoppedHere
+      ? 'stopped'
+      : 'pending';
+  const isSessionActive = deviceRunning;
+  const elapsedSeconds = liveTelemetry.elapsedSeconds;
 
-  // The controls always show/edit the currently selected zone's settings.
   const targetPressure = zoneSettings[activeZone].pressure;
   const massageLevel = zoneSettings[activeZone].massage;
 
-  // The band the controls may move within, for the selected zone.
   const { min: trimMin, max: trimMax } = trimBounds(zoneSettings[activeZone].prescribed);
-  // A zone with no prescription has nothing to trim, so the controls are inert
-  // rather than merely pinned at zero.
   const canTrim = trimMax > trimMin;
 
-  const sent = sentSettings[activeZone];
   const hasUnappliedChanges =
-    isSessionActive &&
-    (!sent || sent.pressure !== targetPressure || sent.massage !== massageLevel);
+    isSessionActive && sentPressure[activeZone] !== targetPressure;
 
-  // Keep a ref of the latest inputs so callbacks stay stable.
-  const inputsRef = useRef({ activeZone, zoneSettings, sessionState });
-  inputsRef.current = { activeZone, zoneSettings, sessionState };
+  const inputsRef = useRef({ activeZone, zoneSettings, deviceRunning });
+  inputsRef.current = { activeZone, zoneSettings, deviceRunning };
+  const wasRunningRef = useRef(false);
 
-  // Session timer: ticks once per second while the session is active.
-  useEffect(() => {
-    if (!isSessionActive) return;
-    const timer = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [isSessionActive]);
-
-  // Connect + wire telemetry/connection listeners once. If the link drops (or
-  // the first connect fails because the pouch isn't powered yet), keep retrying
-  // every few seconds so the kiosk recovers without any user action.
+  // Connect + wire listeners once; auto-reconnect keeps the kiosk alive.
   useEffect(() => {
     let disposed = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -191,31 +174,45 @@ export function useConsole(injectedClient?: FolliBleClient): ConsoleController {
     const offTelemetry = client.onTelemetry((frame) => {
       setLiveTelemetry(frame);
       setHasTelemetry(true);
+      const running = isDeviceRunning(frame.state);
+      if (running) setStoppedHere(false);
+      // A run boundary means the admin may have loaded a different patient —
+      // refresh the board's user record.
+      if (running !== wasRunningRef.current) {
+        wasRunningRef.current = running;
+        client.requestUser().catch(() => undefined);
+      }
     });
+
+    const offUser = client.onUser((user) => {
+      applyPrescription({
+        0: user.pressures[0],
+        1: user.pressures[1],
+        2: user.pressures[2],
+        3: user.pressures[3],
+      });
+    });
+
     const offConnection = client.onConnectionChange((state) => {
       setConnectionState(state);
-      // Unexpected drop while the app is alive -> try to get the link back.
       if (state === 'disconnected' || state === 'error') scheduleRetry();
     });
+
     attemptConnect();
 
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
       offTelemetry();
+      offUser();
       offConnection();
       client.disconnect().catch(() => {});
     };
+    // applyPrescription is stable (useCallback with no deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client]);
 
-  /**
-   * Take a prescription for one or more zones.
-   *
-   * This is the seam the pouch — or POUCH_APP through it — will call once a
-   * transport exists to carry patient data. Each zone's baseline moves and its
-   * target re-centres on it, so a new prescription is not silently trimmed by
-   * whatever the previous patient had dialled in.
-   */
+  /** Prescription intake: each zone's band re-centres, the dial resets onto it. */
   const applyPrescription = useCallback((rx: Partial<Record<VNode, number>>) => {
     setZoneSettings((prev) => {
       const next = { ...prev };
@@ -233,8 +230,7 @@ export function useConsole(injectedClient?: FolliBleClient): ConsoleController {
     setZoneSettings((prev) => {
       const zone = inputsRef.current.activeZone;
       const current = prev[zone];
-      // Held inside the prescription's trim band, not merely inside 0..70. The
-      // console trims a prescribed treatment; it does not set one.
+      // Held inside the prescription's trim band, not merely inside 0..70.
       const { min, max } = trimBounds(current.prescribed);
       const trimmed = Math.max(min, Math.min(max, clampPressure(value)));
       return { ...prev, [zone]: { ...current, pressure: trimmed } };
@@ -248,61 +244,61 @@ export function useConsole(injectedClient?: FolliBleClient): ConsoleController {
     });
   }, []);
 
-  // Push one zone's settings to the pouch as a Static Hold command. Only a
-  // successful BLE write records the settings as "applied" — a failed write
-  // leaves the zone marked dirty so the SET button keeps flickering.
-  const pushZone = useCallback(
-    (zone: VNode, settings: ZoneSettings) => {
-      client
-        .sendCommand({
-          targetNode: zone,
-          targetPressure: settings.pressure,
-          massageLevel: settings.massage,
-          operationMode: OperationModes.STATIC_HOLD,
-        })
-        .then(() => {
-          setSentSettings((prev) => ({ ...prev, [zone]: { ...settings } }));
-        })
-        .catch((err) => {
-          if (__DEV__) console.log('[FOLLI] sendCommand failed:', err);
-        });
-    },
-    [client],
-  );
-
-  // "SET" — push the selected zone's current settings mid-session.
+  // SET — one zone's live target via the single-pair setpressure form. The
+  // other zones are untouched on the board; a failed write leaves the zone
+  // dirty so the button keeps flickering.
   const sendCommandToPouch = useCallback(() => {
-    const { activeZone: zone, zoneSettings: settings, sessionState: state } = inputsRef.current;
-    if (state !== 'active') return;
-    pushZone(zone, settings[zone]);
-  }, [pushZone]);
+    const { activeZone: zone, zoneSettings: settings, deviceRunning: running } =
+      inputsRef.current;
+    // Trimming adjusts a RUNNING treatment. On an idle board a nonzero target
+    // would start one — that is START's job, and only START re-zeros first.
+    if (!running) return;
+    const pressure = settings[zone].pressure;
+    client
+      .setZonePressure(zoneName(zone), pressure)
+      .then(() => setSentPressure((prev) => ({ ...prev, [zone]: pressure })))
+      .catch((err) => {
+        if (__DEV__) console.log('[FOLLI] setpressure failed:', err);
+      });
+  }, [client]);
 
-  // Long-press STOP — dump pressure and freeze the console in a stopped state.
-  // All zone settings reset to off so the next session starts from a safe zero.
-  const handleEmergencyStop = useCallback(() => {
-    setSessionState('stopped');
-    setSentSettings({});
-    // Zero the live targets but keep each zone's prescription: the next session
-    // has to start from the same clinical order, not from nothing.
-    setZoneSettings((prev) => ({
-      0x01: { ...prev[0x01], pressure: 0, massage: 0 },
-      0x02: { ...prev[0x02], pressure: 0, massage: 0 },
-      0x03: { ...prev[0x03], pressure: 0, massage: 0 },
-      0x04: { ...prev[0x04], pressure: 0, massage: 0 },
-    }));
-    client.sendEmergencyStop().catch((err) => {
-      if (__DEV__) console.log('[FOLLI] emergency stop failed:', err);
+  // Massage SET — one-shot run for the selected zone at its chosen level; the
+  // firmware auto-stops after its window and other zones keep running (-1).
+  const triggerMassage = useCallback(() => {
+    const { activeZone: zone, zoneSettings: settings } = inputsRef.current;
+    client.vibrateZone(zoneName(zone), settings[zone].massage).catch((err) => {
+      if (__DEV__) console.log('[FOLLI] vibrate failed:', err);
     });
   }, [client]);
 
-  // START — begin a session and push the full per-zone configuration to the
-  // pouch so the hardware matches everything the user set up beforehand.
+  // Held STOP — the firmware vents everything; state flips via telemetry.
+  const handleEmergencyStop = useCallback(() => {
+    setStoppedHere(true);
+    setSentPressure({});
+    // Reset dials onto the prescription for the next run; the prescription
+    // itself is the clinician's and survives.
+    setZoneSettings((prev) => {
+      const next = { ...prev };
+      for (const zone of ALL_ZONES) {
+        next[zone] = { ...prev[zone], pressure: prev[zone].prescribed, massage: 0 };
+      }
+      return next;
+    });
+    client.stop().catch((err) => {
+      if (__DEV__) console.log('[FOLLI] stop failed:', err);
+    });
+  }, [client]);
+
+  // START — the firmware vents, re-zeros its baseline and applies the checked-
+  // out user's regime; ACTIVE + the clock arrive via telemetry, so the console
+  // and the admin app flip together.
   const startSession = useCallback(() => {
-    setElapsedSeconds(0);
-    setSessionState('active');
-    const { zoneSettings: settings } = inputsRef.current;
-    ALL_ZONES.forEach((zone) => pushZone(zone, settings[zone]));
-  }, [pushZone]);
+    setStoppedHere(false);
+    setSentPressure({});
+    client.start().catch((err) => {
+      if (__DEV__) console.log('[FOLLI] start failed:', err);
+    });
+  }, [client]);
 
   return {
     sessionState,
@@ -325,6 +321,7 @@ export function useConsole(injectedClient?: FolliBleClient): ConsoleController {
     connectionState,
     isConnected: connectionState === 'connected',
     sendCommandToPouch,
+    triggerMassage,
     handleEmergencyStop,
     startSession,
   };

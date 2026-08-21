@@ -19,13 +19,26 @@ TELEMETRY_PREFIX = "T:"
 
 # Field order of the periodic serial telemetry CSV (after the "T:" prefix),
 # emitted by POUCH_ESP_GEN4/serial.ino every SERIAL_LOG_INTERVAL_MS (200ms).
+# STATE (one char, I/P/M/E/S) and ELAPSED (session seconds) are the two FINAL
+# fields, appended so pre-2026-08-21 parsers fail loudly on field count instead
+# of silently misreading shifted columns.
 TELEMETRY_FIELDS = [
     "time",
     "FRN_T", "FRN_A", "TMP_T", "TMP_A", "EAR_T", "EAR_A", "BCK_T", "BCK_A",
     "MAN",
     "FSR_FRN_L", "FSR_FRN_R", "FSR_TMP_L", "FSR_TMP_R",
     "FSR_EAR_L", "FSR_EAR_R", "FSR_BCK_L", "FSR_BCK_R",
+    "STATE", "ELAPSED",
 ]
+
+#: telemetry STATE char → the state-machine name used across the app
+DEVICE_STATES = {
+    "I": "IDLE",
+    "P": "PRESSURIZING",
+    "M": "MAINTENANCE",
+    "E": "EMERGENCY_RELIEF",
+    "S": "STOPPED",
+}
 
 # FSR channel→connector/side mapping is NOT confirmed against the physical harness
 # (config.h TODO stands). Bench 2026-08-20: raw channels 4-7 respond, 0-3 are on the
@@ -53,8 +66,14 @@ def parse_telemetry(line: str) -> dict | None:
     if len(parts) != len(TELEMETRY_FIELDS) or not parts[0].isdigit():
         return None
     try:
-        raw = {name: int(parts[i]) for i, name in enumerate(TELEMETRY_FIELDS)}
+        raw = {
+            name: parts[i] if name == "STATE" else int(parts[i])
+            for i, name in enumerate(TELEMETRY_FIELDS)
+        }
     except ValueError:
+        return None
+    state = DEVICE_STATES.get(raw["STATE"])
+    if state is None:
         return None
 
     zones = {}
@@ -66,7 +85,13 @@ def parse_telemetry(line: str) -> dict | None:
             "fsr_l": raw[left],
             "fsr_r": raw[right],
         }
-    return {"device_ms": raw["time"], "manifold": raw["MAN"], "zones": zones}
+    return {
+        "device_ms": raw["time"],
+        "manifold": raw["MAN"],
+        "zones": zones,
+        "device_state": state,
+        "device_elapsed_s": raw["ELAPSED"],
+    }
 
 
 # ── inbound classification ───────────────────────────────────────────────────

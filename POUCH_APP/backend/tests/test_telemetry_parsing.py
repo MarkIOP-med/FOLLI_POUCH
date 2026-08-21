@@ -10,7 +10,7 @@ import pytest
 
 from app.transport.base import parse_telemetry
 
-REAL_LINE = "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4"
+REAL_LINE = "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,M,37"
 
 
 def test_parses_a_real_frame():
@@ -24,6 +24,8 @@ def test_parses_a_real_frame():
     assert frame["zones"]["EAR"]["actual"] == 78
     assert frame["zones"]["FRONT"]["fsr_l"] == 0
     assert frame["zones"]["EAR"]["fsr_l"] == 12
+    assert frame["device_state"] == "MAINTENANCE"
+    assert frame["device_elapsed_s"] == 37
 
 
 @pytest.mark.parametrize(
@@ -31,7 +33,11 @@ def test_parses_a_real_frame():
     [
         # the CSV header carries the T: prefix but is not a frame
         "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7",
+        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED",
+        # a pre-2026-08-21 18-field frame must fail on field count, loudly
+        "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4",
+        # unknown state char
+        "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0",
         # boot banners / state prints
         "Venting system to atmosphere...",
         "Ready. No pressure applied.",

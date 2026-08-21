@@ -173,6 +173,20 @@ def build(
         "alerts": audit.unacked_alerts(conn, runtime.device_id),
         "manifold_mmhg": frame["manifold"] if frame else None,
         "manifold_fault": m_fault,
+        # The device's OWN state machine and session clock, straight from
+        # telemetry — the source both UIs mirror. A session may be driven from
+        # the BLE console too, so the app never assumes it is the only actor.
+        "device_state": frame.get("device_state") if frame else None,
+        "device_elapsed_s": frame.get("device_elapsed_s") if frame else None,
+        # App session says "running" but the device is idle with zero targets:
+        # someone stopped it out-of-band (the patient's console STOP).
+        "stopped_externally": (
+            runtime.session_id is not None
+            and frame is not None
+            and frame.get("device_state") in ("IDLE", "STOPPED")
+            and all(z["target"] == 0 for z in frame["zones"].values())
+            and any(z["effective_mmhg"] > 0 for z in zones)
+        ),
         # The mock shows pump duty, purge-valve state and four valve LEDs. None of
         # that is in the telemetry CSV — serial.ino emits only time, targets,
         # actuals, manifold and FSRs. Rather than invent plausible indicators, the

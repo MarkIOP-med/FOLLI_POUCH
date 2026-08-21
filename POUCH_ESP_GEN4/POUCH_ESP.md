@@ -246,12 +246,21 @@ single tagged line:
 command came over BLE, the same line is additionally pushed through the telemetry
 notify characteristic — that's the only way a BLE caller sees it.
 
-**Telemetry verbosity differs by transport, deliberately:** Serial's periodic `T:` line
-is a full CSV (time, target/actual per channel, manifold, all 8 FSR channels) printed
-every `SERIAL_LOG_INTERVAL_MS` (200ms). It must never be printed every loop: at 9600
-baud one CSV line takes ~130ms to ship, which throttles `loop()` to ~7Hz and makes the
-pump badly overshoot the manifold between pressure checks (bench-measured spikes to
-~400 mmHg against a 125 target before this was fixed, 2026-08-20). BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
+**Telemetry verbosity differs by transport, deliberately.** Both lines carry the state
+machine char (`I/P/M/E/S`) and the session-elapsed seconds (clock starts on the
+transition into PRESSURIZING from any transport, stops on a full vent) — this is what
+lets the serial admin app and the BLE console MIRROR each other's sessions.
+
+- **Serial** (every `SERIAL_LOG_INTERVAL_MS`, 200ms):
+  `T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0..FSR7,STATE,ELAPSED`
+  (20 fields; STATE/ELAPSED appended last so old parsers fail loudly on field count).
+  It must never be printed every loop: at 9600 baud one CSV line takes ~130ms to ship,
+  which throttles `loop()` to ~7Hz and makes the pump badly overshoot the manifold
+  between pressure checks (bench-measured ~400 mmHg spikes before the fix, 2026-08-20).
+- **BLE** (every `TELEMETRY_INTERVAL_MS`, 250ms):
+  `T:<state>,<elapsed_s>,<a0>,<a1>,<a2>,<a3>,<t0>,<t1>,<t2>,<t3>,<batt>,<err>`
+  (~55 bytes — the client MUST negotiate a larger MTU, the console requests 185; an
+  un-negotiated 20-byte MTU truncates the line). Battery and error remain stubs. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
 byte, pushed every `TELEMETRY_INTERVAL_MS`) — anything more detailed is available on
 demand via the `READ` commands instead of being pushed continuously over a
 bandwidth-constrained link.

@@ -36,8 +36,26 @@ class MockLink(Link):
         self._actual = [0.0, 0.0, 0.0, 0.0]
         self._manifold = 0.0
         self._t0 = time.time()
+        self._session_start: float | None = None   # mirrors firmware sessionStartMs
         self._lines: queue.Queue[str] = queue.Queue()
         self._pump: threading.Thread | None = None
+
+    def _state_char(self) -> str:
+        if not any(self._targets):
+            return "I"
+        # settled within the firmware tolerance → MAINTENANCE, else PRESSURIZING
+        settled = all(abs(a - t) <= 3 for a, t in zip(self._actual, self._targets))
+        return "M" if settled else "P"
+
+    def _elapsed_s(self) -> int:
+        return int(time.time() - self._session_start) if self._session_start else 0
+
+    def _note_targets_changed(self) -> None:
+        if any(self._targets):
+            if self._session_start is None:
+                self._session_start = time.time()
+        else:
+            self._session_start = None
 
     def _open(self) -> None:
         self._t0 = time.time()
@@ -59,17 +77,25 @@ class MockLink(Link):
         if word == "stop":
             self._targets = [0, 0, 0, 0]
             self._vib = [0, 0, 0, 0]
+            self._note_targets_changed()
             self._lines.put("OK:STOP")
             self._lines.put("All PADs relieved to zero.")
         elif word == "start":
             self._targets = list(DEFAULT_PRESSURES)
+            self._session_start = None
+            self._note_targets_changed()
             self._lines.put("OK:START")
         elif word == "restart":
             self._targets = [0, 0, 0, 0]
+            self._note_targets_changed()
             self._lines.put("OK:RESTART")
         elif word == "resetall":
             self._targets = list(DEFAULT_PRESSURES)
+            self._session_start = None
+            self._note_targets_changed()
             self._lines.put("OK:RESETALL")
+        elif word == "user":
+            self._lines.put(f"OK:USER:{rest.split(':', 1)[0]}")
         elif word == "setpressure":
             for part in rest.split(";"):
                 if "," not in part:
@@ -81,6 +107,7 @@ class MockLink(Link):
                     continue
                 if 0 <= ch < 4:
                     self._targets[ch] = val
+                    self._note_targets_changed()
                     self._lines.put(f"OK:SETPRESSURE:{ch},{val}")
         elif word == "setvibration":
             try:
@@ -128,7 +155,7 @@ class MockLink(Link):
             if not header_sent:
                 self._lines.put(
                     "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7"
+                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED"
                 )
                 header_sent = True
 
@@ -151,5 +178,8 @@ class MockLink(Link):
                 else:
                     jitter = int(5 + 4 * math.sin(time.time() * 2 + ch))
                     vals.append(str(max(0, jitter)))
+
+            vals.append(self._state_char())
+            vals.append(str(self._elapsed_s()))
 
             self._lines.put("T:" + ",".join(vals))
