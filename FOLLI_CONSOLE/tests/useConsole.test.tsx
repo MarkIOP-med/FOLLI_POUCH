@@ -109,6 +109,7 @@ describe('useConsole — device-mirrored session', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
+    act(() => client.emitUser(BENCH_USER)); // START needs an assigned patient
     act(() => result.current.startSession());
     expect(client.start).toHaveBeenCalledTimes(1);
     // Mirroring: the console does not declare itself active — the board does.
@@ -302,5 +303,71 @@ describe('useConsole — device-mirrored session', () => {
     expect(result.current.isConnected).toBe(true);
     act(() => client.emitConnection('disconnected'));
     expect(result.current.isConnected).toBe(false);
+  });
+});
+
+describe('useConsole — patient assignment (the board user record)', () => {
+  it('an UNASSIGNED board yields no prescription and no START', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+    act(() => client.emitConnection('connected'));
+
+    // Fresh boot: factory regime aboard, nobody assigned. Must not become a
+    // prescription — and START must not run it.
+    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0] }));
+
+    expect(result.current.patient).toEqual({ assigned: false, userId: null });
+    expect(result.current.canStart).toBe(false);
+    act(() => result.current.setActiveZone(1));
+    expect(result.current.zoneSettings[1].prescribed).toBe(0);
+    expect(result.current.canTrim).toBe(false);
+
+    act(() => result.current.startSession());
+    expect(client.start).not.toHaveBeenCalled();
+  });
+
+  it('an assigned patient enables START once connected and idle', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => client.emitUser(BENCH_USER));
+    expect(result.current.patient).toEqual({ assigned: true, userId: 8 });
+    expect(result.current.canStart).toBe(false); // link not up yet
+
+    act(() => client.emitConnection('connected'));
+    expect(result.current.canStart).toBe(true);
+
+    act(() => client.emitTelemetry(frame({ state: 'PRESSURIZING' })));
+    expect(result.current.canStart).toBe(false); // already running
+  });
+
+  it('a zone prescribed above the patient ceiling is shown truthfully but locked', async () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 95, 0, 0] }));
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
+    act(() => result.current.setActiveZone(1));
+
+    // Not silently clamped to 70 — that would make SET lower the clinician's regime.
+    expect(result.current.targetPressure).toBe(95);
+    expect(result.current.canTrim).toBe(false);
+    act(() => result.current.updateTargetPressure(60));
+    expect(result.current.targetPressure).toBe(95);
+    await act(async () => result.current.sendCommandToPouch());
+    expect(client.setZonePressure).not.toHaveBeenCalled();
+  });
+
+  it('re-assignment after a reset restores the prescription', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    act(() => client.emitUser(BENCH_USER));
+    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0] }));
+    expect(result.current.zoneSettings[1].prescribed).toBe(0);
+
+    act(() => client.emitUser(BENCH_USER));
+    expect(result.current.patient).toEqual({ assigned: true, userId: 8 });
+    expect(result.current.zoneSettings[1].prescribed).toBe(25);
   });
 });

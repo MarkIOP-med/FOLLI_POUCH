@@ -242,6 +242,13 @@ single tagged line:
 | `OK:` | A command succeeded | `OK:START` |
 | `ERR:` | A command failed — bad syntax, out-of-range value, unknown command/variable | `ERR:SETPRESSURE:channel out of range (7)` |
 
+**Patient-side START is gated on an assigned user.** `start` arriving over BLE while
+`assigned == false` is refused with `ERR:START:NO_USER_ASSIGNED` and nothing moves. The
+user record is RAM-only, so every power-cycle returns the pouch to unassigned with the
+*factory* regime loaded — that regime is a bench convenience for the serial operator,
+never a treatment, and the patient console must not be able to run it. The serial
+transport is not gated (the operator's `start` on a fresh board is the bench workflow).
+
 **Routing:** every response is echoed on Serial regardless of origin. If the triggering
 command came over BLE, the same line is additionally pushed through the telemetry
 notify characteristic — that's the only way a BLE caller sees it.

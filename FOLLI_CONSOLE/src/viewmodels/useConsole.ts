@@ -4,6 +4,7 @@ import {
   ALL_ZONES,
   EMPTY_TELEMETRY,
   MassageLevel,
+  PRESSURE_MAX,
   PouchTelemetry,
   VNode,
   clampPressure,
@@ -35,6 +36,19 @@ export interface ZoneSettings {
 
 export type ZoneSettingsMap = Record<VNode, ZoneSettings>;
 
+/**
+ * Who the board is checked out to — the operator app's patient id, or nobody.
+ * The board's user record is RAM-only: every power-cycle comes back unassigned
+ * with the FACTORY regime loaded, which is a bench convenience for the
+ * operator and never a treatment. Unassigned therefore means: no prescription,
+ * no START — until the operator assigns a patient.
+ */
+export type PatientRecord =
+  | { assigned: true; userId: number }
+  | { assigned: false; userId: null };
+
+export const NO_PATIENT: PatientRecord = { assigned: false, userId: null };
+
 /** How far either side of the prescription the patient may go. */
 export const TRIM_RANGE_PCT = 10;
 
@@ -55,12 +69,17 @@ export const CONTROLLER_TOLERANCE_MMHG = 3;
  *
  * A zone prescribed 0 is switched off, and stays off — the patient can trim a
  * treatment the clinician ordered, not start one they did not.
+ *
+ * A zone prescribed ABOVE the patient ceiling is clinician-controlled: shown
+ * as the board runs it, but locked here. Silently clamping it to 70 would let
+ * SET quietly lower a regime the clinician set deliberately.
  */
 export function trimBounds(
   prescribed: number,
   trimRangePct: number = TRIM_RANGE_PCT,
 ): { min: number; max: number } {
   if (prescribed <= 0) return { min: 0, max: 0 };
+  if (prescribed > PRESSURE_MAX) return { min: prescribed, max: prescribed };
   const margin = Math.max((prescribed * trimRangePct) / 100, CONTROLLER_TOLERANCE_MMHG);
   return {
     min: clampPressure(Math.round(prescribed - margin)),
@@ -79,6 +98,10 @@ export const DEFAULT_ZONE_SETTINGS: ZoneSettingsMap = {
 export interface ConsoleController {
   sessionState: SessionState;
   isSessionActive: boolean;
+  /** The board's checked-out patient, from its user record. */
+  patient: PatientRecord;
+  /** START is offered only with a patient assigned, a link up, and the board idle. */
+  canStart: boolean;
   /** The BOARD's session clock — identical to the admin app's view of it. */
   elapsedSeconds: number;
   activeZone: VNode;
@@ -118,6 +141,7 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
 
   const [activeZone, setActiveZone] = useState<VNode>(1); // Temples
   const [zoneSettings, setZoneSettings] = useState<ZoneSettingsMap>(DEFAULT_ZONE_SETTINGS);
+  const [patient, setPatient] = useState<PatientRecord>(NO_PATIENT);
   const [liveTelemetry, setLiveTelemetry] = useState<PouchTelemetry>(EMPTY_TELEMETRY);
   const [hasTelemetry, setHasTelemetry] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
@@ -136,6 +160,8 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
       : 'pending';
   const isSessionActive = deviceRunning;
   const elapsedSeconds = liveTelemetry.elapsedSeconds;
+  const isConnected = connectionState === 'connected';
+  const canStart = isConnected && patient.assigned && !deviceRunning;
 
   const targetPressure = zoneSettings[activeZone].pressure;
   const massageLevel = zoneSettings[activeZone].massage;
@@ -146,8 +172,8 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   const hasUnappliedChanges =
     isSessionActive && sentPressure[activeZone] !== targetPressure;
 
-  const inputsRef = useRef({ activeZone, zoneSettings, deviceRunning });
-  inputsRef.current = { activeZone, zoneSettings, deviceRunning };
+  const inputsRef = useRef({ activeZone, zoneSettings, deviceRunning, patient });
+  inputsRef.current = { activeZone, zoneSettings, deviceRunning, patient };
   const wasRunningRef = useRef(false);
 
   // Connect + wire listeners once; auto-reconnect keeps the kiosk alive.
@@ -185,6 +211,14 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
     });
 
     const offUser = client.onUser((user) => {
+      if (!user.assigned) {
+        // Fresh boot or reset: the board carries factory defaults, not a
+        // treatment. Nothing to trim, nothing to start.
+        setPatient(NO_PATIENT);
+        applyPrescription({ 0: 0, 1: 0, 2: 0, 3: 0 });
+        return;
+      }
+      setPatient({ assigned: true, userId: user.userId });
       applyPrescription({
         0: user.pressures[0],
         1: user.pressures[1],
@@ -219,7 +253,9 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
       for (const zone of ALL_ZONES) {
         const value = rx[zone];
         if (value === undefined) continue;
-        const prescribed = clampPressure(value);
+        // Kept as prescribed, even above the patient ceiling — trimBounds()
+        // decides what the patient may do with it; the display stays truthful.
+        const prescribed = Math.max(0, Math.round(value));
         next[zone] = { ...prev[zone], prescribed, pressure: prescribed };
       }
       return next;
@@ -253,6 +289,8 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
     // Trimming adjusts a RUNNING treatment. On an idle board a nonzero target
     // would start one — that is START's job, and only START re-zeros first.
     if (!running) return;
+    const { min, max } = trimBounds(settings[zone].prescribed);
+    if (max <= min) return; // off, or clinician-locked — nothing to push
     const pressure = settings[zone].pressure;
     client
       .setZonePressure(zoneName(zone), pressure)
@@ -293,6 +331,9 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   // out user's regime; ACTIVE + the clock arrive via telemetry, so the console
   // and the admin app flip together.
   const startSession = useCallback(() => {
+    // Belt and braces with the firmware, which refuses a patient-side start
+    // on an unassigned board (ERR:START:NO_USER_ASSIGNED).
+    if (!inputsRef.current.patient.assigned) return;
     setStoppedHere(false);
     setSentPressure({});
     client.start().catch((err) => {
@@ -303,6 +344,8 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   return {
     sessionState,
     isSessionActive,
+    patient,
+    canStart,
     elapsedSeconds,
     activeZone,
     setActiveZone,
@@ -319,7 +362,7 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
     liveTelemetry,
     hasTelemetry,
     connectionState,
-    isConnected: connectionState === 'connected',
+    isConnected,
     sendCommandToPouch,
     triggerMassage,
     handleEmergencyStop,

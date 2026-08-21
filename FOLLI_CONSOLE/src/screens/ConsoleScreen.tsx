@@ -145,6 +145,8 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
   const {
     sessionState,
     isSessionActive,
+    patient,
+    canStart,
     elapsedSeconds,
     activeZone,
     setActiveZone,
@@ -250,12 +252,13 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
 
         <View style={styles.identityRow}>
           <View>
-            {/* The comp prints a patient name here. Nothing carries one: the BLE
-                protocol is 4-byte commands and 6-byte telemetry, and the
-                POUCH_APP link that would ship patient data does not exist yet. */}
-            <Text style={styles.identityLine}>
-              <Text style={styles.identityLabel}>Name: </Text>
-              {'—'}
+            {/* The comp prints a patient name. The board only carries the
+                operator app's patient id (its user record, RAM-only) — no name
+                travels over BLE, by design. Unassigned is a real state: every
+                power-cycle lands there until the operator assigns someone. */}
+            <Text testID="patient-line" style={styles.identityLine}>
+              <Text style={styles.identityLabel}>Patient: </Text>
+              {patient.assigned ? `#${patient.userId}` : 'not assigned'}
             </Text>
             {/* Labelled Session Time, not the comp's "Remaining Time". Only
                 elapsed is known — no planned duration reaches the console — and
@@ -478,7 +481,7 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
           <TouchableOpacity
             testID="start-button"
             style={[styles.masterBtn, isSessionActive && styles.masterHidden]}
-            disabled={isSessionActive || awaitingStopRelease}
+            disabled={!canStart || awaitingStopRelease}
             activeOpacity={0.85}
             onPress={startSession}
           >
@@ -496,7 +499,11 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.hint}>{FOOTER_HINT[sessionState]}</Text>
+        <Text style={styles.hint}>
+          {!patient.assigned && !isSessionActive
+            ? 'No patient assigned — ask the operator before starting'
+            : FOOTER_HINT[sessionState]}
+        </Text>
       </View>
     </ScreenFrame>
   );

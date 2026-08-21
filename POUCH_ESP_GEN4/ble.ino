@@ -52,14 +52,23 @@ void initBLE() {
     NIMBLE_PROPERTY::NOTIFY
   );
 
+  server->advertiseOnDisconnect(true);  // console walking out of range must not strand the pouch
   server->start();  // NimBLE-Arduino 2.x: starts the server and all its services;
                      // NimBLEService::start() is a deprecated no-op now
 
+  // One legacy advertisement is 31 bytes: flags (3) + our 128-bit service UUID (18)
+  // leave no room for the 15-char name, so the name must ride in the scan response —
+  // which NimBLE 2.x does NOT enable by default. Without it start() fails (payload
+  // overflow) and the pouch is invisible to every scanner.
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
   advertising->addServiceUUID(SERVICE_UUID);
-  advertising->start();
-
-  Serial.println("BLE GATT server started — advertising as FOLLISAVE-POUCH");
+  advertising->enableScanResponse(true);
+  advertising->setName("FOLLISAVE-POUCH");
+  if (advertising->start()) {
+    Serial.println("BLE GATT server started — advertising as FOLLISAVE-POUCH");
+  } else {
+    Serial.println("ERR:BLE advertising failed to start");
+  }
 }
 
 // Pushes one text line to the telemetry characteristic right now, outside the periodic

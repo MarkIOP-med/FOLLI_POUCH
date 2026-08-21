@@ -181,6 +181,14 @@ static String buildVibrationFragment() {
 static void dispatchCommand(const Command& cmd) {
   switch (cmd.type) {
     case CMD_START:
+      // The patient console may only run a clinician-assigned regime. The factory
+      // defaults are a bench convenience for the serial operator, never a treatment —
+      // and the user record is RAM-only, so every power-cycle lands here until the
+      // operator re-assigns.
+      if (cmd.source == SRC_BLE && !assigned) {
+        sendResponse(cmd.source, "ERR:START:NO_USER_ASSIGNED");
+        break;
+      }
       applyStart();
       sendResponse(cmd.source, "OK:START");
       break;
