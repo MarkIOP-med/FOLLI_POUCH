@@ -43,8 +43,6 @@ export function DiagnosticsScreen() {
   const [stagedPatient, setStagedPatient] = useState<Patient | null>(null);
   // Drafts for the User Pressure Regime inputs; committed by the panel's SET.
   const [regimeDrafts, setRegimeDrafts] = useState<Record<string, string>>({});
-  // Per-zone patient-trim drafts (%), committed on blur/Enter.
-  const [trimDrafts, setTrimDrafts] = useState<Record<string, string>>({});
   // Per-zone vibration-duration drafts (seconds), committed on blur/Enter.
   const [durationDrafts, setDurationDrafts] = useState<Record<string, string>>({});
   // Alerts list popover — clicking the strip badge shows the alerts instead of
@@ -268,11 +266,13 @@ export function DiagnosticsScreen() {
             ceiling={snapshot?.ceiling_mmhg ?? 0}
             disabled={disabled || snapshot?.session_id == null}
             onSet={(z: Zone, mmhg: number) =>
-              run('settingTarget', () =>
-                snapshot?.service_mode
-                  ? api.setSetpoint(id, z, mmhg)
-                  : api.setZoneRx(id, z, mmhg),
-              )
+              run('settingTarget', async () => {
+                if (snapshot?.service_mode) await api.setSetpoint(id, z, mmhg);
+                else await api.setZoneRx(id, z, mmhg);
+                // Mid-session, a target edit must reach the device — storing
+                // the prescription alone changed nothing until the next START.
+                if (sessionActive) await api.apply(id);
+              })
             }
           />
         ))}
@@ -355,48 +355,12 @@ export function DiagnosticsScreen() {
                 aria-label={t(`zones.${z.zone}`)}
               />
             ))}
-            {/* Patient trim (±trim_range% off the prescription), a third grid
-                row so each box aligns under its zone's pressure. Session-only —
-                trim is live-treatment data. Committed on blur/Enter; greyed when
-                the band is inside the controller's deadband. */}
-            {sessionActive &&
-              snapshot?.patient &&
-              zones.map((z) => {
-                const commitTrim = (raw: string) => {
-                  if (raw.trim() === '') return;
-                  const range = snapshot?.trim_range_pct ?? 10;
-                  const pct = Math.max(-range, Math.min(range, Math.round(Number(raw) || 0)));
-                  void run('settingTarget', () => api.setTrim(id, z.zone as Zone, pct));
-                  setTrimDrafts((d) => {
-                    const next = { ...d };
-                    delete next[z.zone];
-                    return next;
-                  });
-                };
-                return (
-                  <input
-                    key={`${z.zone}-trim`}
-                    className="regime__trim-input"
-                    type="number"
-                    disabled={disabled || !z.trim_meaningful}
-                    title={
-                      z.trim_meaningful
-                        ? `${t('device.vnodes.trim')} ±${snapshot?.trim_range_pct ?? 10}%`
-                        : t('device.vnodes.belowDeadband')
-                    }
-                    value={trimDrafts[z.zone] ?? String(z.trim_pct)}
-                    onChange={(e) =>
-                      setTrimDrafts((d) => ({ ...d, [z.zone]: e.target.value }))
-                    }
-                    onBlur={(e) => commitTrim(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === 'Enter' && commitTrim((e.target as HTMLInputElement).value)
-                    }
-                    aria-label={`${t(`zones.${z.zone}`)} ${t('device.vnodes.trim')}`}
-                  />
-                );
-              })}
           </div>
+
+          {/* Patient trim deliberately has NO control here: trimming is the
+              patient's own adjustment and belongs in the patient console (the
+              backend /trim endpoint is there waiting for it). The operator app
+              only reflects its effect through the effective pressures. */}
 
           {/* Commits every edited regime input: to the loaded patient (or
               service setpoints) in a session, to the stored prescription while
@@ -431,6 +395,9 @@ export function DiagnosticsScreen() {
                   }
                 }
                 setRegimeDrafts({});
+                // Push the new targets to the device — SET mid-session must
+                // change the pressure, not just the stored prescription.
+                await api.apply(id);
               });
             }}
           >

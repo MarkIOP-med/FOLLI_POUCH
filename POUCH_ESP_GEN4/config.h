@@ -71,7 +71,10 @@ int  userId   = -1;     // checked-out user's id, -1 = none — RAM only
 bool assigned = false;  // whether this device has a live user record — RAM only
 
 int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off — SET VARIABLE
-int vibPWM[4]             = {0, 85, 170, 255};  // PWM output for vibration levels 0-3
+int vibPWM[4]             = {0, 170, 215, 255};  // PWM output for vibration levels 0-3.
+// Not a linear ramp: these motors have a dead zone below ~50% PWM — the old
+// {0,85,170,255} made level 1 invisible and level 2 barely perceptible (bench,
+// 2026-08-21), so the usable range is compressed into the upper half.
 
 
 // ============================================================

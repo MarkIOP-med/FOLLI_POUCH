@@ -402,25 +402,7 @@
 }
 
 // Patient trim row in the User Regime panel.
-// Patient trim boxes: third row of the user-regime grid, one small ±% box
-// centred under each zone's pressure input. (A floating absolute row here
-// used to land on top of the Default Pressure Regime numbers.)
-.regime__trim-input {
-  justify-self: center;
-  width: 58px;
-  height: 24px;
-  margin-top: 5px;
-  font: inherit;
-  font-size: 14px;
-  color: $text;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid $btn-edge;
-  border-radius: 6px;
-  padding: 0 5px;
-  text-align: center;
-
-  &:disabled { opacity: 0.35; }
-}
+// (Patient trim has no control in this app — it belongs to the patient console.)
 
 // Editable vibration duration.
 .vib-panel__duration-input {
