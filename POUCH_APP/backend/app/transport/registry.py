@@ -50,6 +50,12 @@ class DeviceRuntime:
         self.patient_id: int | None = None
         self.service_mode: bool = False
         self.session_started_at: float | None = None
+        # Who opened the session that is running: "app" (this operator pressed
+        # START) or "console" (the patient console started it and this app
+        # ADOPTED it — see _reconcile_session). None when idle. The two are
+        # closed differently: an app session is ended by the operator; an
+        # adopted one is closed automatically when the pouch goes idle.
+        self.session_source: str | None = None
         self.setpoints: dict[str, int] = {zone: 0 for zone in ZONES}
 
         self._reset_faults()
@@ -120,11 +126,14 @@ class DeviceRuntime:
 
     # ── session lifecycle ───────────────────────────────────────────────────
 
-    def begin_session(self, session_id: int, patient_id: int | None) -> None:
+    def begin_session(
+        self, session_id: int, patient_id: int | None, source: str = "app"
+    ) -> None:
         self.session_id = session_id
         self.patient_id = patient_id
         self.service_mode = patient_id is None
         self.session_started_at = time.time()
+        self.session_source = source
         self.setpoints = {zone: 0 for zone in ZONES}
 
     def end_session(self) -> None:
@@ -132,6 +141,7 @@ class DeviceRuntime:
         self.patient_id = None
         self.service_mode = False
         self.session_started_at = None
+        self.session_source = None
 
     # ── telemetry callbacks ─────────────────────────────────────────────────
 

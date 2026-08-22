@@ -132,15 +132,25 @@ async def main():
         else:
             print("  [SKIP] unassigned-START check (board already has a user assigned)")
 
-        # 3. push a bench regime within the patient ceiling, verify readback
-        await send("user:42:0,20,30,0")
-        ln = await wait_for(lambda l: l.startswith("OK:USER"), 3, "user ack")
-        check("user push acked", ln is not None, repr(ln))
+        # 3. THE REAL FLOW: the operator selects a patient in the web app, which
+        # checks them out to the pouch (regime + name). Then the console starts.
+        # We hit the operator backend for the checkout, exactly as the web UI does.
+        import requests as _rq
+        patients = _rq.get("http://127.0.0.1:8000/api/patients?q=esp", timeout=5).json()
+        assert patients, "expected the esp_gen4_test patient to exist"
+        patient = patients[0]
+        rx = {p["zone"]: p["prescribed_mmhg"] for p in patient.get("prescriptions", [])}
+        expect_targets = [int(rx.get(z, 0)) for z in ("FRONT", "TEMPLE", "EAR", "BACK")]
+        _rq.put(f"{BACKEND}/patient", json={"patient_id": patient["id"]}, timeout=5).raise_for_status()
+        check("operator checkout reaches the board (unsolicited R:USER on console)",
+              await wait_for(lambda l: l.startswith(f"R:USER:{patient['id']},true,"), 3, "checkout") is not None,
+              f"patient #{patient['id']} {patient['full_name']}")
+        # readuser now shows that patient WITH the name field.
         await send("readuser")
-        ln = await wait_for(lambda l: l.startswith("R:USER:42,true,0,20,30,0"), 3, "user readback")
-        check("user readback exact", ln is not None, repr(ln))
+        ln = await wait_for(lambda l: l.startswith(f"R:USER:{patient['id']},true,") and l.rstrip().endswith(patient['full_name']), 3, "readback")
+        check("readuser carries the checked-out patient + name", ln is not None, repr(ln))
 
-        # 4. START -> OK, state P, clock starts, targets = regime
+        # 4. Console START -> OK, state P, clock starts, targets = the patient regime
         await send("start")
         ln = await wait_for(lambda l: l.startswith("OK:START"), 3, "start ack")
         check("start acked", ln is not None, repr(ln))
@@ -149,8 +159,9 @@ async def main():
         check("state -> PRESSURIZING/MAINTENANCE", t is not None,
               f"{t['state'] if t else 'no frame'}")
         if t:
-            check("targets applied from user regime", t["targets"] == [0, 20, 30, 0],
-                  f"targets={t['targets']}")
+            check("targets applied from the checked-out patient regime",
+                  t["targets"] == expect_targets,
+                  f"targets={t['targets']} expected={expect_targets}")
 
         await asyncio.sleep(3)
         latest = next((parse_t(l) for _, l in reversed(lines) if parse_t(l)), None)
@@ -167,14 +178,47 @@ async def main():
               and abs(snap["device_elapsed_s"] - latest["elapsed"]) <= 3,
               f"backend={snap.get('device_elapsed_s')} ble={latest['elapsed'] if latest else '?'}")
 
-        # 6. zone trim mid-run: only that zone's target changes
-        await send("setpressure:1,25")
-        ln = await wait_for(lambda l: l.startswith("OK:SETPRESSURE:1,25"), 3, "set ack")
+        # 5b. the operator WEB APP's own fields (not just the raw primitives):
+        # a console-started session must be ADOPTED — visible as a session with
+        # the device clock and the checked-out patient's targets, never zeros.
+        # This is the exact gap that shipped "targets and time at 0" to the user.
+        check("web app: session adopted (session_id set)",
+              snap.get("session_id") is not None,
+              f"session_id={snap.get('session_id')}")
+        check("web app: session_source == console",
+              snap.get("session_source") == "console",
+              f"session_source={snap.get('session_source')}")
+        check("web app: session_elapsed_s is the device clock, not 0",
+              latest is not None and snap.get("session_elapsed_s") not in (None, 0)
+              and abs((snap.get("session_elapsed_s") or 0) - latest["elapsed"]) <= 3,
+              f"session_elapsed_s={snap.get('session_elapsed_s')} ble={latest['elapsed'] if latest else '?'}")
+        eff = {z["zone"]: z["effective_mmhg"] for z in snap.get("zones", [])}
+        check("web app: TEMPLE target mirrors the running pressure, not 0",
+              eff.get("TEMPLE", 0) > 0,
+              f"effective_mmhg TEMPLE={eff.get('TEMPLE')} (all={eff})")
+        check("web app: patient shown for the console session",
+              (snap.get("patient") or {}).get("id") is not None,
+              f"patient={(snap.get('patient') or {}).get('full_name')}")
+
+        # 5c. operator controls during a console session must not misfire:
+        # START is refused (would re-zero a live treatment) — the backend has no
+        # button, but the same guard is that the app never re-issues start; a
+        # regime edit must be accepted (adopted session has a patient).
+        import requests as _rq
+        r = _rq.put(f"{BACKEND}/zones/TEMPLE", json={"mmhg": 26}, timeout=4)
+        check("web app: regime edit accepted during a console session",
+              r.status_code < 400, f"POST zone rx -> {r.status_code}")
+
+        # 6. zone trim mid-run: only TEMPLE (ch 1) changes, others hold the regime
+        trim_to = max(1, expect_targets[1] - 5)
+        await send(f"setpressure:1,{trim_to}")
+        ln = await wait_for(lambda l: l.startswith(f"OK:SETPRESSURE:1,{trim_to}"), 3, "set ack")
         check("setpressure acked", ln is not None, repr(ln))
+        want = [expect_targets[0], trim_to, expect_targets[2], expect_targets[3]]
         ln = await wait_for(
-            lambda l: (t := parse_t(l)) is not None and t["targets"] == [0, 25, 30, 0], 3, "trim")
+            lambda l: (t := parse_t(l)) is not None and t["targets"] == want, 3, "trim")
         check("trim visible in telemetry, others untouched", ln is not None,
-              repr(ln) if ln else "targets never showed [0,25,30,0]")
+              repr(ln) if ln else f"targets never showed {want}")
 
         # 7. massage one-shot with -1 semantics
         await send("setvibration:-1,2,-1,-1")

@@ -242,3 +242,96 @@ class TestSystem:
 
     def test_unknown_device_is_404(self, client: TestClient):
         assert client.get("/api/devices/NOPE").status_code == 404
+
+
+class TestConsoleStartedSessionMirroring:
+    """A session started at the patient console (over BLE) must show up in the
+    operator app: adopted as a session record, tied to the checked-out patient,
+    with the DEVICE's own clock and targets — not app-side zeros."""
+
+    @staticmethod
+    def _running_frame(elapsed: int, targets: dict[str, int]) -> str:
+        # A real 20-field enriched telemetry line in MAINTENANCE.
+        from app.core.zones import ZONES
+        cols = {"time": 1000, "MAN": 80, "STATE": "M", "ELAPSED": elapsed}
+        for z in ZONES:
+            cols[f"{z[:3].upper() if z != 'FRONT' else 'FRN'}_T"] = targets[z]
+        # Build in the documented field order via the parser's own names.
+        from app.transport import protocol as p
+        vals = []
+        tmap = {"FRONT": "FRN", "TEMPLE": "TMP", "EAR": "EAR", "BACK": "BCK"}
+        for name in p.TELEMETRY_FIELDS:
+            if name == "time":
+                vals.append("1000")
+            elif name == "MAN":
+                vals.append("80")
+            elif name == "STATE":
+                vals.append("M")
+            elif name == "ELAPSED":
+                vals.append(str(elapsed))
+            elif name.endswith("_T"):
+                zone = next(z for z, ab in tmap.items() if name.startswith(ab))
+                vals.append(str(targets[zone]))
+            elif name.endswith("_A"):
+                zone = next(z for z, ab in tmap.items() if name.startswith(ab))
+                vals.append(str(targets[zone]))  # actual == target (settled)
+            else:  # FSR channels
+                vals.append("0")
+        return "T:" + ",".join(vals)
+
+    def _inject(self, mock_device: str, line: str) -> None:
+        from app.transport import protocol as p
+        from app.transport.registry import registry
+        rt = registry.get(mock_device)
+        rt.last_frame = p.parse_telemetry(line)
+
+    def test_console_start_is_adopted_and_recorded(
+        self, client: TestClient, mock_device: str, edna: dict
+    ):
+        # The operator selected the patient (checkout), but did NOT press START.
+        client.put(
+            f"/api/devices/{mock_device}/patient", json={"patient_id": edna["id"]}
+        ).raise_for_status()
+
+        # The pouch is now running — the console started it.
+        self._inject(
+            mock_device,
+            self._running_frame(37, {"FRONT": 40, "TEMPLE": 40, "EAR": 0, "BACK": 0}),
+        )
+        snap = client.get(f"/api/devices/{mock_device}").json()
+
+        # Adopted: a session record exists, marked as console-driven, on the
+        # checked-out patient — with the device's clock, not zero.
+        assert snap["session_id"] is not None
+        assert snap["session_source"] == "console"
+        assert snap["patient"]["id"] == edna["id"]
+        assert snap["session_elapsed_s"] == 37
+        assert zone_of(snap, "FRONT")["effective_mmhg"] == 40
+
+        # The session is recorded against the patient (a treatment must leave a trace).
+        sessions = client.get(f"/api/patients/{edna['id']}/sessions").json()
+        assert any(s["id"] == snap["session_id"] for s in sessions)
+
+    def test_adopted_session_closes_when_the_pouch_goes_idle(
+        self, client: TestClient, mock_device: str, edna: dict
+    ):
+        client.put(
+            f"/api/devices/{mock_device}/patient", json={"patient_id": edna["id"]}
+        ).raise_for_status()
+        self._inject(
+            mock_device,
+            self._running_frame(10, {"FRONT": 40, "TEMPLE": 40, "EAR": 0, "BACK": 0}),
+        )
+        opened = client.get(f"/api/devices/{mock_device}").json()
+        assert opened["session_id"] is not None
+
+        # The console stopped it; the pouch vents to idle.
+        self._inject(
+            mock_device,
+            self._running_frame(0, {"FRONT": 0, "TEMPLE": 0, "EAR": 0, "BACK": 0}).replace(
+                ",M,", ",I,"
+            ),
+        )
+        closed = client.get(f"/api/devices/{mock_device}").json()
+        assert closed["session_id"] is None
+        assert closed["session_source"] is None

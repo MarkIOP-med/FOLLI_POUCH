@@ -117,6 +117,9 @@ def get_device(
     runtime: DeviceRuntime = Depends(get_runtime),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
+    # A page load may precede the SSE stream — adopt a console-driven session
+    # here too so the very first snapshot is already correct.
+    _reconcile_session(runtime, db)
     return snapshot_service.build(runtime, db, include_technical=True)
 
 
@@ -168,6 +171,9 @@ async def stream_device(runtime: DeviceRuntime = Depends(get_runtime)) -> Stream
         try:
             with session_scope() as conn:
                 while True:
+                    # Adopt/close a console-driven session before building, so
+                    # the streamed snapshot already reflects it.
+                    _reconcile_session(runtime, conn)
                     payload = snapshot_service.build(runtime, conn, include_technical=True)
                     yield f"data: {json.dumps(payload)}\n\n"
 
@@ -535,6 +541,51 @@ def checkout_patient(
     )
     db.commit()
     return snapshot_service.build(runtime, db)
+
+
+# ── device-driven session adoption ──────────────────────────────────────────
+# The pouch runs its OWN session state machine, and the patient console can
+# start it over BLE without this app involved. When that happens the operator
+# app must still (a) show the live session and (b) record its telemetry — a
+# treatment with no clinical record is worse than an invisible one. So the app
+# ADOPTS a device-started session: it opens a session row against the checked-
+# out patient the instant the pouch starts running unbidden, and closes it when
+# the pouch goes idle. An operator-started ("app") session is never auto-closed
+# — the operator ends it explicitly.
+
+_DEVICE_RUNNING_STATES = ("PRESSURIZING", "MAINTENANCE")
+_DEVICE_IDLE_STATES = ("IDLE", "STOPPED")
+
+
+def _reconcile_session(runtime: DeviceRuntime, db: sqlite3.Connection) -> None:
+    """Open or close an adopted session so the app's session record tracks the
+    pouch's own run, whoever started it. Idempotent: acts only on transitions."""
+    frame = runtime.last_frame
+    device_state = frame.get("device_state") if frame else None
+
+    if device_state in _DEVICE_RUNNING_STATES and runtime.session_id is None:
+        patient_id = runtime.checked_out_patient_id
+        session_id = repo.start_session(db, runtime.device_id, patient_id)
+        runtime.begin_session(session_id, patient_id, source="console")
+        # Anchor the app clock to the pouch's own elapsed, so an adopted session
+        # reads the same time as the console that started it — not time-since-
+        # this-app-happened-to-notice.
+        runtime.session_started_at = time.time() - (frame.get("device_elapsed_s") or 0)
+        audit.log_event(
+            db, runtime.device_id, "info", "session_adopt",
+            f"patient={patient_id}", session_id,
+        )
+        db.commit()
+    elif (
+        device_state in _DEVICE_IDLE_STATES
+        and runtime.session_id is not None
+        and runtime.session_source == "console"
+    ):
+        session_id = runtime.session_id
+        repo.end_session(db, session_id, "console")
+        audit.log_event(db, runtime.device_id, "info", "session_end_console", "", session_id)
+        runtime.end_session()
+        db.commit()
 
 
 # ── sessions ────────────────────────────────────────────────────────────────

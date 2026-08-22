@@ -210,6 +210,7 @@
     },
 
     "notConnected": "Pouch not connected",
+    "startedExternally": "▶ started from the patient console — mirroring the live session",
     "stoppedExternally": "⚠ stopped from the patient console — session still open",
     "rezeroNote": "Vents and re-captures the atmospheric baseline (the firmware's restart command)."
   },

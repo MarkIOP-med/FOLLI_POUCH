@@ -162,9 +162,18 @@ def build(
         "error": runtime.link.error if runtime.link else None,
         "service_mode": runtime.service_mode,
         "session_id": runtime.session_id,
+        # Who opened the running session: "app" (this operator) or "console"
+        # (the patient console; this app adopted it). The UI shows a "started
+        # from the patient console" notice for the latter.
+        "session_source": runtime.session_source,
         "session_started_at": runtime.session_started_at,
+        # The pouch's own clock is authoritative whenever it is running, so an
+        # app-started and a console-started session read identically. Falls back
+        # to the app record only before the first running frame arrives.
         "session_elapsed_s": (
-            now - runtime.session_started_at if runtime.session_started_at else None
+            frame.get("device_elapsed_s")
+            if frame and frame.get("device_state") in ("PRESSURIZING", "MAINTENANCE")
+            else (now - runtime.session_started_at if runtime.session_started_at else None)
         ),
         "patient": patient,
         # Who the pouch is checked out to (mirrored on the patient console) —

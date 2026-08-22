@@ -48,7 +48,19 @@ export function DiagnosticsScreen() {
   // Alerts list popover — clicking the strip badge shows the alerts instead of
   // silently erasing them.
   const [alertsOpen, setAlertsOpen] = useState(false);
-  const sessionActive = snapshot?.session_id != null;
+  // Two distinct facts, deliberately not conflated:
+  //   appSessionOpen — a session RECORD exists (this operator started one, or
+  //     the app adopted a console-started one — either way session_id is set).
+  //   pouchRunning   — the DEVICE's own state machine is actively driving
+  //     pressure, whoever started it (mirrored from telemetry).
+  // Adoption keeps them aligned in the normal case, but START must gate on
+  // pouchRunning (never re-zero a running pouch), while record-shaped logic
+  // (patient, prescription edits, ending) keys on appSessionOpen.
+  const appSessionOpen = snapshot?.session_id != null;
+  const pouchRunning =
+    snapshot?.device_state === 'PRESSURIZING' ||
+    snapshot?.device_state === 'MAINTENANCE';
+  const sessionActive = appSessionOpen;
 
   useEffect(() => {
     if (stagedPatientId == null) sessionStorage.removeItem(`staged-patient:${id}`);
@@ -183,10 +195,15 @@ export function DiagnosticsScreen() {
           <button
             type="button"
             className="hw__round hw__round--start"
-            disabled={disabled}
+            /* Never re-startable while the pouch is already running — a second
+               START would re-zero (vent) a live treatment. That the run may
+               have been started from the patient console is exactly why this
+               gates on the DEVICE state, not this app's session record. */
+            disabled={disabled || pouchRunning}
             onClick={() =>
               run('applying', async () => {
-                if (!sessionActive) await api.startSession(id, stagedPatientId);
+                if (pouchRunning) return;
+                if (!appSessionOpen) await api.startSession(id, stagedPatientId);
                 await api.rezero(id);
                 await api.apply(id);
               })
@@ -587,6 +604,11 @@ export function DiagnosticsScreen() {
         {snapshot?.manifold_fault && (
           <span className="diagnostics__status-item diagnostics__status-item--error">
             {t('device.hardware.manifoldFault')}
+          </span>
+        )}
+        {snapshot?.session_source === 'console' && pouchRunning && (
+          <span className="diagnostics__status-item diagnostics__status-item--info">
+            {t('device.startedExternally')}
           </span>
         )}
         {snapshot?.stopped_externally && (
