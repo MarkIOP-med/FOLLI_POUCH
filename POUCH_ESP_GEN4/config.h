@@ -63,12 +63,16 @@ int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per chann
 // power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
 // TEMPLE=1, EAR=2, BACK=3.
 int systemDefaultPressure[4] = {0, 95, 125, 0};  // TEMP BENCH: FRONT/BACK zeroed — their valve paths have a physical fault (balloons don't inflate, found 2026-08-20); TEMPLE=95/EAR=125 per bench request. Real product default is {25,120,85,130}; restore once valves 0/3 are repaired.
+// Longest display name the user record carries (bytes, UTF-8; the pusher truncates on a
+// character boundary). Sized for a first + last name, not a biography.
+#define USER_NAME_MAX 31
 int userDefaultPressure[4];                          // this user's saved default — RAM only
 
 // The only per-user data on the device — vibration and thresholds are system-wide,
 // same for every user (see PRESSURE_ACTUATION_THRESHOLD_MMHG below).
 int  userId   = -1;     // checked-out user's id, -1 = none — RAM only
 bool assigned = false;  // whether this device has a live user record — RAM only
+char userName[USER_NAME_MAX + 1] = "";  // display name for the patient console — RAM only, may be empty
 
 int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off — SET VARIABLE
 int vibPWM[4]             = {0, 170, 215, 255};  // PWM output for vibration levels 0-3.
@@ -175,6 +179,7 @@ struct Command {
   int  vibLevels[4];    // CMD_SET_VIBRATION_ALL
   int  vibLevelsCount;  // how many of vibLevels[] are valid — CMD_SET_VIBRATION_ALL
   int  userIdValue;     // CMD_USER_ID
+  char userName[USER_NAME_MAX + 1];  // CMD_USER_ID — fixed-size, memcpy'd through the queue
   char varName[20];     // CMD_SET_VARIABLE — fixed-size, not Arduino String (struct is memcpy'd through the queue)
   int  varValue;        // CMD_SET_VARIABLE
   bool varIsDefault;    // CMD_SET_VARIABLE — true = reset to compiled default, varValue ignored

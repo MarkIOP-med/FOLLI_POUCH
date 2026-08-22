@@ -60,8 +60,8 @@ describe('ConsoleScreen (full UI wiring over the mock pouch)', () => {
     expect(getByTestId('settings-gear')).toBeTruthy();
     expect(getByTestId('pressure-slider')).toBeTruthy();
     expect(getByTestId('set-button')).toBeTruthy();
-    // The prescription came from the pouch's user record: patient #8, Temples at 25.
-    expect(getByTestId('patient-line').props.children.join('')).toContain('#8');
+    // The prescription came from the pouch's user record: Edna Levi, Temples at 25.
+    expect(getByTestId('patient-line').props.children.join('')).toContain('Edna Levi');
     expect(getByText('Temples')).toBeTruthy();
     expect(getByTestId('pressure-readout').props.children).toBe(25);
   });

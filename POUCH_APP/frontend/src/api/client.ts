@@ -77,6 +77,11 @@ export const api = {
   ackAlert: (id: string, eventId: number) =>
     req<unknown>(`/api/devices/${id}/alerts/${eventId}/ack`, { method: 'POST' }),
 
+  checkoutPatient: (id: string, patientId: number | null) =>
+    req<DeviceSnapshot>(`/api/devices/${id}/patient`, {
+      method: 'PUT',
+      body: JSON.stringify({ patient_id: patientId }),
+    }),
   startSession: (id: string, patientId: number | null) =>
     req<DeviceSnapshot>(`/api/devices/${id}/session`, {
       method: 'POST',

@@ -10,6 +10,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from ..config import settings
 from ..core.pressure import clamp
@@ -52,7 +53,7 @@ def _push_user_regime(
     pressures = [int(rx.get(z, 0)) for z in ZONES]
     with contextlib.suppress(Exception):
         assert runtime.link is not None
-        sent = runtime.link.load_user(patient_id, pressures)
+        sent = runtime.link.load_user(patient_id, pressures, patient["full_name"])
         audit.log_event(
             db, runtime.device_id, "info", "push_user_regime", sent, runtime.session_id
         )
@@ -136,6 +137,10 @@ def connect_device(
     audit.log_event(
         db, runtime.device_id, "info", "connected", runtime.port or runtime.transport
     )
+    # The board's user record is RAM-only: a reconnect may follow a power-cycle
+    # that wiped it, so re-assert who this pouch is checked out to.
+    if runtime.checked_out_patient_id is not None:
+        _push_user_regime(db, runtime, runtime.checked_out_patient_id)
     db.commit()
     return snapshot_service.build(runtime, db)
 
@@ -499,6 +504,39 @@ def set_current_as_default(
     return snapshot_service.build(runtime, db)
 
 
+# ── patient checkout ────────────────────────────────────────────────────────
+# Selecting a patient in the operator app checks them out to the POUCH at that
+# moment — before any session — so the patient console, which mirrors the
+# board's user record, shows the same person the operator sees. The two UIs
+# complement each other instead of each holding a private idea of who is there.
+
+class CheckoutPatientIn(BaseModel):
+    patient_id: int | None
+
+
+@router.put("/{device_id}/patient")
+def checkout_patient(
+    body: CheckoutPatientIn,
+    runtime: DeviceRuntime = Depends(get_runtime),
+    db: sqlite3.Connection = Depends(get_db),
+) -> dict:
+    if body.patient_id is not None and patients_repo.get(db, body.patient_id) is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"no such patient: {body.patient_id}"
+        )
+    runtime.checked_out_patient_id = body.patient_id
+    # The firmware has no "unassign" short of RESET ALL (which pressurizes), so
+    # clearing only forgets on this side; the next checkout overwrites the board.
+    if body.patient_id is not None and runtime.connected and runtime.link is not None:
+        _push_user_regime(db, runtime, body.patient_id)
+    audit.record(
+        db, "checkout_patient", f"device:{runtime.device_id}", None,
+        {"patient_id": body.patient_id},
+    )
+    db.commit()
+    return snapshot_service.build(runtime, db)
+
+
 # ── sessions ────────────────────────────────────────────────────────────────
 
 @router.post("/{device_id}/session")
@@ -519,11 +557,13 @@ def start_session(
     session_id = repo.start_session(db, runtime.device_id, body.patient_id)
     runtime.begin_session(session_id, body.patient_id)
 
-    # Check the patient out to the DEVICE too (user:<id>:<regime>), so the BLE
-    # console's `readuser` and its START button operate on the same prescription
-    # the app loaded — the two UIs must agree on whose regime is on the pouch.
-    if body.patient_id is not None and runtime.connected and runtime.link is not None:
-        _push_user_regime(db, runtime, body.patient_id)
+    # Starting with a patient also checks them out to the DEVICE (user:<id>:
+    # <regime>:<name>) — normally already done at selection time, but START is
+    # the moment the regime must be right, so it is asserted again here.
+    if body.patient_id is not None:
+        runtime.checked_out_patient_id = body.patient_id
+        if runtime.connected and runtime.link is not None:
+            _push_user_regime(db, runtime, body.patient_id)
 
     audit.log_event(
         db,

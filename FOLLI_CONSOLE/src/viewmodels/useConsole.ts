@@ -44,10 +44,10 @@ export type ZoneSettingsMap = Record<VNode, ZoneSettings>;
  * no START — until the operator assigns a patient.
  */
 export type PatientRecord =
-  | { assigned: true; userId: number }
-  | { assigned: false; userId: null };
+  | { assigned: true; userId: number; name: string }
+  | { assigned: false; userId: null; name: '' };
 
-export const NO_PATIENT: PatientRecord = { assigned: false, userId: null };
+export const NO_PATIENT: PatientRecord = { assigned: false, userId: null, name: '' };
 
 /** How far either side of the prescription the patient may go. */
 export const TRIM_RANGE_PCT = 10;
@@ -218,7 +218,7 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
         applyPrescription({ 0: 0, 1: 0, 2: 0, 3: 0 });
         return;
       }
-      setPatient({ assigned: true, userId: user.userId });
+      setPatient({ assigned: true, userId: user.userId, name: user.name });
       applyPrescription({
         0: user.pressures[0],
         1: user.pressures[1],

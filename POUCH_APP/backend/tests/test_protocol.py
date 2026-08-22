@@ -65,6 +65,33 @@ def test_load_user():
         protocol.encode_load_user(1, [25, 120])
 
 
+def test_load_user_carries_a_display_name():
+    assert protocol.encode_load_user(7, [0, 40, 60, 0], "Edna Levi") == \
+        "user:7:0,40,60,0:Edna Levi"
+    # ':' is the segment delimiter and newlines would end the line — scrubbed.
+    assert protocol.encode_load_user(7, [0, 40, 60, 0], "A:B\nC") == \
+        "user:7:0,40,60,0:A B C"
+    # Cut at the firmware's 31-byte limit on a character boundary (Hebrew is 2 bytes/char).
+    long_name = "אבגדהוזחטיכלמנסעפצקרשת"  # 22 chars = 44 bytes
+    wire = protocol.encode_load_user(7, [0, 40, 60, 0], long_name)
+    assert wire.startswith("user:7:0,40,60,0:")
+    assert len(wire.split(":", 3)[3].encode("utf-8")) <= 31
+    assert wire.split(":", 3)[3] == long_name[:15]
+    # An empty name falls back to the nameless form.
+    assert protocol.encode_load_user(7, [0, 40, 60, 0], "  ") == "user:7:0,40,60,0"
+
+
+def test_parse_user_payload():
+    assert protocol.parse_user_payload("USER:7,true,0,40,60,0,Edna Levi") == {
+        "user_id": 7, "assigned": True, "pressures": [0, 40, 60, 0], "name": "Edna Levi",
+    }
+    # Pre-name firmware (six fields) and an unassigned board both parse.
+    assert protocol.parse_user_payload("USER:-1,false,0,95,125,0")["assigned"] is False
+    assert protocol.parse_user_payload("USER:-1,false,0,95,125,0,")["name"] == ""
+    assert protocol.parse_user_payload("STATE:IDLE") is None
+    assert protocol.parse_user_payload("USER:x,true,0,0,0,0") is None
+
+
 def test_set_user_default_pressure():
     assert protocol.encode_set_user_default_pressure([0, 95, 125, 0]) == \
         "setuserdefaultpressure:0,95,125,0"

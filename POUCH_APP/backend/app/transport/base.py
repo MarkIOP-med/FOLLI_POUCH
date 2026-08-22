@@ -134,9 +134,12 @@ class Link:
         """Positional levels for channels 0..3; -1 leaves a channel unchanged."""
         return self._send(protocol.encode_set_vibration(levels))
 
-    def load_user(self, user_id: int, pressures: list[int]) -> str:
-        """Check a known user out to the device (id + full 4-zone regime)."""
-        return self._send(protocol.encode_load_user(user_id, pressures))
+    def load_user(
+        self, user_id: int, pressures: list[int], name: str | None = None
+    ) -> str:
+        """Check a known user out to the device (id + full 4-zone regime + the
+        display name the patient console shows)."""
+        return self._send(protocol.encode_load_user(user_id, pressures, name))
 
     def read(self, what: str) -> str:
         return self._send(protocol.encode_read(what))

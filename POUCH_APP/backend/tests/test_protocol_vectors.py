@@ -28,7 +28,9 @@ ENCODERS = {
     "save_as_default": lambda a: protocol.encode_save_as_default(),
     "set_pressure": lambda a: protocol.encode_set_pressure(a["targets"]),
     "set_vibration": lambda a: protocol.encode_set_vibration(a["levels"]),
-    "load_user": lambda a: protocol.encode_load_user(a["user_id"], a["pressures"]),
+    "load_user": lambda a: protocol.encode_load_user(
+        a["user_id"], a["pressures"], a.get("name")
+    ),
     "set_user_default_pressure": lambda a: protocol.encode_set_user_default_pressure(
         a["pressures"]
     ),
@@ -82,3 +84,10 @@ def test_shared_constants_match_clinical_code():
 
     consts = VECTORS["constants"]
     assert consts["controller_tolerance_mmhg"] == pressure.CONTROLLER_TOLERANCE_MMHG
+
+
+@pytest.mark.parametrize(
+    "vector", VECTORS["decode_user"], ids=[v["name"] for v in VECTORS["decode_user"]]
+)
+def test_decode_user_vector(vector):
+    assert protocol.parse_user_payload(vector["payload"]) == vector["expect"]

@@ -38,6 +38,13 @@ class DeviceRuntime:
         self.last_responses: list[str] = []   # tagged OK:/ERR:/R: lines, newest last
         self.fw_version: str | None = None
 
+        # The patient checked out to this pouch — set the moment the operator
+        # selects one, before any session. Pushed to the board as its user
+        # record (user:<id>:<regime>:<name>) so the patient console shows the
+        # same person; re-pushed on every connect because the board's copy is
+        # RAM-only and gone after a power-cycle.
+        self.checked_out_patient_id: int | None = None
+
         # session state
         self.session_id: int | None = None
         self.patient_id: int | None = None

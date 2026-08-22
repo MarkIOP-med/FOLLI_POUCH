@@ -76,6 +76,7 @@ const BENCH_USER: DeviceUser = {
   userId: 8,
   assigned: true,
   pressures: [0, 25, 60, 0],
+  name: 'Edna Levi',
 };
 
 describe('useConsole — device-mirrored session', () => {
@@ -314,9 +315,9 @@ describe('useConsole — patient assignment (the board user record)', () => {
 
     // Fresh boot: factory regime aboard, nobody assigned. Must not become a
     // prescription — and START must not run it.
-    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0] }));
+    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0], name: '' }));
 
-    expect(result.current.patient).toEqual({ assigned: false, userId: null });
+    expect(result.current.patient).toEqual({ assigned: false, userId: null, name: '' });
     expect(result.current.canStart).toBe(false);
     act(() => result.current.setActiveZone(1));
     expect(result.current.zoneSettings[1].prescribed).toBe(0);
@@ -331,7 +332,7 @@ describe('useConsole — patient assignment (the board user record)', () => {
     const { result } = renderHook(() => useConsole(client));
 
     act(() => client.emitUser(BENCH_USER));
-    expect(result.current.patient).toEqual({ assigned: true, userId: 8 });
+    expect(result.current.patient).toEqual({ assigned: true, userId: 8, name: 'Edna Levi' });
     expect(result.current.canStart).toBe(false); // link not up yet
 
     act(() => client.emitConnection('connected'));
@@ -363,11 +364,11 @@ describe('useConsole — patient assignment (the board user record)', () => {
     const { result } = renderHook(() => useConsole(client));
 
     act(() => client.emitUser(BENCH_USER));
-    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0] }));
+    act(() => client.emitUser({ userId: -1, assigned: false, pressures: [0, 95, 125, 0], name: '' }));
     expect(result.current.zoneSettings[1].prescribed).toBe(0);
 
     act(() => client.emitUser(BENCH_USER));
-    expect(result.current.patient).toEqual({ assigned: true, userId: 8 });
+    expect(result.current.patient).toEqual({ assigned: true, userId: 8, name: 'Edna Levi' });
     expect(result.current.zoneSettings[1].prescribed).toBe(25);
   });
 });

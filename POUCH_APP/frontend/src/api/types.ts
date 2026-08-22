@@ -63,6 +63,9 @@ export interface DeviceSnapshot {
   session_started_at: number | null;
   session_elapsed_s: number | null;
   patient: PatientRef | null;
+  /** Who the pouch is checked out to — pushed to the board (and so to the
+      patient console) the moment the operator selects them, before any session. */
+  checked_out_patient: PatientRef | null;
   zones: ZoneView[];
   ceiling_mmhg: number;
   trim_range_pct: number;

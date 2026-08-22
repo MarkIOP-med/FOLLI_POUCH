@@ -167,6 +167,13 @@ def build(
             now - runtime.session_started_at if runtime.session_started_at else None
         ),
         "patient": patient,
+        # Who the pouch is checked out to (mirrored on the patient console) —
+        # independent of whether a session is running.
+        "checked_out_patient": (
+            _patient_summary(conn, runtime.checked_out_patient_id)
+            if runtime.checked_out_patient_id is not None
+            else None
+        ),
         "zones": zones,
         "ceiling_mmhg": ceiling,
         "trim_range_pct": trim_range,

@@ -99,15 +99,26 @@ void parseCommandString(String incoming, CommandSource source) {
     enqueueCommand(cmd);
 
   } else if (word.equalsIgnoreCase("user")) {
-    // user:<id>:<p0>,<p1>,<p2>,<p3>
+    // user:<id>:<p0>,<p1>,<p2>,<p3>[:<name>] — the name is optional and free text
+    // (anything after the third ':', so it may itself contain ':' or ','); it is what
+    // the patient console displays, the id is what the operator app keys on.
     int colon2 = rest.indexOf(':');
     if (colon2 < 0) {
-      sendResponse(source, "ERR:USER:expected user:<id>:<p0>,<p1>,<p2>,<p3>");
+      sendResponse(source, "ERR:USER:expected user:<id>:<p0>,<p1>,<p2>,<p3>[:<name>]");
       return;
     }
     cmd.type = CMD_USER_ID;
     cmd.userIdValue = rest.substring(0, colon2).toInt();
     String pressures = rest.substring(colon2 + 1);
+    cmd.userName[0] = '\0';
+    int colon3 = pressures.indexOf(':');
+    if (colon3 >= 0) {
+      String name = pressures.substring(colon3 + 1);
+      name.trim();
+      strncpy(cmd.userName, name.c_str(), USER_NAME_MAX);
+      cmd.userName[USER_NAME_MAX] = '\0';
+      pressures = pressures.substring(0, colon3);
+    }
     if (parseIntList(pressures, cmd.pressures, 4) != 4) {
       sendResponse(source, "ERR:USER:needs exactly 4 pressure values");
       return;

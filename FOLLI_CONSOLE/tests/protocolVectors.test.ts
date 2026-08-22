@@ -18,6 +18,7 @@ import {
   VIB_LEAVE_UNCHANGED,
   Zone,
   decodeLine,
+  decodeUserPayload,
   encodeAssign,
   encodeLoadUser,
   encodeRead,
@@ -51,7 +52,8 @@ const ENCODERS: Record<string, (args: EncodeArgs) => string> = {
   set_pressure: (a) =>
     encodeSetPressure(a.targets as Partial<Record<Zone, number>>),
   set_vibration: (a) => encodeSetVibration(a.levels as number[]),
-  load_user: (a) => encodeLoadUser(a.user_id as number, a.pressures as number[]),
+  load_user: (a) =>
+    encodeLoadUser(a.user_id as number, a.pressures as number[], a.name as string | undefined),
   set_user_default_pressure: (a) =>
     encodeSetUserDefaultPressure(a.pressures as number[]),
   set_variable: (a) =>
@@ -106,4 +108,22 @@ describe('protocol conformance — shared constants', () => {
     expect(BLE.advertisedName).toBe(b.advertised_name);
     expect(BLE.minMtu).toBe(b.min_mtu);
   });
+});
+
+describe('protocol conformance — user-record decode vectors', () => {
+  for (const vector of vectors.decode_user) {
+    it(vector.name, () => {
+      const decoded = decodeUserPayload(vector.payload);
+      if (vector.expect === null) {
+        expect(decoded).toBeNull();
+        return;
+      }
+      expect(decoded).toEqual({
+        userId: vector.expect.user_id,
+        assigned: vector.expect.assigned,
+        pressures: vector.expect.pressures,
+        name: vector.expect.name,
+      });
+    });
+  }
 });

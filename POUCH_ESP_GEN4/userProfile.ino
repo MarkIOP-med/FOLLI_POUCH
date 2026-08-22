@@ -10,6 +10,7 @@
 void initUserProfile() {
   userId   = -1;
   assigned = false;
+  userName[0] = '\0';
   for (int i = 0; i < 4; i++) userDefaultPressure[i] = systemDefaultPressure[i];
 }
 
@@ -24,6 +25,7 @@ void assignNewUser() {
   assignCounter++;
   userId   = assignCounter;
   assigned = true;
+  userName[0] = '\0';
   for (int i = 0; i < 4; i++) userDefaultPressure[i] = systemDefaultPressure[i];
 
   Serial.print("New user assigned, userId=");

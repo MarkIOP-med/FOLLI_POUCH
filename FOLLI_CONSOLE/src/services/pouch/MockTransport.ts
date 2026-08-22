@@ -16,7 +16,7 @@ import type {
 
 const FRAME_INTERVAL_MS = 250;
 /** A plausible checked-out user: Temples 25 / Ears 40, front and back off. */
-const MOCK_USER = { id: 8, pressures: [0, 25, 40, 0] };
+const MOCK_USER = { id: 8, name: 'Edna Levi', pressures: [0, 25, 40, 0] };
 
 export class MockTransport implements PouchTransport {
   private state: ConnectionState = 'idle';
@@ -72,7 +72,7 @@ export class MockTransport implements PouchTransport {
         break;
       case 'readuser':
         this.emit(
-          `R:USER:${MOCK_USER.id},true,${MOCK_USER.pressures.join(',')}`,
+          `R:USER:${MOCK_USER.id},true,${MOCK_USER.pressures.join(',')},${MOCK_USER.name}`,
         );
         break;
       default:

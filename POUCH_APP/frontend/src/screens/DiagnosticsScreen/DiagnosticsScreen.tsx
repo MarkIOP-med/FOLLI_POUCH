@@ -84,6 +84,16 @@ export function DiagnosticsScreen() {
     if (sessionActive && snapshot?.patient) setStagedPatientId(snapshot.patient.id);
   }, [sessionActive, snapshot?.patient?.id]);
 
+  // The pouch must agree with the selector: after a page refresh (staging is
+  // per-tab) or a backend restart, re-check the staged patient out to the
+  // board so the patient console shows them. Only when the two disagree, so
+  // the stream's own updates never re-trigger it.
+  useEffect(() => {
+    if (!id || stagedPatientId == null || !snapshot?.connected) return;
+    if (snapshot.checked_out_patient?.id === stagedPatientId) return;
+    void api.checkoutPatient(id, stagedPatientId).catch(() => undefined);
+  }, [stagedPatientId, snapshot?.connected, snapshot?.checked_out_patient?.id, id]);
+
   // Renders its chrome even before the stream connects — see AdminScreen for why
   // an early return here caused a flash on every navigation. The panels appear
   // immediately and fill in when the first frame lands.
@@ -145,12 +155,15 @@ export function DiagnosticsScreen() {
       active="diagnostics"
       users={users}
       selectedUserId={sessionActive ? sticky.patientId : stagedPatientId}
-      /* Selecting a patient only STAGES them — nothing is sent to the device and
-         no session (or runtime clock) starts until START is pressed. Changing the
-         selection while a session runs ends that session first (which vents). */
+      /* Selecting a patient STAGES them here and checks them out to the pouch
+         (its user record + name), so the patient console shows the same person
+         at once. No session or runtime clock starts until START is pressed.
+         Changing the selection while a session runs ends that session first
+         (which vents). */
       onSelectUser={(patientId) => {
         setStagedPatientId(patientId);
         if (sessionActive) void run('endingSession', () => api.endSession(id));
+        void api.checkoutPatient(id, patientId).catch(() => undefined);
       }}
       {...headerFromSnapshot(snapshot, id)}
       sessionElapsedS={sticky.sessionElapsedS}

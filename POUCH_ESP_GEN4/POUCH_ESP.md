@@ -209,7 +209,7 @@ be truncated without a negotiated MTU.
 | **STOP** | `stop` | Stop vibration, vent all channels to zero, return to idle |
 | **RESET ALL** | `resetall` | Vent → all pressures (current, user default) reset to system default → user unassigned → begin pressurizing toward system default |
 | **RESTART** | `restart` | Vent, recapture reference pressure, return to idle. Identity and saved regime untouched. |
-| **USER_ID** | `user:<id>:<p0>,<p1>,<p2>,<p3>` | Load a specific known user: id + full pressure regime, supplied by the caller. Does not start pressurizing — follow with `START` to apply it. |
+| **USER_ID** | `user:<id>:<p0>,<p1>,<p2>,<p3>[:<name>]` | Check a known user out to the pouch: id + full pressure regime, plus an optional display name (free text after the third `:`, up to 31 UTF-8 bytes) that the patient console shows. Does not start pressurizing — follow with `START` to apply it. The operator app sends this the moment a patient is selected, and again on every reconnect, because the record is RAM-only. |
 | **ASSIGN** | `assign` | Assign a fresh, locally-generated user to this pouch, seeded with system default pressure. Works fully offline. |
 | **SET PRESSURE** | `setpressure:<p0>,<p1>,<p2>,<p3>` (all 4, positional) — or `setpressure:<channel>,<value>` (one channel; batch: `setpressure:0,80;3,120`) | Set live target pressure; begins pressurizing. The two forms are told apart by count — 4 numbers with no `;` is the positional vector, anything else is indexed pairs. |
 | **SAVE AS DEFAULT** | `saveasdefault` | Save whatever's currently running as this user's saved default |
@@ -219,7 +219,7 @@ be truncated without a negotiated MTU.
 | **READ PRESSURE** | `readpressure` | Actual pressure (4 channels + manifold) and current target (4 channels) |
 | **READ FSR** | `readfsr` | All 8 raw force-sensor readings |
 | **READ VARIABLES** | `readvariables` | The four `SET VARIABLE` constants and their current values |
-| **READ USER** | `readuser` | `userId`, `assigned`, and the saved pressure regime |
+| **READ USER** | `readuser` | `R:USER:<id>,<assigned>,<p0>,<p1>,<p2>,<p3>,<name>` — the name is the last field and may be empty; decoders treat everything after the sixth comma as the name |
 | **READ STATE** | `readstate` | The current state machine value |
 | **READ VIBRATION** | `readvibration` | Live vibration level per channel |
 | **READ ALL** | `readall` | Everything above, concatenated in one response |
@@ -252,6 +252,13 @@ transport is not gated (the operator's `start` on a fresh board is the bench wor
 **Routing:** every response is echoed on Serial regardless of origin. If the triggering
 command came over BLE, the same line is additionally pushed through the telemetry
 notify characteristic — that's the only way a BLE caller sees it.
+
+**Unsolicited user-record announce.** The BLE console mirrors the pouch's user record,
+so whenever that record changes from the *other* transport (the operator app checking a
+patient out with `user:…`, or `resetall` clearing it), the firmware pushes the same
+`R:USER:…` line it would answer to `readuser` through the BLE notify characteristic,
+unprompted. The console therefore shows the newly selected patient within a frame of
+the operator selecting them — no polling.
 
 **Telemetry verbosity differs by transport, deliberately.** Both lines carry the state
 machine char (`I/P/M/E/S`) and the session-elapsed seconds (clock starts on the

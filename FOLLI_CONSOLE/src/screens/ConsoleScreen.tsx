@@ -252,13 +252,13 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
 
         <View style={styles.identityRow}>
           <View>
-            {/* The comp prints a patient name. The board only carries the
-                operator app's patient id (its user record, RAM-only) — no name
-                travels over BLE, by design. Unassigned is a real state: every
-                power-cycle lands there until the operator assigns someone. */}
+            {/* The board's user record (RAM-only) carries the operator app's
+                patient id and display name — pushed the moment the operator
+                selects a patient. Unassigned is a real state: every power-cycle
+                lands there until the operator assigns someone. */}
             <Text testID="patient-line" style={styles.identityLine}>
               <Text style={styles.identityLabel}>Patient: </Text>
-              {patient.assigned ? `#${patient.userId}` : 'not assigned'}
+              {patient.assigned ? patient.name || `#${patient.userId}` : 'not assigned'}
             </Text>
             {/* Labelled Session Time, not the comp's "Remaining Time". Only
                 elapsed is known — no planned duration reaches the console — and

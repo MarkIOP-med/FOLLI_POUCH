@@ -95,7 +95,20 @@ class MockLink(Link):
             self._note_targets_changed()
             self._lines.put("OK:RESETALL")
         elif word == "user":
-            self._lines.put(f"OK:USER:{rest.split(':', 1)[0]}")
+            # user:<id>:<p0..p3>[:<name>] — keep the record so readuser mirrors it
+            segments = rest.split(":", 2)
+            self._user = {
+                "id": segments[0],
+                "pressures": segments[1] if len(segments) > 1 else "0,0,0,0",
+                "name": segments[2] if len(segments) > 2 else "",
+            }
+            self._lines.put(f"OK:USER:{segments[0]}")
+        elif word == "readuser":
+            u = getattr(self, "_user", None)
+            self._lines.put(
+                f"R:USER:{u['id']},true,{u['pressures']},{u['name']}"
+                if u else "R:USER:-1,false,0,0,0,0,"
+            )
         elif word == "setpressure":
             for part in rest.split(";"):
                 if "," not in part:

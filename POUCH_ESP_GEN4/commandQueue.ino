@@ -62,6 +62,7 @@ static void applyResetAll() {
   }
   userId   = -1;
   assigned = false;
+  userName[0] = '\0';
   currentChannel = 0;
   resetChannelState();
   currentState = PRESSURIZING;
@@ -74,11 +75,13 @@ static void applyRestart() {
   captureReferencePressure();
 }
 
-// --- USER_ID --- load a specific known user: id + full regime pushed together
-static void applyUserId(int id, const int* pressures) {
+// --- USER_ID --- load a specific known user: id + full regime (+ display name) pushed together
+static void applyUserId(int id, const int* pressures, const char* name) {
   userId   = id;
   assigned = true;
   for (int i = 0; i < 4; i++) userDefaultPressure[i] = pressures[i];
+  strncpy(userName, name, USER_NAME_MAX);
+  userName[USER_NAME_MAX] = '\0';
 }
 
 // --- SET PRESSURE --- one channel
@@ -159,10 +162,22 @@ static String buildVariablesFragment() {
          ",TELEMETRY_INTERVAL=" + String(TELEMETRY_INTERVAL_MS);
 }
 
+// USER:<id>,<assigned>,<p0>,<p1>,<p2>,<p3>,<name> — the name is the LAST field and
+// free text, so decoders take everything after the sixth comma as the name.
 static String buildUserFragment() {
   String s = "USER:" + String(userId) + "," + String(assigned ? "true" : "false");
   for (int i = 0; i < 4; i++) { s += ","; s += userDefaultPressure[i]; }
+  s += ",";
+  s += userName;
   return s;
+}
+
+// The user record changed (checkout from the operator app, or RESET ALL). The BLE
+// console mirrors that record, so tell it unprompted — the same R:USER line it would
+// get from readuser — whenever the change came from the OTHER transport. The BLE
+// caller itself already received the OK and re-reads on its own.
+static void announceUserRecord(CommandSource changedBy) {
+  if (changedBy != SRC_BLE) sendBLEResponse("R:" + buildUserFragment());
 }
 
 static String buildStateFragment() {
@@ -201,6 +216,7 @@ static void dispatchCommand(const Command& cmd) {
     case CMD_RESET_ALL:
       applyResetAll();
       sendResponse(cmd.source, "OK:RESETALL");
+      announceUserRecord(cmd.source);
       break;
 
     case CMD_RESTART:
@@ -209,8 +225,9 @@ static void dispatchCommand(const Command& cmd) {
       break;
 
     case CMD_USER_ID:
-      applyUserId(cmd.userIdValue, cmd.pressures);
+      applyUserId(cmd.userIdValue, cmd.pressures, cmd.userName);
       sendResponse(cmd.source, "OK:USER:" + String(cmd.userIdValue));
+      announceUserRecord(cmd.source);
       break;
 
     case CMD_ASSIGN_NEW_USER:

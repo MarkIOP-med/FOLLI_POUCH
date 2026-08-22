@@ -50,6 +50,15 @@ matter which transport is talking.
 * **State mirroring:** state + session clock in every frame is what lets this console
   and the serial admin app mirror each other — whoever starts or stops a session,
   both UIs flip together and show the same elapsed time.
+* **Patient identity:** the pouch's user record (`R:USER:<id>,<assigned>,<p0..p3>,<name>`)
+  is the console's prescription AND its "Patient:" line. The operator app checks a
+  patient out to the pouch the moment they are selected (`user:<id>:<regime>:<name>`),
+  and the firmware announces the new record to this console unprompted, so both UIs
+  show the same person at once. The record is RAM-only on the board: after a
+  power-cycle it is *unassigned* — the console then shows "not assigned", keeps every
+  zone inert and withholds START (the firmware refuses a console START in that state
+  too) until the operator selects a patient again. A zone prescribed above the 70 mmHg
+  patient ceiling is shown at its true value but locked from trimming.
 * **Conformance:** the console implementation (`src/services/pouch/protocol.ts`), the
   admin app's Python mirror and the firmware are held together by
   `shared/protocol-vectors.json`, run by both test suites.

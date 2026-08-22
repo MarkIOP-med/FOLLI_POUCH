@@ -78,9 +78,12 @@ export function encodeSetVibration(levels: number[]): string {
   return `setvibration:${clamped.join(',')}`;
 }
 
-export function encodeLoadUser(userId: number, pressures: number[]): string {
+/** user:<id>:<p0..p3>[:<name>] — the name is what this console displays. */
+export function encodeLoadUser(userId: number, pressures: number[], name?: string): string {
   if (pressures.length !== 4) throw new Error('user record needs exactly 4 pressures');
-  return `user:${Math.round(userId)}:${pressures.map((p) => Math.round(p)).join(',')}`;
+  const line = `user:${Math.round(userId)}:${pressures.map((p) => Math.round(p)).join(',')}`;
+  const wireName = (name ?? '').replace(/:/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+  return wireName ? `${line}:${wireName}` : line;
 }
 
 export function encodeSetUserDefaultPressure(pressures: number[]): string {
@@ -121,11 +124,13 @@ export interface BleTelemetry {
   error: number;
 }
 
-/** The device's checked-out user, from R:USER:<id>,<assigned>,<p0..p3>. */
+/** The device's checked-out user, from R:USER:<id>,<assigned>,<p0..p3>,<name>. */
 export interface DeviceUser {
   userId: number;
   assigned: boolean;
   pressures: [number, number, number, number];
+  /** Display name the operator app pushed; empty when none travelled. */
+  name: string;
 }
 
 export type DecodedLine =
@@ -165,13 +170,17 @@ export function decodeBleTelemetry(line: string): BleTelemetry | null {
   };
 }
 
-/** Parse the payload of an R:USER response ("8,true,0,95,125,0"). */
+/**
+ * Parse the payload of an R:USER response ("8,true,0,95,125,0,Edna Levi").
+ * The name is the LAST field and free text, so everything after the sixth
+ * comma belongs to it; pre-name firmware (six fields) still parses.
+ */
 export function decodeUserPayload(payload: string): DeviceUser | null {
   if (!payload.startsWith('USER:')) return null;
   const parts = payload.slice('USER:'.length).split(',');
-  if (parts.length !== 6) return null;
+  if (parts.length < 6) return null;
   const userId = Number(parts[0]);
-  const pressures = parts.slice(2).map((p) => Number(p));
+  const pressures = parts.slice(2, 6).map((p) => Number(p));
   if (!Number.isFinite(userId) || pressures.some((p) => !Number.isFinite(p))) {
     return null;
   }
@@ -179,5 +188,6 @@ export function decodeUserPayload(payload: string): DeviceUser | null {
     userId,
     assigned: parts[1] === 'true',
     pressures: pressures as [number, number, number, number],
+    name: parts.slice(6).join(',').trim(),
   };
 }

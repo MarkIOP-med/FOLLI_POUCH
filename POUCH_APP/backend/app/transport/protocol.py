@@ -186,10 +186,51 @@ def encode_set_variable(name: str, value: int | str) -> str:
     return f"setvariable:{name},{value}"
 
 
-def encode_load_user(user_id: int, pressures: list[int]) -> str:
+#: Longest display name the firmware stores (USER_NAME_MAX in config.h), in bytes.
+USER_NAME_MAX_BYTES = 31
+
+
+def _wire_name(name: str) -> str:
+    """Fit a display name onto the wire: single line, no ':' (the segment
+    delimiter), cut on a UTF-8 character boundary at the firmware's limit."""
+    cleaned = " ".join(name.replace(":", " ").split())
+    encoded = cleaned.encode("utf-8")[:USER_NAME_MAX_BYTES]
+    return encoded.decode("utf-8", errors="ignore").strip()
+
+
+def encode_load_user(
+    user_id: int, pressures: list[int], name: str | None = None
+) -> str:
+    """user:<id>:<p0>,<p1>,<p2>,<p3>[:<name>] — the name is what the patient
+    console displays; the id is what this app keys on."""
     if len(pressures) != 4:
         raise ValueError("user record needs exactly 4 pressures")
-    return f"user:{int(user_id)}:" + ",".join(str(int(p)) for p in pressures)
+    line = f"user:{int(user_id)}:" + ",".join(str(int(p)) for p in pressures)
+    wire_name = _wire_name(name) if name else ""
+    return f"{line}:{wire_name}" if wire_name else line
+
+
+def parse_user_payload(payload: str) -> dict | None:
+    """The R:USER payload: "<id>,<assigned>,<p0>,<p1>,<p2>,<p3>[,<name>]".
+
+    The name is the LAST field and free text, so everything after the sixth
+    comma belongs to it. Pre-name firmware (six fields) still parses."""
+    if not payload.startswith("USER:"):
+        return None
+    parts = payload[len("USER:"):].split(",")
+    if len(parts) < 6:
+        return None
+    try:
+        user_id = int(parts[0])
+        pressures = [int(p) for p in parts[2:6]]
+    except ValueError:
+        return None
+    return {
+        "user_id": user_id,
+        "assigned": parts[1] == "true",
+        "pressures": pressures,
+        "name": ",".join(parts[6:]).strip(),
+    }
 
 
 def encode_set_user_default_pressure(pressures: list[int]) -> str:
