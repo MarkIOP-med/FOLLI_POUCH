@@ -9,7 +9,7 @@
     "trailing newline. Channels are 0-indexed: FRONT=0, TEMPLE=1, EAR=2, BACK=3."
   ],
   "constants": {
-    "pressure_ceiling_mmhg": 70,
+    "pressure_ceiling_mmhg": 130,
     "controller_tolerance_mmhg": 3,
     "trim_range_pct": 10,
     "vibration_levels": [

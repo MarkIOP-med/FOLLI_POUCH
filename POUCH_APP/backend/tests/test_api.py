@@ -37,7 +37,7 @@ class TestSessionAndZones:
 
         snapshot = client.get(f"/api/devices/{mock_device}").json()
         assert snapshot["connected"]
-        assert snapshot["ceiling_mmhg"] == 70
+        assert snapshot["ceiling_mmhg"] == 130
         assert snapshot["patient"]["national_id_masked"].endswith("6782")
         assert zone_of(snapshot, "FRONT")["effective_mmhg"] == 40
 
@@ -128,7 +128,7 @@ class TestDeviceScreenEditing:
         ).raise_for_status()
 
         snapshot = client.get(f"/api/devices/{mock_device}").json()
-        assert zone_of(snapshot, "BACK")["prescribed_mmhg"] == 70
+        assert zone_of(snapshot, "BACK")["prescribed_mmhg"] == 130
 
     def test_unknown_zone_rejected(
         self, client: TestClient, mock_device: str, edna: dict
@@ -210,7 +210,7 @@ class TestServiceMode:
 
         snapshot = client.get(f"/api/devices/{mock_device}").json()
         assert snapshot["service_mode"] is True
-        assert zone_of(snapshot, "BACK")["effective_mmhg"] == 70
+        assert zone_of(snapshot, "BACK")["effective_mmhg"] == 130
 
     def test_rx_editing_rejected_without_a_patient(
         self, client: TestClient, mock_device: str

@@ -161,19 +161,19 @@ The patient console can only run a **clinician‑assigned** patient, so create o
    * **Full name:** e.g. `Bench Test`
    * **National ID:** *leave blank* for testing. (If you type one it must be a
      valid Israeli ID or it's rejected — blank avoids that.)
-   * **Prescription (regime):** for the **balloon** bench, keep it gentle and use
-     only the two working zones, e.g. **TEMPLE = 40, EAR = 40, FRONT = 0,
-     BACK = 0**. Staying at/under **70 mmHg** means you never have to touch the
-     safety ceiling.
+   * **Prescription (regime):** use only the two working zones (FRONT and BACK
+     are dead on this bench). The pressure **ceiling is 130 mmHg**, so you can
+     prescribe up to **125 directly** with nothing to change — e.g.
+     **TEMPLE = 90, EAR = 125**, or gentler **TEMPLE = 40, EAR = 40** if you'd
+     rather start soft. Keep **FRONT = 0, BACK = 0**.
    * Optionally set a **massage/vibration level** per zone (1–3).
    * Save.
 
-> **Why 40/40 and not higher:** the pressure ceiling is **70 mmHg** for a reason
-> (it's what goes on a person's head). A regime above 70 would need you to raise
-> the ceiling in Admin *just for balloons*, and it's easy to forget to put it
-> back. Keeping the test regime ≤ 70 avoids the whole issue. **If you ever raise
-> the ceiling for a balloon test, set it back to 70 before anything touches a
-> human.**
+> **About the 130 ceiling and human safety:** the ceiling ships at **130 mmHg**
+> so a full 125 regime works out of the box — that's why you don't need to touch
+> any setting. It also means the patient console will let a patient dial a zone
+> high. **130 is a bench value.** Before anything is ever worn on a person's head,
+> lower the ceiling to **70** in **Admin → Settings → Max pressure**.
 
 ---
 
@@ -229,8 +229,8 @@ Keep the web app (Diagnostics screen for your pouch) and the phone side by side.
 1. On the **web app**, make sure your patient is **selected** (the console
    should already show their name).
 2. Press **START** on the web app.
-3. **Watch:** the pump runs; the **TEMPLE and EAR balloons inflate** to ~40 mmHg
-   and hold.
+3. **Watch:** the pump runs; the **TEMPLE and EAR balloons inflate** to their
+   prescribed pressures and hold.
 4. **On the phone, without touching it:** the console flips to **ACTIVE**, shows
    a **running clock**, a **STOP** button, and the live pressures — the *same*
    session, the *same* clock as the web app.

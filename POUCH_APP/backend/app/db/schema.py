@@ -98,7 +98,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_ts        ON audit(ts DESC);
 """
 
 DEFAULT_SETTINGS = {
-    "max_pressure_mmhg": "70",     # console spec ceiling; admin-editable
+    "max_pressure_mmhg": "130",    # ceiling; admin-editable. 130 lets a full 125 mmHg
+    #                                 regime be prescribed without changing anything (bench
+    #                                 request 2026-08-25). Was 70 (the human-head limit) —
+    #                                 lower it back to 70 before any human use.
     "trim_range_pct": "10",
     "default_massage_seconds": "30",
 }

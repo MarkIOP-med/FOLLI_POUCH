@@ -75,7 +75,7 @@ export function AdminScreen() {
   const saveDrafts = () =>
     run('promoting', async () => {
       let nextSettings = settings ?? {
-        max_pressure_mmhg: snapshot?.ceiling_mmhg ?? 70,
+        max_pressure_mmhg: snapshot?.ceiling_mmhg ?? 130,
         trim_range_pct: snapshot?.trim_range_pct ?? 10,
         default_massage_seconds: 30,
       };

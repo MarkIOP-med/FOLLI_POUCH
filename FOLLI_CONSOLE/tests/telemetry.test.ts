@@ -31,7 +31,7 @@ describe('zone model', () => {
 });
 
 describe('clampPressure', () => {
-  it('clamps into 0..70 and rounds', () => {
+  it('clamps into 0..130 and rounds', () => {
     expect(clampPressure(-5)).toBe(0);
     expect(clampPressure(25.6)).toBe(26);
     expect(clampPressure(500)).toBe(PRESSURE_MAX);

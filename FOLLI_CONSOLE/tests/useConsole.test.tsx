@@ -181,7 +181,7 @@ describe('useConsole — device-mirrored session', () => {
     expect(client.vibrateZone).toHaveBeenCalledWith('TEMPLE', 2);
   });
 
-  it('confines pressure to the trim band, not the full 0..70 range', () => {
+  it('confines pressure to the trim band, not the full 0..130 range', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
@@ -208,15 +208,16 @@ describe('useConsole — device-mirrored session', () => {
     expect(result.current.targetPressure).toBe(0);
   });
 
-  it('never exceeds the 70 mmHg ceiling, even at the top of a band', () => {
+  it('never exceeds the 130 mmHg ceiling, even at the top of a band', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 68, 0, 0] }));
+    // Prescribed 125: 10% is 12.5 → band 112..138, clamped to the 130 ceiling.
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 125, 0, 0] }));
     act(() => result.current.setActiveZone(1));
-    expect(result.current.trimMax).toBe(70);
+    expect(result.current.trimMax).toBe(130);
     act(() => result.current.updateTargetPressure(999));
-    expect(result.current.targetPressure).toBe(70);
+    expect(result.current.targetPressure).toBe(130);
   });
 
   it('held STOP sends stop; STOPPED shows once the board reports idle', () => {
@@ -346,15 +347,15 @@ describe('useConsole — patient assignment (the board user record)', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 95, 0, 0] }));
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 140, 0, 0] }));
     act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
     act(() => result.current.setActiveZone(1));
 
-    // Not silently clamped to 70 — that would make SET lower the clinician's regime.
-    expect(result.current.targetPressure).toBe(95);
+    // Not silently clamped to 130 — that would make SET lower the clinician's regime.
+    expect(result.current.targetPressure).toBe(140);
     expect(result.current.canTrim).toBe(false);
     act(() => result.current.updateTargetPressure(60));
-    expect(result.current.targetPressure).toBe(95);
+    expect(result.current.targetPressure).toBe(140);
     await act(async () => result.current.sendCommandToPouch());
     expect(client.setZonePressure).not.toHaveBeenCalled();
   });

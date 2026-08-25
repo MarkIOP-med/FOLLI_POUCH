@@ -20,7 +20,7 @@ export const channelOf = (zone: Zone): Channel =>
   CHANNELS.indexOf(zone) as Channel;
 
 /** Shared clinical constants — asserted against shared/protocol-vectors.json. */
-export const PRESSURE_CEILING_MMHG = 70;
+export const PRESSURE_CEILING_MMHG = 130;
 export const CONTROLLER_TOLERANCE_MMHG = 3;
 export const TRIM_RANGE_PCT = 10;
 /** setvibration level meaning "leave this channel as it is". */
