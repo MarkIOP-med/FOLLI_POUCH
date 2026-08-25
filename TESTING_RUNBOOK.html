@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FOLLISAVE Bench Runbook</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root{
+    --ground:#f4f7f6; --surface:#ffffff; --surface-2:#eef3f2;
+    --ink:#17242a; --ink-2:#42555c; --ink-3:#6d7f85;
+    --border:#d7e0de; --border-strong:#bfccc9;
+    --accent:#0d7d74; --accent-ink:#0a5c56; --accent-wash:#e2f1ef;
+    --amber:#a45a08; --amber-wash:#fbeede;
+    --red:#b3271d; --red-wash:#fbe6e3;
+    --green:#177544; --green-wash:#e2f1e8;
+    --term-bg:#10201f; --term-ink:#d4e6e2; --term-dim:#7fa49d; --term-accent:#4fd6c4;
+    --shadow:0 1px 2px rgba(20,40,44,.06),0 6px 20px rgba(20,40,44,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0d1517; --surface:#14201f; --surface-2:#1a2827;
+      --ink:#e7efec; --ink-2:#adc0bb; --ink-3:#7c928d;
+      --border:#243432; --border-strong:#324744;
+      --accent:#2dd4bf; --accent-ink:#66e6d4; --accent-wash:#12302c;
+      --amber:#e0a34a; --amber-wash:#2a2114;
+      --red:#f0857a; --red-wash:#2c1613;
+      --green:#57c88a; --green-wash:#122a1e;
+      --term-bg:#0a1413; --term-ink:#cfe4df; --term-dim:#6f938c; --term-accent:#4fd6c4;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0d1517; --surface:#14201f; --surface-2:#1a2827;
+    --ink:#e7efec; --ink-2:#adc0bb; --ink-3:#7c928d;
+    --border:#243432; --border-strong:#324744;
+    --accent:#2dd4bf; --accent-ink:#66e6d4; --accent-wash:#12302c;
+    --amber:#e0a34a; --amber-wash:#2a2114;
+    --red:#f0857a; --red-wash:#2c1613;
+    --green:#57c88a; --green-wash:#122a1e;
+    --term-bg:#0a1413; --term-ink:#cfe4df; --term-dim:#6f938c; --term-accent:#4fd6c4;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16.5px; line-height:1.62; letter-spacing:.002em;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:0 22px 96px}
+
+  /* ---- top bar ---- */
+  header.top{
+    position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--ground) 86%,transparent);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--border);
+  }
+  .top-inner{max-width:820px;margin:0 auto;padding:11px 22px;display:flex;align-items:center;gap:12px}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-wash);flex:none}
+  .top h1{font:600 15px/1.2 "Archivo",sans-serif;letter-spacing:.01em;margin:0}
+  .top .sub{margin-left:auto;font:500 12px/1 "IBM Plex Mono",monospace;color:var(--ink-3);letter-spacing:.03em}
+
+  /* ---- hero ---- */
+  .hero{padding:52px 0 8px}
+  .eyebrow{font:600 12px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink)}
+  .hero h2{font:700 clamp(30px,6vw,46px)/1.05 "Archivo",sans-serif;letter-spacing:-.02em;margin:.5rem 0 .4rem;text-wrap:balance}
+  .hero p.lead{font-size:1.08rem;color:var(--ink-2);margin:.4rem 0 0;max-width:60ch}
+
+  h3.sec{font:600 13px/1 "IBM Plex Mono",monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+    margin:56px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:baseline}
+  h3.sec .n{color:var(--accent);font-weight:600}
+
+  p{margin:.7rem 0}
+  a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+  strong{font-weight:600;color:var(--ink)}
+  code{font-family:"IBM Plex Mono",monospace;font-size:.9em;background:var(--surface-2);
+    border:1px solid var(--border);border-radius:5px;padding:.08em .38em;color:var(--accent-ink)}
+
+  /* ---- topology card ---- */
+  .topo{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);
+    padding:20px 20px 8px;margin:26px 0}
+  .topo pre{font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.7;color:var(--ink-2);
+    overflow-x:auto;margin:.2rem 0 .6rem;letter-spacing:0}
+  .topo .k{color:var(--accent-ink);font-weight:600}
+  .topo p{font-size:.94rem;color:var(--ink-2);margin:.5rem 0}
+
+  /* ---- three terminals strip ---- */
+  .terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:22px 0}
+  .term-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .term-card .tag{font:600 11px/1 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:7px}
+  .term-card .tag::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--accent)}
+  .term-card h4{font:600 15px/1.2 "Archivo",sans-serif;margin:8px 0 3px}
+  .term-card p{font-size:.86rem;color:var(--ink-3);margin:0}
+
+  /* ---- steps ---- */
+  ol.steps{list-style:none;counter-reset:step;padding:0;margin:8px 0}
+  ol.steps>li{counter-increment:step;position:relative;padding:4px 0 4px 44px;margin:16px 0}
+  ol.steps>li::before{content:counter(step);position:absolute;left:0;top:2px;width:29px;height:29px;
+    border-radius:8px;background:var(--accent-wash);color:var(--accent-ink);
+    font:600 14px/29px "IBM Plex Mono",monospace;text-align:center;border:1px solid var(--border)}
+  ol.steps ul{margin:.4rem 0;padding-left:1.1rem}
+  ol.steps ul li{margin:.28rem 0}
+
+  /* ---- terminal blocks ---- */
+  .cmd{background:var(--term-bg);border-radius:11px;margin:16px 0;overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+  .cmd .bar{display:flex;align-items:center;gap:7px;padding:9px 13px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .cmd .bar i{width:10px;height:10px;border-radius:50%;background:#3b514e;display:block}
+  .cmd .bar i:nth-child(1){background:#e06a5c}.cmd .bar i:nth-child(2){background:#d8a24a}.cmd .bar i:nth-child(3){background:#5bbf7e}
+  .cmd .bar span{margin-left:6px;font:500 11px/1 "IBM Plex Mono",monospace;color:var(--term-dim);letter-spacing:.04em}
+  .cmd pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:13px;line-height:1.7;color:var(--term-ink)}
+  .cmd pre .p{color:var(--term-accent)}
+  .cmd pre .c{color:var(--term-dim)}
+
+  /* ---- callouts ---- */
+  .call{border-radius:11px;padding:14px 16px 14px 46px;margin:16px 0;position:relative;border:1px solid var(--border);background:var(--surface)}
+  .call::before{position:absolute;left:15px;top:13px;font:700 14px/1 "Archivo",sans-serif;width:20px;text-align:center}
+  .call p{margin:.25rem 0}
+  .call .h{font-weight:600;display:block;margin-bottom:2px}
+  .call.note{background:var(--accent-wash);border-color:color-mix(in srgb,var(--accent) 30%,var(--border))}
+  .call.note::before{content:"i";color:var(--accent-ink);border:1.5px solid var(--accent-ink);border-radius:50%;width:18px;height:18px;line-height:16px;font-size:12px}
+  .call.caution{background:var(--amber-wash);border-color:color-mix(in srgb,var(--amber) 34%,var(--border))}
+  .call.caution::before{content:"!";color:var(--amber)}
+  .call.caution .h{color:var(--amber)}
+  .call.danger{background:var(--red-wash);border-color:color-mix(in srgb,var(--red) 36%,var(--border))}
+  .call.danger::before{content:"\26A0";color:var(--red);font-size:15px}
+  .call.danger .h{color:var(--red)}
+  .call.pass{background:var(--green-wash);border-color:color-mix(in srgb,var(--green) 34%,var(--border))}
+  .call.pass::before{content:"\2713";color:var(--green)}
+  .call.pass .h{color:var(--green)}
+
+  /* ---- prereq / field tables ---- */
+  .tbl-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--border);border-radius:11px;box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:.92rem;background:var(--surface)}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font:600 12px/1.3 "IBM Plex Mono",monospace;letter-spacing:.03em;text-transform:uppercase;color:var(--ink-3);background:var(--surface-2)}
+  tr:last-child td{border-bottom:none}
+  td code{white-space:nowrap}
+
+  /* ---- FAQ ---- */
+  .faq{margin:10px 0}
+  .faq details{border:1px solid var(--border);border-radius:11px;background:var(--surface);margin:9px 0;box-shadow:var(--shadow);overflow:hidden}
+  .faq summary{cursor:pointer;padding:14px 44px 14px 16px;font-weight:600;position:relative;list-style:none;color:var(--ink)}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";position:absolute;right:16px;top:12px;font:400 20px/1 "IBM Plex Mono",monospace;color:var(--accent);transition:transform .18s}
+  .faq details[open] summary::after{content:"\2013"}
+  .faq .body{padding:0 16px 15px;color:var(--ink-2);font-size:.95rem}
+  .faq .body p{margin:.5rem 0}
+  .faq .body :first-child{margin-top:0}
+
+  hr.rule{border:none;border-top:1px solid var(--border);margin:40px 0}
+  .foot{color:var(--ink-3);font-size:.88rem;margin-top:40px;padding-top:18px;border-top:1px solid var(--border)}
+  ul.tight{margin:.5rem 0}
+  ul.tight li{margin:.3rem 0}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+  @media (max-width:520px){body{font-size:16px}.hero{padding-top:34px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <span class="dot" aria-hidden="true"></span>
+    <h1>FOLLISAVE — Bench Runbook</h1>
+    <span class="sub">first‑time · end‑to‑end</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow">Operations guide</div>
+    <h2>Run the whole system, end to end</h2>
+    <p class="lead">A follow‑every‑line guide to bring up the operator web app (PC),
+    the ESP32 pouch (USB), and the patient console (phone, over Bluetooth) — and to
+    watch them mirror each other. Written for a first run, with a full fix‑it FAQ.</p>
+  </section>
+
+  <div class="topo">
+    <pre>  ESP32 pouch  ──USB (COM port)──►  PC ──► Backend <span class="k">:8000</span> ──► Web app <span class="k">:5173</span>   ← you drive here
+       ▲
+       └───────────── Bluetooth LE ─────────────►  Android phone · Console app   ← patient drives here
+
+  Phone ──USB──► PC   only to build / reload the app. Control is always over Bluetooth.</pre>
+    <p>The PC talks to the pouch over the <strong>USB serial</strong> cable; the phone
+    talks to it over <strong>Bluetooth</strong>. They run at the same time — that is the
+    point: whoever starts or stops a session, both screens follow.</p>
+  </div>
+
+  <p>Keep <strong>three terminal windows</strong> open on the PC the whole time. Don't close them.</p>
+  <div class="terms">
+    <div class="term-card"><span class="tag">Terminal 1</span><h4>Backend</h4><p>FastAPI on port 8000 — talks to the pouch over serial.</p></div>
+    <div class="term-card"><span class="tag">Terminal 2</span><h4>Frontend</h4><p>The operator web app on port 5173.</p></div>
+    <div class="term-card"><span class="tag">Terminal 3</span><h4>Metro</h4><p>The phone app's bundler — keep it alive while testing.</p></div>
+  </div>
+
+  <!-- 0 -->
+  <h3 class="sec"><span class="n">00</span> One‑time prerequisites</h3>
+  <p>Install these once. Check each with the command shown.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Tool</th><th>Version</th><th>Check</th><th>For</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Git</strong></td><td>any recent</td><td><code>git --version</code></td><td>pulling the code</td></tr>
+      <tr><td><strong>Python</strong></td><td>3.11 or 3.12</td><td><code>python --version</code></td><td>the backend</td></tr>
+      <tr><td><strong>Node.js</strong></td><td>20 or newer</td><td><code>node --version</code></td><td>web app + phone app</td></tr>
+      <tr><td><strong>Java JDK</strong></td><td>17</td><td><code>java -version</code></td><td>building the phone app</td></tr>
+      <tr><td><strong>Android SDK</strong></td><td>current</td><td><code>adb --version</code></td><td>installs to the phone</td></tr>
+      <tr><td><strong>CP210x driver</strong></td><td>latest</td><td>Device Manager</td><td>ESP32 → COM port</td></tr>
+    </tbody>
+  </table></div>
+  <div class="call note"><span class="h">CP210x USB‑to‑UART driver</span>
+  <p>The ESP32 uses a CP2102 chip. If the board does <strong>not</strong> show up as a
+  <code>COM</code> port in Device Manager when plugged in, install Silicon Labs'
+  "CP210x Universal Windows Driver", then re‑plug the board.</p></div>
+  <div class="call note"><span class="h">No Android toolchain? There's a shortcut.</span>
+  <p>If installing JDK + Android Studio is more than you want right now, see
+  <strong>FAQ → "I don't want to install Android Studio"</strong> for the pre‑built‑APK path.</p></div>
+
+  <!-- 1 -->
+  <h3 class="sec"><span class="n">01</span> Get the code</h3>
+  <p>Open PowerShell where you keep projects. First time:</p>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>PowerShell</span></div>
+  <pre><span class="p">></span> git clone https://github.com/MarkIOP-med/FOLLI_POUCH.git
+<span class="p">></span> cd FOLLI_POUCH</pre></div>
+  <p>Already have the folder? Just update it:</p>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>PowerShell</span></div>
+  <pre><span class="p">></span> cd FOLLI_POUCH
+<span class="p">></span> git checkout main
+<span class="p">></span> git pull</pre></div>
+  <div class="call note"><p>The <strong>firmware on the ESP32 is already the latest</strong> — flashed
+  before the rig was handed over, so you don't need to flash anything. (If you ever do,
+  see Appendix A.)</p></div>
+
+  <!-- 2 -->
+  <h3 class="sec"><span class="n">02</span> Connect &amp; power the pouch</h3>
+  <p>Do this before starting the backend.</p>
+  <ol class="steps">
+    <li><strong>Plug the ESP32 into the PC by USB.</strong> This powers the board's logic
+    and creates the COM port. Note the number — Device Manager → <em>Ports (COM &amp; LPT)</em>
+    → "Silicon Labs CP210x… (COMx)". You'll need <code>COMx</code>.</li>
+    <li><strong>Turn on the bench actuator power supply</strong> (the one driving the pump,
+    valves and relief). The ESP alone can't inflate anything.</li>
+    <li><strong>Flip the pump's manual ON switch.</strong> Forget this and nothing inflates —
+    it's the single most common "it doesn't work".</li>
+    <li>Put a balloon on <strong>TEMPLE</strong> and <strong>EAR</strong>. Only those two
+    inflate on this bench — FRONT and BACK valves are physically dead (known hardware limit).</li>
+  </ol>
+  <div class="call caution"><span class="h">Serial reset caveat</span>
+  <p>Every time the PC <em>opens</em> the COM port, the ESP32 reboots and takes about
+  <strong>6 seconds</strong> before it answers. Normal — just wait after you press Connect.</p></div>
+
+  <!-- 3 -->
+  <h3 class="sec"><span class="n">03</span> Start the backend — Terminal 1</h3>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>Terminal 1 · backend</span></div>
+  <pre><span class="p">></span> cd FOLLI_POUCH\POUCH_APP\backend
+<span class="p">></span> python -m venv .venv
+<span class="p">></span> .\.venv\Scripts\Activate.ps1
+<span class="p">></span> pip install -r requirements.txt
+<span class="p">></span> python -m uvicorn app.main:app --port 8000</pre></div>
+  <p>Leave it running. On first run it creates a fresh database and seeds a "Mock Pouch"
+  so the app works even with no hardware.</p>
+  <div class="call pass"><span class="h">Verify</span>
+  <p>Open <a href="http://127.0.0.1:8000/api/health">http://127.0.0.1:8000/api/health</a> —
+  you should see <code>{"ok":true}</code>.</p></div>
+  <div class="call note"><p>The database starts <strong>empty of patients</strong> and knows
+  only the <em>Mock Pouch</em>. Steps 05–06 add your real pouch and a patient.</p></div>
+
+  <!-- 4 -->
+  <h3 class="sec"><span class="n">04</span> Start the web app — Terminal 2</h3>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>Terminal 2 · frontend</span></div>
+  <pre><span class="p">></span> cd FOLLI_POUCH\POUCH_APP\frontend
+<span class="p">></span> npm install
+<span class="p">></span> npm run dev</pre></div>
+  <p>Open <a href="http://localhost:5173">http://localhost:5173</a> — this is the
+  <strong>operator app</strong>. It reaches the backend automatically (so the backend must
+  be up first). You'll land on <strong>Home</strong> with a <em>Mock Pouch</em> card.</p>
+
+  <!-- 5 -->
+  <h3 class="sec"><span class="n">05</span> Register &amp; connect your pouch</h3>
+  <ol class="steps">
+    <li>Open <strong>Admin</strong> (the gear / admin area).</li>
+    <li>In <strong>Devices → Add device</strong>, fill in:
+      <ul>
+        <li><strong>ID</strong> — anything short, e.g. <code>POUCH1</code></li>
+        <li><strong>Label</strong> — e.g. <code>Bench pouch</code></li>
+        <li><strong>Transport</strong> — <code>serial</code></li>
+        <li><strong>Port</strong> — pick your <code>COMx</code> (the CP2102 port is starred ★)</li>
+      </ul>
+    </li>
+    <li>Back on <strong>Home</strong>, your pouch card appears. Click <strong>ENTER</strong>.
+    It connects over serial (give it the ~6 s reset), then opens <strong>Diagnostics</strong>.</li>
+  </ol>
+  <div class="call pass"><span class="h">Verify</span>
+  <p>Status shows <strong>Connected</strong> and the telemetry rate is a live number
+  (a few Hz), not 0. Pressures read ~0 while idle.</p></div>
+
+  <!-- 6 -->
+  <h3 class="sec"><span class="n">06</span> Create a patient (balloon‑safe)</h3>
+  <p>The patient console only runs a <strong>clinician‑assigned</strong> patient, so create one.</p>
+  <ol class="steps">
+    <li>Open <strong>Users</strong> (patients) → <strong>Create patient</strong>.</li>
+    <li>Fill in:
+      <ul>
+        <li><strong>Full name</strong> — e.g. <code>Bench Test</code></li>
+        <li><strong>National ID</strong> — <em>leave blank</em>. (If typed, it must be a valid
+        Israeli ID or it's rejected; blank avoids that.)</li>
+        <li><strong>Regime</strong> — use only the working zones. The <strong>ceiling is
+        130 mmHg</strong>, so you can prescribe up to <strong>125 directly</strong> — e.g.
+        <strong>TEMPLE 90, EAR 125</strong>, or gentler <strong>TEMPLE 40, EAR 40</strong>.
+        Keep <strong>FRONT 0, BACK 0</strong>.</li>
+        <li>Optionally set a <strong>massage level</strong> (1–3) per zone.</li>
+      </ul>
+    </li>
+  </ol>
+  <div class="call danger"><span class="h">The 130 ceiling is a bench value</span>
+  <p>The ceiling ships at <strong>130 mmHg</strong> so a full 125 regime works with nothing
+  to change — that's why you don't touch any setting. It also lets the patient console dial a
+  zone high. Before anything is ever worn on a person's head, lower the ceiling to
+  <strong>70</strong> in <strong>Admin → Settings → Max pressure.</strong></p></div>
+
+  <!-- 7 -->
+  <h3 class="sec"><span class="n">07</span> Put the console app on the phone — Terminal 3</h3>
+  <p><strong>7a · Prepare the phone (once)</strong></p>
+  <ol class="steps">
+    <li><strong>Settings → About phone →</strong> tap <strong>Build number</strong> seven times
+    to unlock <em>Developer options</em>.</li>
+    <li><strong>Developer options →</strong> turn on <strong>USB debugging</strong>.</li>
+    <li>Turn on <strong>Bluetooth</strong>. Keep the phone <strong>unlocked</strong> while building.</li>
+    <li>Plug the phone into the PC by USB. Run <code>adb devices</code> — it should list as
+    <code>device</code>. If it says <strong>unauthorized</strong>, tap <strong>Allow</strong> on
+    the phone's "Allow USB debugging?" pop‑up (tick "always allow from this computer").</li>
+  </ol>
+  <p><strong>7b · Build &amp; install</strong></p>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>Terminal 3 · console</span></div>
+  <pre><span class="p">></span> cd FOLLI_POUCH\FOLLI_CONSOLE
+<span class="p">></span> npm install
+<span class="p">></span> npm run android   <span class="c"># syncs assets, builds, installs, launches</span></pre></div>
+  <ul class="tight">
+    <li>First build takes <strong>~5–15 minutes</strong>; later ones are fast.</li>
+    <li>It also starts <strong>Metro</strong> in this terminal — <strong>leave it running</strong>.
+    Close it and the app shows a red error screen.</li>
+    <li>When Android asks for <strong>Bluetooth / "Nearby devices"</strong> permission, tap
+    <strong>Allow</strong> — the app can't scan without it.</li>
+  </ul>
+  <div class="call note"><p>Two harmless red boxes may flash on first launch
+  (<code>ExpoNavigationBar</code>, <code>ExpoKeepAwake</code> — kiosk niceties the dev build
+  can't do). Dismiss them; they don't affect anything.</p></div>
+  <p><strong>7c · Confirm the Bluetooth link</strong> — look at the console app's <strong>top
+  status bar</strong>:</p>
+  <ul class="tight">
+    <li><strong>"Connected"</strong> (green) = joined the pouch over Bluetooth. ✅</li>
+    <li><strong>"Disconnected"</strong> (red) = not yet. The app retries every few seconds on
+    its own — give it ~10 s. Still red? See the FAQ.</li>
+  </ul>
+  <p>You should also see the <strong>patient's name</strong> — selecting/creating the patient
+  checked them out to the pouch, and the console mirrors that.</p>
+
+  <!-- 8 -->
+  <h3 class="sec"><span class="n">08</span> The end‑to‑end tests</h3>
+  <p>Keep the web app (Diagnostics for your pouch) and the phone side by side.</p>
+
+  <h4 style="font:600 18px/1.3 'Archivo',sans-serif;margin:26px 0 4px">Test A — Operator starts, phone mirrors</h4>
+  <ol class="steps">
+    <li>On the <strong>web app</strong>, make sure your patient is <strong>selected</strong>
+    (the console should already show their name).</li>
+    <li>Press <strong>START</strong> on the web app.</li>
+    <li>Watch: the pump runs; <strong>TEMPLE and EAR balloons inflate</strong> to their prescribed pressures and hold.</li>
+    <li>On the phone, untouched: it flips to <strong>ACTIVE</strong> with a running clock, a
+    <strong>STOP</strong> button, and live pressures — same session, same clock.</li>
+  </ol>
+  <div class="call pass"><span class="h">Pass</span><p>Balloons hold ~40; both screens show
+  ACTIVE with the same clock and targets; the patient name shows on both.</p></div>
+
+  <h4 style="font:600 18px/1.3 'Archivo',sans-serif;margin:26px 0 4px">Test B — Phone starts, operator adopts</h4>
+  <ol class="steps">
+    <li>STOP first if a session is running (web STOP, or hold the phone's STOP ~1.5 s). Wait for the balloons to empty.</li>
+    <li>On the <strong>phone</strong>, press <strong>START</strong>.</li>
+    <li>Watch: balloons inflate; the <strong>web app</strong> raises a session on its own —
+    the <strong>device clock</strong>, the real <strong>targets</strong>, and a
+    <strong>"started from the patient console"</strong> note.</li>
+  </ol>
+  <div class="call pass"><span class="h">Pass</span><p>The web app shows the running session it
+  did <em>not</em> start, with the correct clock and targets (not zeros) and the patient's name.</p></div>
+
+  <h4 style="font:600 18px/1.3 'Archivo',sans-serif;margin:26px 0 4px">Test C — Trim, massage &amp; cross‑stop</h4>
+  <ul class="tight">
+    <li><strong>Trim a zone:</strong> change one zone's pressure a little and press <strong>SET</strong>
+    (phone or web). Only that zone's target changes — on <strong>both</strong> screens.</li>
+    <li><strong>Massage:</strong> tap a zone's level and its <strong>SET / ▶</strong> — the motor
+    runs one burst (~20 s) and stops itself; other zones keep running.</li>
+    <li><strong>Cross‑stop:</strong> START on the web, then <strong>hold STOP on the phone</strong>.
+    Balloons vent and the web app shows <strong>"stopped from the patient console."</strong></li>
+  </ul>
+  <div class="call pass"><span class="h">Pass</span><p>Every change on one side appears on the
+  other within a second or two; STOP always empties the balloons.</p></div>
+  <div class="call caution"><span class="h">Venting takes a moment</span>
+  <p>STOP uses a pulsed vent (burst → settle → measure) and can take up to ~15 s to fully empty
+  a stiff balloon. Let it finish before starting again — don't stack a new START on a half‑full load.</p></div>
+
+  <!-- 9 -->
+  <h3 class="sec"><span class="n">09</span> Shut down cleanly</h3>
+  <ol class="steps">
+    <li><strong>STOP</strong> any running session and let the balloons empty.</li>
+    <li>Close the phone app; Ctrl‑C the Metro terminal.</li>
+    <li>In the web app, <strong>Disconnect</strong> the pouch (or just close the tab).</li>
+    <li>Ctrl‑C the Frontend terminal, then the Backend terminal.</li>
+    <li>Pump switch off, bench power off, unplug USB.</li>
+  </ol>
+
+  <!-- 10 -->
+  <h3 class="sec"><span class="n">10</span> FAQ · fixes you can apply mid‑test</h3>
+  <div class="faq">
+    <details><summary>The pouch doesn't appear as a COM port</summary><div class="body">
+      <p>Install the Silicon Labs CP210x driver, re‑plug the board, and re‑check Device Manager
+      → <em>Ports (COM &amp; LPT)</em>.</p></div></details>
+
+    <details><summary>Backend won't open the port — "Access is denied" / "could not open COMx"</summary><div class="body">
+      <p>Something else holds the port. Close the Arduino <strong>Serial Monitor</strong>, any second
+      backend window, or an <code>arduino-cli</code> upload — only one program can own a COM port. Then
+      press <strong>Connect</strong> again. Remember the ~6 s reset after connect: the rate is 0 for a
+      few seconds, which is normal.</p></div></details>
+
+    <details><summary>I pressed START but nothing inflates</summary><div class="body">
+      <p>Almost always the <strong>pump's manual switch is off</strong>, or the <strong>bench power
+      supply is off</strong>. Check both. Also confirm the balloons are on <strong>TEMPLE / EAR</strong>
+      — FRONT and BACK are dead on this bench.</p></div></details>
+
+    <details><summary>Only two balloons ever inflate</summary><div class="body">
+      <p>Correct — <strong>valves 0 (FRONT) and 3 (BACK) are physically dead</strong>. Test on
+      <strong>TEMPLE</strong> and <strong>EAR</strong> only.</p></div></details>
+
+    <details><summary>Web app can't reach the backend / pressures never load</summary><div class="body">
+      <p>The backend must be running first. Check <a href="http://127.0.0.1:8000/api/health">/api/health</a>
+      returns <code>{"ok":true}</code>. If not, read Terminal 1 for the error. The web app proxies
+      <code>/api</code> to port 8000 — don't change the port.</p></div></details>
+
+    <details><summary>Console shows "Disconnected" and won't connect</summary><div class="body">
+      <p>In order: (1) is the <strong>pouch powered</strong> (USB in, LED on)? (2) is the phone's
+      <strong>Bluetooth on</strong> and the app's <strong>Nearby‑devices permission granted</strong>?
+      (3) walk the phone closer. (4) Power‑cycle the pouch (unplug/replug USB, wait ~10 s) — the app
+      auto‑reconnects. It already retries every ~4 s, so you rarely need to restart it.</p></div></details>
+
+    <details><summary>Build log: "Timed out scanning for FOLLI pouch"</summary><div class="body">
+      <p>The phone can't see the board advertising — same checklist as above. Also make sure
+      <strong>no other device grabbed the pouch's one Bluetooth slot</strong> (a second phone, or a BLE
+      scanner app). Only one Bluetooth central can connect at a time — the PC uses the <strong>serial</strong>
+      cable, not Bluetooth, so it never competes.</p></div></details>
+
+    <details><summary>Console shows "Patient: not assigned" and a default pressure</summary><div class="body">
+      <p>No patient is checked out — the board forgets on every power‑cycle (the record lives in RAM only).
+      In the web app, <strong>select your patient</strong> (or create one). The console updates within a
+      second and START becomes available.</p></div></details>
+
+    <details><summary><code>adb devices</code> says <code>unauthorized</code></summary><div class="body">
+      <p>On the phone, tap <strong>Allow</strong> on the "Allow USB debugging?" pop‑up (tick "always allow
+      from this computer"). No pop‑up? Toggle <strong>Developer options → USB debugging</strong> off then on,
+      keep the phone <strong>unlocked</strong>, re‑plug USB, and re‑run <code>adb devices</code> until it
+      says <code>device</code>.</p></div></details>
+
+    <details><summary><code>npm run android</code> fails: "device not found" / a device‑name error</summary><div class="body">
+      <p>Have <strong>one</strong> phone plugged in and run <code>npm run android</code> (no
+      <code>--device</code> flag). If it still fails: <code>adb kill-server; adb start-server; adb devices</code>
+      and make sure exactly one shows <code>device</code>.</p></div></details>
+
+    <details><summary><code>npm run android</code> fails: "SDK location not found" / JAVA_HOME / Gradle</summary><div class="body">
+      <p>The Android toolchain isn't set up. Install <strong>Android Studio</strong> (SDK + platform‑tools)
+      and <strong>JDK 17</strong>, open a fresh terminal so the env vars load, and retry — or use the APK
+      shortcut below.</p></div></details>
+
+    <details><summary>I don't want to install Android Studio / JDK just to test</summary><div class="body">
+      <p>Ask for a <strong>pre‑built APK</strong>: someone with the toolchain builds it once and sends you
+      <code>app-release.apk</code>. Copy it to the phone and tap to install (enable "install from unknown
+      sources" once). A <strong>release</strong> APK runs standalone — no PC, no Metro. (A <strong>debug</strong>
+      APK still needs Metro running on a PC on the same Wi‑Fi.)</p></div></details>
+
+    <details><summary>The phone app shows a full red error screen after it was working</summary><div class="body">
+      <p>The <strong>Metro</strong> terminal was closed or crashed. Restart it: <code>cd FOLLI_CONSOLE; npm start</code>,
+      then reload the app (shake the phone → <em>Reload</em>, or press <code>r</code> in Metro).</p></div></details>
+
+    <details><summary>Balloons stay inflated after STOP</summary><div class="body">
+      <p>Give it up to ~15 s — the vent is pulsed and a stiff balloon drains slowly. If they stay hard after
+      that, press <strong>STOP</strong> again; if it persists, cut the pump power switch and tell us (that
+      would be a real fault).</p></div></details>
+
+    <details><summary>Runtime clock or targets read 0 during a phone‑started session</summary><div class="body">
+      <p>That was a bug we fixed — make sure you pulled the latest <code>main</code>. After pulling, restart
+      the backend (Ctrl‑C, re‑run uvicorn) and reload the web page.</p></div></details>
+
+    <details><summary>I changed some code — how do I pick it up?</summary><div class="body">
+      <p>Backend: Ctrl‑C and re‑run uvicorn. Frontend: it hot‑reloads (refresh if odd). Console: hot‑reloads
+      via Metro; for native/asset changes re‑run <code>npm run android</code>.</p></div></details>
+
+    <details><summary>Everything is weird — how do I reset the app data?</summary><div class="body">
+      <p>Stop the backend, delete <code>POUCH_APP\backend\folli.db</code> (and the <code>-shm</code>/<code>-wal</code>
+      files if present), restart the backend. You get a clean database (re‑seeds the Mock Pouch; re‑add your
+      device and patient).</p></div></details>
+  </div>
+
+  <hr class="rule">
+
+  <h3 class="sec"><span class="n">A</span> Appendix · reflashing firmware (only if asked)</h3>
+  <p>The board already runs the latest firmware. If you ever need to reflash (with the ESP32 core and
+  <code>NimBLE-Arduino</code> installed):</p>
+  <div class="cmd"><div class="bar"><i></i><i></i><i></i><span>PowerShell</span></div>
+  <pre><span class="p">></span> cd FOLLI_POUCH\POUCH_ESP_GEN4
+<span class="p">></span> arduino-cli compile --fqbn esp32:esp32:esp32 .
+<span class="c"># close the backend first (release the COM port), then:</span>
+<span class="p">></span> arduino-cli upload -p COMx --fqbn esp32:esp32:esp32 .</pre></div>
+  <p>Serial monitor baud is <strong>9600</strong>. After flashing the board comes up
+  <strong>unassigned</strong> — assign a patient from the web app.</p>
+
+  <h3 class="sec"><span class="n">B</span> Appendix · fast restart</h3>
+  <p>Once everything is installed, a normal session is just:</p>
+  <ol class="steps">
+    <li>Plug in the ESP (USB); bench power + pump switch on; balloons on TEMPLE/EAR.</li>
+    <li><strong>Terminal 1:</strong> <code>cd POUCH_APP\backend; .\.venv\Scripts\Activate.ps1; python -m uvicorn app.main:app --port 8000</code></li>
+    <li><strong>Terminal 2:</strong> <code>cd POUCH_APP\frontend; npm run dev</code> → open :5173 → <strong>ENTER</strong> your pouch.</li>
+    <li>Plug in the phone. <strong>Terminal 3:</strong> <code>cd FOLLI_CONSOLE; npm start</code> → press <strong>a</strong> (or open the installed app and keep Metro running).</li>
+    <li>Select your patient → run Tests A / B / C.</li>
+  </ol>
+
+  <p class="foot">Something doesn't match what you see? Note the exact screen or message and send it over —
+  most issues are one of the FAQ items above. This guide also lives in the repo as
+  <code>TESTING_RUNBOOK.md</code> on <code>main</code>.</p>
+</div>
+</body>
+</html>
