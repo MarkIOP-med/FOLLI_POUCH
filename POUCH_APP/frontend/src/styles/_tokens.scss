@@ -153,6 +153,30 @@ $row-pitch:        72.5px;
 $dropdown-w:       248.8px;
 $dropdown-h:       39.8px;
 
+// ── Scrollbars ───────────────────────────────────────────────────────────────
+// The mockups draw none — nothing in the design overflows its box. So rather
+// than invent a palette, these are mapped onto values the design already
+// defines, chosen for what each one already means:
+//
+//   track  the recessed-field fill, the design's one "sunk into the surface"
+//          colour. The ramp's own dark end reads as no groove at all here — the
+//          surface beside the bar is already that value.
+//   thumb  the selection blue, the same fill as the rail's selected-page marker
+//          and a highlighted table row, so the bar rhymes with the one other
+//          movable position indicator on screen.
+//   hover  the pale outline the design puts on an active card.
+//
+// 12px is set by the tightest place a bar has to sit: the 15.2px the design
+// leaves between the admin table's right rule (x=1429.3) and the side panel
+// (x=1444.5).
+$scrollbar-w:           12px;
+$scrollbar-track:       $input-bg;
+$scrollbar-thumb:       $select-bg;
+$scrollbar-thumb-hover: $art-pale;
+// Inset between groove and thumb, so the thumb reads as riding in the track
+// rather than filling it.
+$scrollbar-inset:       2px;
+
 $radius-sm:        6px;
 $radius-md:        10px;
 $radius-lg:        16px;

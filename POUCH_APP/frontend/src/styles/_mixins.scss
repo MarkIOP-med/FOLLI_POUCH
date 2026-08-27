@@ -91,6 +91,43 @@
   padding: $s-4;
 }
 
+/// Scrollbar in the design's own palette.
+///
+/// Both the standard properties and the WebKit pseudo-elements are set, because
+/// no single engine reads both: Firefox understands only `scrollbar-width` /
+/// `scrollbar-color`, and Chrome — the kiosk's engine — only paints a scrollbar
+/// through the pseudo-elements.
+///
+/// A bar drawn inside a measured box steals width from it. Where the geometry is
+/// taken off the mockups, widen the scroll box by $width and leave the content
+/// at its measured size, so the bar sits beside the layout rather than in it.
+@mixin scrollbar($width: $scrollbar-w) {
+  scrollbar-width: thin;
+  scrollbar-color: $scrollbar-thumb $scrollbar-track;
+
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: $scrollbar-track;
+    border-radius: $radius-pill;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $scrollbar-thumb;
+    // Drawn with the track's own colour rather than transparent: a transparent
+    // border shows the page through the thumb, not the groove.
+    border: $scrollbar-inset solid $scrollbar-track;
+    border-radius: $radius-pill;
+
+    &:hover { background: $scrollbar-thumb-hover; }
+  }
+
+  &::-webkit-scrollbar-corner { background: $scrollbar-track; }
+}
+
 @mixin respond-below($bp) {
   @media (max-width: $bp) {
     @content;

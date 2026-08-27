@@ -30,8 +30,7 @@
   // cannot fill the viewport reads as part of the same surface, rather than as a
   // flat void next to a lit panel.
   background-image: linear-gradient(90deg, $page-grad-from 0%, $page-grad-to 100%);
-  scrollbar-width: thin;
-  scrollbar-color: $border $page-grad-to;
+  @include scrollbar;
 
   // Occupies the canvas's scaled footprint. A transform does not affect layout,
   // so without this box the 1920x1200 canvas would report its unscaled size and
