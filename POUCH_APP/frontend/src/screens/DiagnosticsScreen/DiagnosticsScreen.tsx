@@ -7,7 +7,6 @@ import type { Gender, Patient, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
 import { DiagLayout } from '@/components/DiagLayout';
 import { DiagPanel } from '@/components/DiagPanel';
-import { PasswordPrompt } from '@/components/PasswordPrompt/PasswordPrompt';
 import { VNodeRow } from '@/components/VNodeRow';
 import { BUTTONS, PROFILE } from '@/domain/diagnosticsAssets';
 import { maskNationalId } from '@/domain/israeliId';
@@ -49,8 +48,6 @@ export function DiagnosticsScreen() {
   // Alerts list popover — clicking the strip badge shows the alerts instead of
   // silently erasing them.
   const [alertsOpen, setAlertsOpen] = useState(false);
-  // Critical action awaiting the admin password before it fires.
-  const [pendingRestart, setPendingRestart] = useState(false);
   // Two distinct facts, deliberately not conflated:
   //   appSessionOpen — a session RECORD exists (this operator started one, or
   //     the app adopted a console-started one — either way session_id is set).
@@ -229,30 +226,6 @@ export function DiagnosticsScreen() {
             }
           >
             <img src={BUTTONS.stop} alt={t('device.hardware.stopAll')} />
-          </button>
-
-          {/* Recover a stuck pouch — vents and re-inits the control loop without
-              losing the session/patient. Password-gated: a mis-press could
-              interrupt a live treatment. Self-contained styling so it sits
-              predictably on the measured canvas (pending a visual polish pass). */}
-          <button
-            type="button"
-            className="hw__recover"
-            disabled={!snapshot?.connected || busyKey !== null}
-            onClick={() => setPendingRestart(true)}
-            style={{
-              gridColumn: '1 / -1',
-              marginTop: 8,
-              padding: '8px 14px',
-              borderRadius: 8,
-              border: '1px solid #6c8a9c',
-              background: '#173241',
-              color: '#cfe4ef',
-              font: '600 13px/1 inherit',
-              cursor: 'pointer',
-            }}
-          >
-            {t('device.hardware.restart', 'Restart pouch (if stuck)')}
           </button>
 
           <div className="hw__rule hw__rule--1" />
@@ -706,18 +679,6 @@ export function DiagnosticsScreen() {
           ))}
         </div>
       )}
-
-      <PasswordPrompt
-        open={pendingRestart}
-        title="Restart pouch"
-        detail="This vents and re-initialises the pouch's control loop. It keeps the current session and patient, but will briefly interrupt a running treatment. Enter the admin password to continue."
-        confirmLabel="Restart"
-        onConfirm={() => {
-          setPendingRestart(false);
-          if (id) void run('restarting', () => api.restart(id));
-        }}
-        onCancel={() => setPendingRestart(false)}
-      />
     </DiagLayout>
   );
 }
