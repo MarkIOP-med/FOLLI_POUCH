@@ -102,6 +102,28 @@ def _zone_view(
     }
 
 
+def _hardware(frame: dict | None) -> dict:
+    """Decode the telemetry actuator bitmask into the Manifold Diagnostic dots."""
+    if frame is None or frame.get("actuators") is None:
+        return {
+            "reported": False,
+            "pump": None,
+            "pump_duty_pct": None,
+            "purge_valve": None,
+            "valves": {zone: None for zone in ZONES},
+            "note": "no telemetry yet",
+        }
+    act = int(frame["actuators"])
+    return {
+        "reported": True,
+        "pump": bool(act & 0b1),
+        "pump_duty_pct": None,
+        "purge_valve": bool(act & 0b10),  # relief valve
+        "valves": {zone: bool(act & (0b100 << i)) for i, zone in enumerate(ZONES)},
+        "note": None,
+    }
+
+
 def build(
     runtime: DeviceRuntime,
     conn: sqlite3.Connection,
@@ -218,18 +240,10 @@ def build(
             and all(z["target"] == 0 for z in frame["zones"].values())
             and any(z["effective_mmhg"] > 0 for z in zones)
         ),
-        # The mock shows pump duty, purge-valve state and four valve LEDs. None of
-        # that is in the telemetry CSV — serial.ino emits only time, targets,
-        # actuals, manifold and FSRs. Rather than invent plausible indicators, the
-        # panel reports them as not-reported and the gap goes on the firmware list.
-        "hardware": {
-            "reported": False,
-            "pump": None,
-            "pump_duty_pct": None,
-            "purge_valve": None,
-            "valves": {zone: None for zone in ZONES},
-            "note": "firmware does not report pump or valve state in telemetry",
-        },
+        # Actuator state, decoded from the telemetry ACT bitmask (bit0 pump,
+        # bit1 relief, bit2-5 valves FRONT/TEMPLE/EAR/BACK) — drives the
+        # operator app's Manifold Diagnostic dots. None when no frame yet.
+        "hardware": _hardware(frame),
         # The pump charges the shared manifold to the highest commanded target
         # before equalising into each pad.
         "manifold_target_mmhg": max((z["effective_mmhg"] for z in zones), default=0),

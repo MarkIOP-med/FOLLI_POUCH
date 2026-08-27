@@ -16,7 +16,7 @@ void printSerialLog() {
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN");
+                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN,ACT");
     headerPrinted = true;
   }
 
@@ -34,7 +34,18 @@ void printSerialLog() {
   // than silently misreading shifted columns.
   Serial.print(stateChar());                     Serial.print(',');
   Serial.print((unsigned long)sessionElapsedS()); Serial.print(',');
-  Serial.println(vibrationRemainingS());
+  Serial.print(vibrationRemainingS());           Serial.print(',');
+  // Actuator state bitmask, so the operator app's Manifold Diagnostic dots light
+  // in sync with what's energized: bit0 pump, bit1 relief, bit2-5 valves 0-3
+  // (FRONT/TEMPLE/EAR/BACK). HIGH = energized. Serial-only — the BLE frame is
+  // unchanged, so the console needs no update.
+  int act = (digitalRead(PUMP_PIN)    ? 1  : 0)
+          | (digitalRead(RELIEF_PIN)  ? 2  : 0)
+          | (digitalRead(valvePins[0]) ? 4  : 0)
+          | (digitalRead(valvePins[1]) ? 8  : 0)
+          | (digitalRead(valvePins[2]) ? 16 : 0)
+          | (digitalRead(valvePins[3]) ? 32 : 0);
+  Serial.println(act);
 }
 
 void handleSerialCommands() {

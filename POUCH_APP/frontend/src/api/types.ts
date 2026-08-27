@@ -100,11 +100,12 @@ export interface DeviceSnapshot {
    *  fields are null. Rendered as "not reported", never inferred. */
   hardware: {
     reported: boolean;
-    pump: string | null;
+    /** true = energized, false = off, null = not reported yet. */
+    pump: boolean | null;
     pump_duty_pct: number | null;
-    purge_valve: string | null;
-    valves: Record<string, string | null>;
-    note: string;
+    purge_valve: boolean | null;
+    valves: Record<string, boolean | null>;
+    note: string | null;
   };
   technical?: {
     log_tail: string[];

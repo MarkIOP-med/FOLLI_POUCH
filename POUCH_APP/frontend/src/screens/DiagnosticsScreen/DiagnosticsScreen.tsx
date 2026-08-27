@@ -21,6 +21,12 @@ import {
 } from './DiagnosticsScreen.lib';
 import './DiagnosticsScreen.scss';
 
+/** Actuator dot: lit when energized, dark ring when off, empty when unreported. */
+function dotClass(state: boolean | null | undefined): string {
+  if (state == null) return 'hw__dot-none';
+  return state ? 'hw__dot-on' : 'hw__dot-off';
+}
+
 /** PAGE_02 — Pouch Diagnostics Overview. */
 export function DiagnosticsScreen() {
   // No device id, no screen — the old fallback to a hardcoded mock id silently
@@ -253,14 +259,15 @@ export function DiagnosticsScreen() {
 
           <div className="hw__rule hw__rule--2" />
 
-          {/* Pump and valve state are not in the telemetry CSV. Empty rings
-              rather than a colour that would imply a live reading. */}
+          {/* Actuator dots, lit live from the telemetry ACT bitmask: filled =
+              energized, dark ring = off, empty = not reported yet. */}
           <div className="hw__states">
             <span className="hw__state">
-              {t('device.hardware.pump')} <span className="hw__dot-none" />
+              {t('device.hardware.pump')} <span className={dotClass(snapshot?.hardware.pump)} />
             </span>
             <span className="hw__state">
-              {t('device.hardware.purgeValve')} <span className="hw__dot-none" />
+              {t('device.hardware.purgeValve')}{' '}
+              <span className={dotClass(snapshot?.hardware.purge_valve)} />
             </span>
           </div>
 
@@ -270,14 +277,16 @@ export function DiagnosticsScreen() {
             {zones.map((z) => (
               <span key={z.zone} className="hw__valve">
                 {t(`zones.${z.zone}`)}
-                <span className="hw__dot-none" />
+                <span className={dotClass(snapshot?.hardware.valves[z.zone])} />
               </span>
             ))}
           </div>
 
           <div className="hw__rule hw__rule--3" />
 
-          <p className="hw__note">{t('device.hardware.notReportedNote')}</p>
+          {!snapshot?.hardware.reported && (
+            <p className="hw__note">{t('device.hardware.notReportedNote')}</p>
+          )}
         </div>
       </DiagPanel>
 

@@ -108,12 +108,13 @@ def test_read_commands():
 # ── inbound routing ──────────────────────────────────────────────────────────
 
 def test_decode_telemetry_frame():
-    kind, frame = decode_line("T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,P,5,0")
+    kind, frame = decode_line("T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,P,5,0,5")
     assert kind == TELEMETRY
     assert frame["zones"]["TEMPLE"]["actual"] == 76
     assert frame["device_state"] == "PRESSURIZING"
     assert frame["device_elapsed_s"] == 5
     assert frame["vibration_remaining_s"] == 0
+    assert frame["actuators"] == 5  # pump + FRONT valve
 
 
 @pytest.mark.parametrize(

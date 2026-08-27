@@ -196,57 +196,61 @@ export function AdminScreen() {
     >
       <h2 className="admin-screen__heading">{t('diagnostics.admin.heading')}</h2>
 
-      <table className="admin-screen__table">
-        <thead>
-          <tr>
-            <th className="admin-screen__table-action">
-              {t('diagnostics.admin.columns.action')}
-            </th>
-            <th className="admin-screen__table-current">
-              {t('diagnostics.admin.columns.currentValue')}
-            </th>
-            <th className="admin-screen__table-set">
-              {t('diagnostics.admin.columns.setValue')}
-            </th>
-            <th className="admin-screen__table-desc">
-              {t('diagnostics.admin.columns.description')}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key}>
-              <td>{t(row.labelKey)}</td>
-              <td className="admin-screen__table-current">
-                {row.value ?? t('diagnostics.admin.unset')}
-              </td>
-              <td className="admin-screen__table-set">
-                {row.kind !== 'readonly' && (
-                  <input
-                    className="admin-screen__set-input"
-                    type="number"
-                    value={drafts[row.key] ?? ''}
-                    disabled={rowDisabled(row.needsSession)}
-                    aria-label={t(row.labelKey)}
-                    onChange={(e) =>
-                      setDrafts((d) => ({ ...d, [row.key]: e.target.value }))
-                    }
-                  />
-                )}
-              </td>
-              <td>{t(row.descriptionKey)}</td>
+      {/* Boxed to the design's ten-row height and scrolled, rather than left to
+          run off the canvas — see AdminScreen.scss. */}
+      <div className="admin-screen__table-scroll">
+        <table className="admin-screen__table">
+          <thead>
+            <tr>
+              <th className="admin-screen__table-action">
+                {t('diagnostics.admin.columns.action')}
+              </th>
+              <th className="admin-screen__table-current">
+                {t('diagnostics.admin.columns.currentValue')}
+              </th>
+              <th className="admin-screen__table-set">
+                {t('diagnostics.admin.columns.setValue')}
+              </th>
+              <th className="admin-screen__table-desc">
+                {t('diagnostics.admin.columns.description')}
+              </th>
             </tr>
-          ))}
-          {Array.from({ length: blanks }, (_, i) => (
-            <tr key={`blank-${i}`} className="admin-screen__empty">
-              <td />
-              <td />
-              <td />
-              <td />
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key}>
+                <td>{t(row.labelKey)}</td>
+                <td className="admin-screen__table-current">
+                  {row.value ?? t('diagnostics.admin.unset')}
+                </td>
+                <td className="admin-screen__table-set">
+                  {row.kind !== 'readonly' && (
+                    <input
+                      className="admin-screen__set-input"
+                      type="number"
+                      value={drafts[row.key] ?? ''}
+                      disabled={rowDisabled(row.needsSession)}
+                      aria-label={t(row.labelKey)}
+                      onChange={(e) =>
+                        setDrafts((d) => ({ ...d, [row.key]: e.target.value }))
+                      }
+                    />
+                  )}
+                </td>
+                <td>{t(row.descriptionKey)}</td>
+              </tr>
+            ))}
+            {Array.from({ length: blanks }, (_, i) => (
+              <tr key={`blank-${i}`} className="admin-screen__empty">
+                <td />
+                <td />
+                <td />
+                <td />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {error && (
         <button

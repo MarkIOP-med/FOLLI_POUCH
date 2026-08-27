@@ -221,7 +221,7 @@
     {
       "name": "bench_captured_running_frame",
       "comment": "Real frame captured from the pouch on COM6, 2026-08-21 (TEMPLE target 15, PRESSURIZING).",
-      "line": "T:2408,0,0,15,1,0,0,0,0,66,0,0,0,0,0,0,0,0,P,0,0",
+      "line": "T:2408,0,0,15,1,0,0,0,0,66,0,0,0,0,0,0,0,0,P,0,0,5",
       "expect": {
         "kind": "telemetry",
         "device_ms": 2408,
@@ -246,12 +246,13 @@
             "actual": 0
           }
         },
-        "vibration_remaining_s": 0
+        "vibration_remaining_s": 0,
+        "actuators": 5
       }
     },
     {
       "name": "maintenance_frame_with_elapsed",
-      "line": "T:96123,0,0,95,93,125,124,0,0,12,0,0,0,0,11,6,9,4,M,142,18",
+      "line": "T:96123,0,0,95,93,125,124,0,0,12,0,0,0,0,11,6,9,4,M,142,18,0",
       "expect": {
         "kind": "telemetry",
         "device_ms": 96123,
@@ -276,7 +277,8 @@
             "actual": 0
           }
         },
-        "vibration_remaining_s": 18
+        "vibration_remaining_s": 18,
+        "actuators": 0
       }
     },
     {

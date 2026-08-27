@@ -206,7 +206,7 @@ class MockLink(Link):
             if not header_sent:
                 self._lines.put(
                     "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN"
+                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN,ACT"
                 )
                 header_sent = True
 
@@ -233,5 +233,14 @@ class MockLink(Link):
             vals.append(self._state_char())
             vals.append(str(self._elapsed_s()))
             vals.append(str(self._vib_remaining_s()))
+            # Actuator bitmask: while pressurizing, the pump runs and each
+            # below-target zone's valve is open (bit2-5).
+            act = 0
+            if self._state_char() == "P":
+                act |= 0b1  # pump
+                for i in range(4):
+                    if self._targets[i] > 0 and self._actual[i] < self._targets[i]:
+                        act |= 0b100 << i
+            vals.append(str(act))
 
             self._lines.put("T:" + ",".join(vals))

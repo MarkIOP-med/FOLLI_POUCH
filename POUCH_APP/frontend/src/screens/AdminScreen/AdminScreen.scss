@@ -23,12 +23,39 @@
     line-height: 40px;
   }
 
-  &__table {
+  // The mockup draws exactly ten rows, ending on the rule at y=1134.5, and the
+  // side panel beside it ends at y=1175.5 — the table's box is part of the
+  // measured layout, not a container that grows.
+  //
+  // The action list has since outgrown it: adminActions() returns fifteen rows
+  // against a TABLE_ROWS of 10, and several of the newer descriptions wrap to
+  // three lines, so the rows are taller than the measured 72.25px pitch as well.
+  // Left unboxed the table runs off the bottom of the canvas and straight
+  // through the frame. Boxing it to the measured ten-row height and scrolling
+  // inside is what the Home screen's card grid already does for a seventh pouch.
+  &__table-scroll {
     position: absolute;
     // Collapsed borders straddle the box edge, so the box is offset by half a
     // rule to land the rule itself on the measured x=148.5 / y=357.
     left: 147.3px;
     top: 355.5px;
+    width: 1282px;
+    height: 777.5px;   // the header's 55 plus ten rows at 72.25
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    // No visible scrollbar, for the reason the Home grid gives: the target is a
+    // touch kiosk where dragging works, and a classic scrollbar would take ~15px
+    // out of the measured 1282px and pull every column off its rule.
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+
+    // Chains to the canvas at either end, so a wheel or drag over the table
+    // still pans a canvas that is too big for its viewport.
+    overscroll-behavior-y: auto;
+  }
+
+  &__table {
     width: 1282px;
     // Collapsed, not separated: the mockup draws one shared rule between rows,
     // and collapsing also makes the 72.5px pitch come straight off the row
@@ -39,12 +66,23 @@
     table-layout: fixed;
 
     th {
+      // Held at the top of the scroll box: the column headings are the only key
+      // to which number is which, and scrolling them away leaves four unlabelled
+      // columns.
+      position: sticky;
+      top: 0;
+      z-index: 1;
       height: 55px;
       // 4px more below than above: middle-aligned header text otherwise lands
       // 2px low of where the mockup sets it.
       padding: 0 28px 4px;
       background: $panel-title-bg;
       border: $bw-frame solid $border;
+      // A collapsed border belongs to the table's own border grid, which does
+      // not travel with a sticky cell — the caption bar's rule drops out the
+      // moment it lifts off. The shadow redraws the same 3px rule on the cell
+      // itself, so the bar keeps its outline while stuck.
+      box-shadow: inset 0 0 0 $bw-frame $border;
       font-weight: 400;
       text-align: left;
       white-space: nowrap;
