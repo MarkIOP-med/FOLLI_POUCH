@@ -7,6 +7,7 @@ import type { SerialPort, Settings, Zone } from '@/api/types';
 import { useDeviceStream } from '@/api/useDeviceStream';
 import { CanvasSelect } from '@/components/CanvasSelect';
 import { DiagLayout } from '@/components/DiagLayout';
+import { PasswordPrompt } from '@/components/PasswordPrompt/PasswordPrompt';
 import { BUTTONS } from '@/domain/diagnosticsAssets';
 import { parseTarget } from '@/domain/pressure';
 import { useDeviceActions } from '@/domain/useDeviceActions';
@@ -37,6 +38,8 @@ export function AdminScreen() {
   // Device management state.
   const [ports, setPorts] = useState<SerialPort[]>([]);
   const [newId, setNewId] = useState('');
+  // Factory reset awaiting the admin password before it fires.
+  const [pendingFactoryReset, setPendingFactoryReset] = useState(false);
   const [newTransport, setNewTransport] = useState<'serial' | 'mock' | 'ble'>('serial');
   const [newPort, setNewPort] = useState('');
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -266,22 +269,12 @@ export function AdminScreen() {
         </div>
 
         {/* Factory reset — destructive: restores the pouch to NO_USER and deletes
-            every patient except NO_USER. Self-contained styling + a confirm so it
-            can't be triggered by accident. */}
+            every patient except NO_USER. Password-gated so it can't be triggered
+            by accident. Self-contained styling. */}
         <button
           type="button"
           disabled={busy || !snapshot?.connected}
-          onClick={() => {
-            if (
-              window.confirm(
-                'Factory reset the pouch?\n\nThis restarts the pouch to NO_USER and ' +
-                  'DELETES every patient except NO_USER. Clinical settings (pressure ' +
-                  'ceiling, trim range) are kept. This cannot be undone.',
-              )
-            ) {
-              void run('factoryReset', () => api.factoryReset(id));
-            }
-          }}
+          onClick={() => setPendingFactoryReset(true)}
           style={{
             marginTop: 14,
             padding: '9px 14px',
@@ -391,6 +384,19 @@ export function AdminScreen() {
           </div>
         </div>
       </aside>
+
+      <PasswordPrompt
+        open={pendingFactoryReset}
+        title="Factory reset"
+        detail="This restarts the pouch to NO_USER and DELETES every patient except NO_USER. Clinical settings (pressure ceiling, trim range) are kept. This cannot be undone. Enter the admin password to continue."
+        confirmLabel="Factory reset"
+        destructive
+        onConfirm={() => {
+          setPendingFactoryReset(false);
+          if (id) void run('factoryReset', () => api.factoryReset(id));
+        }}
+        onCancel={() => setPendingFactoryReset(false)}
+      />
     </DiagLayout>
   );
 }

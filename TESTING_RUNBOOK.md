@@ -325,14 +325,15 @@ a second. (You'd only see literally "not assigned" on older firmware — pull th
 latest `main` and reflash.)
 
 **The pouch seems stuck — how do I recover without power‑cycling?**
-On the device (Diagnostics) screen, press **Restart pouch (if stuck)**. It vents
-and re‑initialises the control loop but keeps the current session, patient, and
-regime — it just un‑sticks the pressure loop.
+On the device (Diagnostics) screen, press **Restart pouch (if stuck)**. It asks for
+the **admin password** (`admin123`), then vents and re‑initialises the control loop —
+keeping the current session, patient, and regime; it just un‑sticks the pressure loop.
 
 **How do I clear all my test patients / start clean?**
-In **Admin**, press **Factory reset**. It restarts the pouch to `NO_USER` and
-deletes every patient except `NO_USER` (it asks for confirmation first). Your
-clinical settings — pressure ceiling, trim range — are kept. This can't be undone.
+In **Admin**, press **Factory reset**. It asks for the **admin password**
+(`admin123`), then restarts the pouch to `NO_USER` and deletes every patient except
+`NO_USER`. Your clinical settings — pressure ceiling, trim range — are kept. This
+can't be undone.
 
 **`adb devices` says `unauthorized`.**
 On the phone, tap **Allow** on the "Allow USB debugging?" pop‑up (tick "always
