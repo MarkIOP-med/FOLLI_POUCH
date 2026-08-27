@@ -42,7 +42,7 @@ matter which transport is talking.
   write-WITH-response so commands longer than one ATT packet reassemble.
 * **Telemetry characteristic** `d68a2a54-7f15-4ba5-bc44-59368d400d3b` (notify): one
   text line per notify — the periodic enriched frame
-  `T:<state>,<elapsed_s>,<a0..a3>,<t0..t3>,<batt>,<err>` every 250 ms, plus the tagged
+  `T:<state>,<elapsed_s>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibRemainingS>` every 250 ms (vibRemainingS = massage countdown seconds, synced to both apps), plus the tagged
   `OK:` / `ERR:` / `R:` responses to commands this client sent.
 * **MTU:** the enriched frame is ~55 bytes — the client MUST negotiate a larger MTU
   (the console requests 185) or notifies arrive truncated; BLE has no long-notify

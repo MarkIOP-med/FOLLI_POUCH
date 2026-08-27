@@ -53,6 +53,7 @@ export const EMPTY_TELEMETRY: BleTelemetry = {
   targets: [0, 0, 0, 0],
   battery: 0,
   error: 0,
+  vibrationRemainingS: 0,
 };
 
 export function pressureForZone(t: BleTelemetry, zone: VNode): number {

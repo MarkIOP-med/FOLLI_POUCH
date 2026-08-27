@@ -27,6 +27,8 @@ export class MockTransport implements PouchTransport {
   private targets = [0, 0, 0, 0];
   private actuals = [0, 0, 0, 0];
   private sessionStart: number | null = null;
+  private vibStart: number | null = null;   // when the mock massage began
+  private vibDurationS = 30;                 // settable via setvariable
   private lineListeners = new Set<LineListener>();
   private connectionListeners = new Set<ConnectionListener>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -71,9 +73,21 @@ export class MockTransport implements PouchTransport {
         }
         if (!this.targets.some((t) => t > 0)) this.sessionStart = null;
         break;
-      case 'setvibration':
+      case 'setvibration': {
+        const levels = rest.split(',').map(Number);
+        if (levels.some((lv) => lv > 0)) this.vibStart = Date.now(); // start countdown
         this.emit('OK:SETVIBRATION');
         break;
+      }
+      case 'setvariable': {
+        const [name, value] = rest.split(',');
+        if (name?.trim().toUpperCase() === 'VIBRATION_DURATION') {
+          const ms = Number(value);
+          if (Number.isFinite(ms)) this.vibDurationS = Math.max(1, Math.round(ms / 1000));
+        }
+        this.emit(`OK:SETVARIABLE:${name?.trim() ?? ''}`);
+        break;
+      }
       case 'readuser':
         this.emit(
           `R:USER:${MOCK_USER.id},true,${MOCK_USER.pressures.join(',')},${MOCK_USER.name}`,
@@ -114,8 +128,14 @@ export class MockTransport implements PouchTransport {
     const elapsed = this.sessionStart
       ? Math.floor((Date.now() - this.sessionStart) / 1000)
       : 0;
+    let vibRemaining = 0;
+    if (this.vibStart !== null) {
+      const left = this.vibDurationS - (Date.now() - this.vibStart) / 1000;
+      if (left <= 0) this.vibStart = null;
+      else vibRemaining = Math.ceil(left);
+    }
     this.emit(
-      `T:${state},${elapsed},${this.actuals.join(',')},${this.targets.join(',')},80,0`,
+      `T:${state},${elapsed},${this.actuals.join(',')},${this.targets.join(',')},80,0,${vibRemaining}`,
     );
   }
 

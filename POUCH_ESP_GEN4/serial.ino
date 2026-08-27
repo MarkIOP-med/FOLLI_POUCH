@@ -16,7 +16,7 @@ void printSerialLog() {
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED");
+                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN");
     headerPrinted = true;
   }
 
@@ -33,7 +33,8 @@ void printSerialLog() {
   // Appended (not inserted) so old parsers fail loudly on field count rather
   // than silently misreading shifted columns.
   Serial.print(stateChar());                     Serial.print(',');
-  Serial.println((unsigned long)sessionElapsedS());
+  Serial.print((unsigned long)sessionElapsedS()); Serial.print(',');
+  Serial.println(vibrationRemainingS());
 }
 
 void handleSerialCommands() {

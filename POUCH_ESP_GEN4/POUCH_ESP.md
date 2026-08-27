@@ -268,13 +268,13 @@ transition into PRESSURIZING from any transport, stops on a full vent) — this 
 lets the serial admin app and the BLE console MIRROR each other's sessions.
 
 - **Serial** (every `SERIAL_LOG_INTERVAL_MS`, 200ms):
-  `T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0..FSR7,STATE,ELAPSED`
-  (20 fields; STATE/ELAPSED appended last so old parsers fail loudly on field count).
+  `T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0..FSR7,STATE,ELAPSED,VIB_REMAIN`
+  (21 fields; STATE/ELAPSED/VIB_REMAIN appended last so old parsers fail loudly on field count). VIB_REMAIN = seconds left on the running massage, 0 when idle.
   It must never be printed every loop: at 9600 baud one CSV line takes ~130ms to ship,
   which throttles `loop()` to ~7Hz and makes the pump badly overshoot the manifold
   between pressure checks (bench-measured ~400 mmHg spikes before the fix, 2026-08-20).
 - **BLE** (every `TELEMETRY_INTERVAL_MS`, 250ms):
-  `T:<state>,<elapsed_s>,<a0>,<a1>,<a2>,<a3>,<t0>,<t1>,<t2>,<t3>,<batt>,<err>`
+  `T:<state>,<elapsed_s>,<a0>,<a1>,<a2>,<a3>,<t0>,<t1>,<t2>,<t3>,<batt>,<err>,<vibRemainingS>`
   (~55 bytes — the client MUST negotiate a larger MTU, the console requests 185; an
   un-negotiated 20-byte MTU truncates the line). Battery and error remain stubs. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
 byte, pushed every `TELEMETRY_INTERVAL_MS`) — anything more detailed is available on

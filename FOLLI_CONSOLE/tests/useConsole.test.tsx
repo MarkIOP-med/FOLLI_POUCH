@@ -69,6 +69,7 @@ const frame = (over: Partial<PouchTelemetry> = {}): PouchTelemetry => ({
   targets: [0, 0, 0, 0],
   battery: 80,
   error: 0,
+  vibrationRemainingS: 0,
   ...over,
 });
 

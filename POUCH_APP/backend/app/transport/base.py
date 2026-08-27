@@ -139,6 +139,10 @@ class Link:
         """Positional levels for channels 0..3; -1 leaves a channel unchanged."""
         return self._send(protocol.encode_set_vibration(levels))
 
+    def set_variable(self, name: str, value: int | str) -> str:
+        """Set a runtime tuning variable (e.g. VIBRATION_DURATION in ms)."""
+        return self._send(protocol.encode_set_variable(name, value))
+
     def load_user(
         self, user_id: int, pressures: list[int], name: str | None = None
     ) -> str:

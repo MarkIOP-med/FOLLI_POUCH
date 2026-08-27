@@ -112,7 +112,8 @@ export function encodeRead(what: string): string {
 
 // ── inbound decoding ─────────────────────────────────────────────────────────
 
-/** Periodic BLE telemetry: T:<state>,<elapsed>,<a0..a3>,<t0..t3>,<batt>,<err>. */
+/** Periodic BLE telemetry:
+ *  T:<state>,<elapsed>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibRemainingS>. */
 export interface BleTelemetry {
   state: DeviceState;
   elapsedSeconds: number;
@@ -122,6 +123,8 @@ export interface BleTelemetry {
   targets: [number, number, number, number];
   battery: number;
   error: number;
+  /** Seconds left on the running massage, 0 when idle — synced from the board. */
+  vibrationRemainingS: number;
 }
 
 /** The device's checked-out user, from R:USER:<id>,<assigned>,<p0..p3>,<name>. */
@@ -155,7 +158,7 @@ export function decodeLine(line: string): DecodedLine {
 export function decodeBleTelemetry(line: string): BleTelemetry | null {
   if (!line.startsWith('T:')) return null;
   const parts = line.slice(2).split(',');
-  if (parts.length !== 12) return null;
+  if (parts.length !== 13) return null;
   const state = STATE_CHARS[parts[0]];
   if (!state) return null;
   const nums = parts.slice(1).map((p) => Number(p));
@@ -167,6 +170,7 @@ export function decodeBleTelemetry(line: string): BleTelemetry | null {
     targets: [nums[5], nums[6], nums[7], nums[8]],
     battery: nums[9],
     error: nums[10],
+    vibrationRemainingS: nums[11],
   };
 }
 

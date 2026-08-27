@@ -60,6 +60,8 @@ def test_decode_serial_vector(vector):
         assert payload["device_ms"] == expect["device_ms"]
         assert payload["manifold"] == expect["manifold"]
         assert payload["device_state"] == expect["device_state"]
+        if "vibration_remaining_s" in expect:
+            assert payload["vibration_remaining_s"] == expect["vibration_remaining_s"]
         assert payload["device_elapsed_s"] == expect["device_elapsed_s"]
         for zone, want in expect["zones"].items():
             assert payload["zones"][zone]["target"] == want["target"]

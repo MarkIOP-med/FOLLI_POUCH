@@ -105,6 +105,8 @@ void updateBLE() {
   }
   line += ",0";  // battery SoC — not measured on this hardware yet
   line += ",0";  // system error flag — no leak/over-temp detection wired up yet
+  line += ",";
+  line += vibrationRemainingS();   // massage countdown seconds — synced to both apps
 
   if (telemetryChar == nullptr) return;
   telemetryChar->setValue((uint8_t*)line.c_str(), line.length());

@@ -246,6 +246,7 @@ void printSerialLog();
 void initVibration();
 void updateVibration();
 void stopAllVibration();
+int  vibrationRemainingS();       // seconds left on the running massage, 0 when idle
 
 // ble.ino
 void initBLE();

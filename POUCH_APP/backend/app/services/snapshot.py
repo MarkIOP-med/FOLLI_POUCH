@@ -204,6 +204,11 @@ def build(
         # the BLE console too, so the app never assumes it is the only actor.
         "device_state": frame.get("device_state") if frame else None,
         "device_elapsed_s": frame.get("device_elapsed_s") if frame else None,
+        # Massage countdown seconds, straight from telemetry — the single synced
+        # source both the operator app and the patient console display.
+        "vibration_remaining_s": (
+            frame.get("vibration_remaining_s") if frame else None
+        ),
         # App session says "running" but the device is idle with zero targets:
         # someone stopped it out-of-band (the patient's console STOP).
         "stopped_externally": (

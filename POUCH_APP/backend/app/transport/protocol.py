@@ -28,7 +28,7 @@ TELEMETRY_FIELDS = [
     "MAN",
     "FSR_FRN_L", "FSR_FRN_R", "FSR_TMP_L", "FSR_TMP_R",
     "FSR_EAR_L", "FSR_EAR_R", "FSR_BCK_L", "FSR_BCK_R",
-    "STATE", "ELAPSED",
+    "STATE", "ELAPSED", "VIB_REMAIN",
 ]
 
 #: telemetry STATE char → the state-machine name used across the app
@@ -91,6 +91,7 @@ def parse_telemetry(line: str) -> dict | None:
         "zones": zones,
         "device_state": state,
         "device_elapsed_s": raw["ELAPSED"],
+        "vibration_remaining_s": raw["VIB_REMAIN"],
     }
 
 

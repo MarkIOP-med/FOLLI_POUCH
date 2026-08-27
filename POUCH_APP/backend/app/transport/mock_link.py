@@ -39,6 +39,8 @@ class MockLink(Link):
         self._t0 = time.time()
         self._session_start: float | None = None   # mirrors firmware sessionStartMs
         self._user: dict = dict(NO_USER_RECORD)     # boots checked out to NO_USER
+        self._vib_start: float | None = None         # when the current massage began
+        self._vib_duration_s = 30                    # settable via setvariable
         self._lines: queue.Queue[str] = queue.Queue()
         self._pump: threading.Thread | None = None
 
@@ -51,6 +53,17 @@ class MockLink(Link):
 
     def _elapsed_s(self) -> int:
         return int(time.time() - self._session_start) if self._session_start else 0
+
+    def _vib_remaining_s(self) -> int:
+        """Seconds left on the mock massage, counting down from the duration."""
+        if self._vib_start is None:
+            return 0
+        left = self._vib_duration_s - (time.time() - self._vib_start)
+        if left <= 0:
+            self._vib_start = None
+            self._vib = [0, 0, 0, 0]
+            return 0
+        return int(left + 0.999)
 
     def _user_pressures(self) -> list[int]:
         """The checked-out user's saved regime, as a 4-int target list."""
@@ -147,7 +160,17 @@ class MockLink(Link):
                 if lv < 0:
                     continue  # -1 = leave unchanged, like the firmware
                 self._vib[i] = max(0, min(3, lv))
+            if any(v > 0 for v in self._vib):
+                self._vib_start = time.time()   # start the countdown
             self._lines.put("OK:SETVIBRATION")
+        elif word == "setvariable":
+            name, _, value = rest.partition(",")
+            if name.strip().upper() == "VIBRATION_DURATION":
+                try:
+                    self._vib_duration_s = max(1, int(value) // 1000)
+                except ValueError:
+                    pass
+            self._lines.put(f"OK:SETVARIABLE:{name.strip()}")
         elif word == "readstate":
             state = "IDLE" if not any(self._targets) else "MAINTENANCE"
             self._lines.put(f"R:STATE:{state}")
@@ -183,7 +206,7 @@ class MockLink(Link):
             if not header_sent:
                 self._lines.put(
                     "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED"
+                    "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN"
                 )
                 header_sent = True
 
@@ -209,5 +232,6 @@ class MockLink(Link):
 
             vals.append(self._state_char())
             vals.append(str(self._elapsed_s()))
+            vals.append(str(self._vib_remaining_s()))
 
             self._lines.put("T:" + ",".join(vals))

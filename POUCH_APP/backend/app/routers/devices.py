@@ -49,11 +49,19 @@ def _push_user_regime(
     patient = patients_repo.get(db, patient_id)
     if patient is None:
         return
-    rx = {p["zone"]: p["prescribed_mmhg"] for p in patient["prescriptions"]}
+    prescriptions = patient["prescriptions"]
+    rx = {p["zone"]: p["prescribed_mmhg"] for p in prescriptions}
     pressures = [int(rx.get(z, 0)) for z in ZONES]
+    # The massage duration is per-patient (massage_seconds). Push it as the
+    # firmware's vibration duration so this user's countdown runs the right
+    # length; both apps then show the same countdown from telemetry.
+    seconds = max(
+        (int(p.get("massage_seconds") or 0) for p in prescriptions), default=0
+    ) or 30
     with contextlib.suppress(Exception):
         assert runtime.link is not None
         sent = runtime.link.load_user(patient_id, pressures, patient["full_name"])
+        runtime.link.set_variable("VIBRATION_DURATION", seconds * 1000)
         audit.log_event(
             db, runtime.device_id, "info", "push_user_regime", sent, runtime.session_id
         )

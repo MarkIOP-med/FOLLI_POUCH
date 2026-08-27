@@ -454,18 +454,20 @@ export function DiagnosticsScreen() {
           {/* A grid of positioned rows, not a table: the mockup sets each row on
               its own measured centre (59.3px pitch) and the level discs on a
               54px pitch, neither of which falls out of table layout. */}
-          {/* The mockup's column reads "Time Left", implying a countdown. The
-              firmware never reports remaining vibration time, so the column is
-              labelled for what it actually holds — the configured duration —
-              rather than carrying a separate footnote that would have to sit on
-              top of the rows to fit the panel. */}
+          {/* The per-zone column holds the configured duration; the live
+              countdown while a massage runs is shown once, synced from the
+              board's telemetry (the same value the patient console displays). */}
           <div className="vib-panel__head">
             <span>{t('device.vibration.zonePair')}</span>
             <span>{t('device.vibration.levels')}</span>
             <span className="vib-panel__duration">
               {t('device.vibration.duration')}
             </span>
-            <span />
+            <span>
+              {(snapshot?.vibration_remaining_s ?? 0) > 0
+                ? `▶ ${snapshot?.vibration_remaining_s}s left`
+                : ''}
+            </span>
           </div>
 
           {zones.map((zone, i) => (

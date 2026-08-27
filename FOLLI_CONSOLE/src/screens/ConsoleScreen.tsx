@@ -407,7 +407,12 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
             <Text style={styles.panelTitle}>Massage Levels</Text>
             {/* The comp shows a per-massage countdown. No duration is sent to
                 the console, so there is nothing to count down from. */}
-            <Text style={styles.massageRemaining}>Time remain: {'—'}</Text>
+            <Text style={styles.massageRemaining}>
+              Time remain:{' '}
+              {liveTelemetry.vibrationRemainingS > 0
+                ? `${liveTelemetry.vibrationRemainingS}s`
+                : '—'}
+            </Text>
           </View>
 
           <View style={styles.massageRow}>
