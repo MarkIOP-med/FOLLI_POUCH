@@ -141,7 +141,11 @@ def connect_device(
         db, runtime.device_id, "info", "connected", runtime.port or runtime.transport
     )
     # The board's user record is RAM-only: a reconnect may follow a power-cycle
-    # that wiped it, so re-assert who this pouch is checked out to.
+    # that wiped it, so re-assert who this pouch is checked out to. With nobody
+    # selected, default to NO_USER — the app and the board then agree on the same
+    # factory profile the console runs standalone.
+    if runtime.checked_out_patient_id is None:
+        runtime.checked_out_patient_id = patients_repo.default_patient_id(db)
     if runtime.checked_out_patient_id is not None:
         _push_user_regime(db, runtime, runtime.checked_out_patient_id)
     db.commit()
@@ -295,6 +299,59 @@ def rezero_device(
     db.commit()
     return CommandResult(
         sent=sent, note="vented and re-captured the atmospheric reference"
+    )
+
+
+@router.post("/{device_id}/restart", response_model=CommandResult)
+def restart_device(
+    runtime: DeviceRuntime = Depends(get_connected_runtime),
+    db: sqlite3.Connection = Depends(get_db),
+) -> CommandResult:
+    """Recover a stuck pouch: vent and re-initialise the control loop. Keeps the
+    session, the patient, and the regime — it just un-sticks the pressure loop."""
+    assert runtime.link is not None
+    sent = send_or_502(runtime.link.restart)
+    audit.log_event(db, runtime.device_id, "warn", "restart", sent, runtime.session_id)
+    db.commit()
+    return CommandResult(sent=sent, note="pouch restarted (control loop re-initialised)")
+
+
+@router.post("/{device_id}/factory-reset", response_model=CommandResult)
+def factory_reset_device(
+    runtime: DeviceRuntime = Depends(get_connected_runtime),
+    db: sqlite3.Connection = Depends(get_db),
+) -> CommandResult:
+    """Restore the pouch to factory state: vent + reset the board to NO_USER, delete
+    every patient except NO_USER, and reset NO_USER's own regime to the shipped
+    default. Does NOT touch the clinical settings (ceiling, trim range, etc.)."""
+    assert runtime.link is not None
+
+    # End any running session first so no stale session record survives the wipe.
+    if runtime.session_id is not None:
+        repo.end_session(db, runtime.session_id, "factory_reset")
+        runtime.end_session()
+
+    removed = patients_repo.delete_all_except_default(db)
+    patients_repo.reset_default_regime(db)
+
+    # Reset the board itself (firmware resetall → vented, IDLE, checked out to
+    # NO_USER), then check NO_USER back out from this side so both agree.
+    sent = send_or_502(runtime.link.reset_all)
+    runtime.checked_out_patient_id = patients_repo.default_patient_id(db)
+    if runtime.checked_out_patient_id is not None:
+        _push_user_regime(db, runtime, runtime.checked_out_patient_id)
+
+    audit.record(
+        db, "factory_reset", f"device:{runtime.device_id}",
+        {"patients_removed": removed}, None,
+    )
+    audit.log_event(
+        db, runtime.device_id, "warn", "factory_reset",
+        f"removed {removed} patients; reset to NO_USER", None,
+    )
+    db.commit()
+    return CommandResult(
+        sent=sent, note=f"factory reset — {removed} patients removed, board on NO_USER"
     )
 
 

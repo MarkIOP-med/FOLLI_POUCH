@@ -30,7 +30,9 @@ identical command grammar in both directions.
   serial. Holds the full multi-user archive (identity, treatment data, and a backup copy
   of each user's pressure regime).
 
-One physical pouch serves one user at a time. `RESET ALL` (§7) clears the assignment.
+One physical pouch serves one user at a time. It is **never without a user**: it boots
+checked out to **NO_USER** (id 1), the factory-default profile, so the console can run a
+session with no app connected. `RESET ALL` (§7) returns it to NO_USER.
 
 ---
 
@@ -207,7 +209,7 @@ be truncated without a negotiated MTU.
 |---|---|---|
 | **START** | `start` | Vent → recapture reference → `currentTargetPressure[] = userDefaultPressure[]` → begin pressurizing |
 | **STOP** | `stop` | Stop vibration, vent all channels to zero, return to idle |
-| **RESET ALL** | `resetall` | Vent → all pressures (current, user default) reset to system default → user unassigned → begin pressurizing toward system default |
+| **RESET ALL** | `resetall` | Factory restore: vent → drop to IDLE → check the board out to **NO_USER** with the system-default regime (does NOT begin pressurizing). |
 | **RESTART** | `restart` | Vent, recapture reference pressure, return to idle. Identity and saved regime untouched. |
 | **USER_ID** | `user:<id>:<p0>,<p1>,<p2>,<p3>[:<name>]` | Check a known user out to the pouch: id + full pressure regime, plus an optional display name (free text after the third `:`, up to 31 UTF-8 bytes) that the patient console shows. Does not start pressurizing — follow with `START` to apply it. The operator app sends this the moment a patient is selected, and again on every reconnect, because the record is RAM-only. |
 | **ASSIGN** | `assign` | Assign a fresh, locally-generated user to this pouch, seeded with system default pressure. Works fully offline. |
@@ -242,12 +244,12 @@ single tagged line:
 | `OK:` | A command succeeded | `OK:START` |
 | `ERR:` | A command failed — bad syntax, out-of-range value, unknown command/variable | `ERR:SETPRESSURE:channel out of range (7)` |
 
-**Patient-side START is gated on an assigned user.** `start` arriving over BLE while
-`assigned == false` is refused with `ERR:START:NO_USER_ASSIGNED` and nothing moves. The
-user record is RAM-only, so every power-cycle returns the pouch to unassigned with the
-*factory* regime loaded — that regime is a bench convenience for the serial operator,
-never a treatment, and the patient console must not be able to run it. The serial
-transport is not gated (the operator's `start` on a fresh board is the bench workflow).
+**The pouch always has a user — NO_USER.** On boot (and after `resetall`) the board is
+checked out to **NO_USER** (id 1, name `NO_USER`, regime = `systemDefaultPressure`
+`{25,120,85,130}`). So `start` from the console works with no app connected — it runs the
+NO_USER factory regime. The operator app overrides it by checking a real patient out
+(`user:…`); selecting nobody leaves NO_USER. There is no "unassigned" state and no
+START gate — the earlier `ERR:START:NO_USER_ASSIGNED` refusal is gone.
 
 **Routing:** every response is echoed on Serial regardless of origin. If the triggering
 command came over BLE, the same line is additionally pushed through the telemetry
@@ -255,7 +257,7 @@ notify characteristic — that's the only way a BLE caller sees it.
 
 **Unsolicited user-record announce.** The BLE console mirrors the pouch's user record,
 so whenever that record changes from the *other* transport (the operator app checking a
-patient out with `user:…`, or `resetall` clearing it), the firmware pushes the same
+patient out with `user:…`, or `resetall` resetting it to NO_USER), the firmware pushes the same
 `R:USER:…` line it would answer to `readuser` through the BLE notify characteristic,
 unprompted. The console therefore shows the newly selected patient within a frame of
 the operator selecting them — no polling.

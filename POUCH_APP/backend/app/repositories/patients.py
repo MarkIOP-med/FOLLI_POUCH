@@ -113,7 +113,45 @@ def update_identity(
 
 
 def delete(conn: sqlite3.Connection, patient_id: int) -> None:
+    row = conn.execute(
+        "SELECT is_default FROM patients WHERE id = ?", (patient_id,)
+    ).fetchone()
+    if row is not None and row["is_default"]:
+        raise ValueError("the NO_USER default patient cannot be deleted")
     conn.execute("DELETE FROM patients WHERE id = ?", (patient_id,))
+
+
+def default_patient_id(conn: sqlite3.Connection) -> int | None:
+    """The reserved NO_USER patient's id, or None if it was never seeded."""
+    row = conn.execute("SELECT id FROM patients WHERE is_default = 1").fetchone()
+    return int(row["id"]) if row else None
+
+
+def delete_all_except_default(conn: sqlite3.Connection) -> int:
+    """Factory reset: wipe the patient archive, keeping only NO_USER. Returns the
+    number of patients removed (prescriptions cascade via the FK)."""
+    cur = conn.execute("DELETE FROM patients WHERE is_default = 0")
+    return cur.rowcount
+
+
+def reset_default_regime(conn: sqlite3.Connection) -> None:
+    """Restore NO_USER's own prescription to the factory regime and clear its trims,
+    so a factory reset returns the default profile to its shipped values."""
+    from ..core.zones import DEFAULT_REGIME
+
+    pid = default_patient_id(conn)
+    if pid is None:
+        return
+    now = time.time()
+    for zone, mmhg in DEFAULT_REGIME.items():
+        conn.execute(
+            "INSERT INTO prescriptions (patient_id, zone, prescribed_mmhg,"
+            " patient_trim_pct, updated_at) VALUES (?,?,?,0,?)"
+            " ON CONFLICT(patient_id, zone) DO UPDATE SET"
+            "   prescribed_mmhg = excluded.prescribed_mmhg,"
+            "   patient_trim_pct = 0, updated_at = excluded.updated_at",
+            (pid, zone, mmhg, now),
+        )
 
 
 def write_prescriptions(

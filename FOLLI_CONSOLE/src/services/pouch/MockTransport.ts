@@ -16,6 +16,10 @@ import type {
 
 const FRAME_INTERVAL_MS = 250;
 /** A plausible checked-out user: Temples 25 / Ears 40, front and back off. */
+// A representative checked-out patient for dev/preview and the screen tests (it
+// keeps an unprescribed zone so that behaviour stays exercised). The real board
+// boots to NO_USER; the console mirrors whatever it reports, so this fixture's
+// exact values are not load-bearing.
 const MOCK_USER = { id: 8, name: 'Edna Levi', pressures: [0, 25, 40, 0] };
 
 export class MockTransport implements PouchTransport {

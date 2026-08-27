@@ -74,6 +74,11 @@ export const api = {
   emergency: (id: string) =>
     req<{ sent: string }>(`/api/devices/${id}/emergency`, { method: 'POST' }),
   rezero: (id: string) => req<{ sent: string }>(`/api/devices/${id}/rezero`, { method: 'POST' }),
+  /** Recover a stuck pouch — vents and re-inits the control loop; keeps the session. */
+  restart: (id: string) => req<{ sent: string }>(`/api/devices/${id}/restart`, { method: 'POST' }),
+  /** Restore the pouch to NO_USER and delete every patient except NO_USER. */
+  factoryReset: (id: string) =>
+    req<{ sent: string }>(`/api/devices/${id}/factory-reset`, { method: 'POST' }),
   ackAlert: (id: string, eventId: number) =>
     req<unknown>(`/api/devices/${id}/alerts/${eventId}/ack`, { method: 'POST' }),
 

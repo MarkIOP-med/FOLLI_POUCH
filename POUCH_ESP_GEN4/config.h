@@ -62,7 +62,11 @@ int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per chann
 // Per-user record — PERIPHERAL, RAM only (userProfile.ino). Not durable across a
 // power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
 // TEMPLE=1, EAR=2, BACK=3.
-int systemDefaultPressure[4] = {0, 95, 125, 0};  // TEMP BENCH: FRONT/BACK zeroed — their valve paths have a physical fault (balloons don't inflate, found 2026-08-20); TEMPLE=95/EAR=125 per bench request. Real product default is {25,120,85,130}; restore once valves 0/3 are repaired.
+int systemDefaultPressure[4] = {25, 120, 85, 130};  // NO_USER / factory regime — the default
+//                                                     every user starts from before the app
+//                                                     edits it (FRONT/TEMPLE/EAR/BACK). Restored
+//                                                     to the real product values 2026-08-27 once
+//                                                     the FRONT/BACK valves were repaired.
 // Longest display name the user record carries (bytes, UTF-8; the pusher truncates on a
 // character boundary). Sized for a first + last name, not a biography.
 #define USER_NAME_MAX 31
@@ -70,8 +74,14 @@ int userDefaultPressure[4];                          // this user's saved defaul
 
 // The only per-user data on the device — vibration and thresholds are system-wide,
 // same for every user (see PRESSURE_ACTUATION_THRESHOLD_MMHG below).
-int  userId   = -1;     // checked-out user's id, -1 = none — RAM only
-bool assigned = false;  // whether this device has a live user record — RAM only
+// The pouch is NEVER without a user: it boots checked out to NO_USER (id 1), the
+// factory-default profile the console can run standalone even with no app connected.
+// The app overrides it by checking out a real patient. Its id matches the seeded
+// NO_USER row in the operator DB so both sides agree.
+#define NO_USER_ID   1
+#define NO_USER_NAME "NO_USER"
+int  userId   = NO_USER_ID;  // checked-out user's id — RAM only; boots as NO_USER, never "none"
+bool assigned = true;   // always true — the board boots checked out to NO_USER — RAM only
 char userName[USER_NAME_MAX + 1] = "";  // display name for the patient console — RAM only, may be empty
 
 int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off — SET VARIABLE

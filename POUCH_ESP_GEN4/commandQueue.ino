@@ -52,21 +52,25 @@ static void applyStop() {
   currentState = EMERGENCY_RELIEF;
 }
 
-// --- RESET ALL --- pressure AND identity back to factory state
+// --- RESET ALL --- factory restore: vent, drop to IDLE, and check the board back out
+// to NO_USER with the factory regime. Unlike START it does NOT begin pressurizing — a
+// factory reset leaves the pouch quiet, loaded with NO_USER's defaults, ready for the
+// next START (from the console standalone, or the app).
 static void applyResetAll() {
   reliefAllPads();
   captureReferencePressure();
   for (int i = 0; i < 4; i++) {
-    currentTargetPressure[i] = systemDefaultPressure[i];
+    currentTargetPressure[i] = 0;                     // idle, not auto-running
     userDefaultPressure[i]   = systemDefaultPressure[i];
   }
-  userId   = -1;
-  assigned = false;
-  userName[0] = '\0';
+  userId   = NO_USER_ID;
+  assigned = true;
+  strncpy(userName, NO_USER_NAME, USER_NAME_MAX);
+  userName[USER_NAME_MAX] = '\0';
   currentChannel = 0;
   resetChannelState();
-  currentState = PRESSURIZING;
-  sessionStartMs = millis();   // fresh session, fresh clock
+  currentState = IDLE;
+  sessionStartMs = 0;          // no session running after a reset
 }
 
 // --- RESTART --- re-init the control loop only; identity/regime untouched
@@ -196,14 +200,9 @@ static String buildVibrationFragment() {
 static void dispatchCommand(const Command& cmd) {
   switch (cmd.type) {
     case CMD_START:
-      // The patient console may only run a clinician-assigned regime. The factory
-      // defaults are a bench convenience for the serial operator, never a treatment —
-      // and the user record is RAM-only, so every power-cycle lands here until the
-      // operator re-assigns.
-      if (cmd.source == SRC_BLE && !assigned) {
-        sendResponse(cmd.source, "ERR:START:NO_USER_ASSIGNED");
-        break;
-      }
+      // The board is always checked out to at least NO_USER (the factory profile),
+      // so the console can start a session on its own with no app connected. The app
+      // overrides the regime by checking out a real patient first.
       applyStart();
       sendResponse(cmd.source, "OK:START");
       break;

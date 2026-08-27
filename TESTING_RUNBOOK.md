@@ -316,10 +316,23 @@ sure **no other device already grabbed the pouch's one Bluetooth slot** (e.g. a
 second phone, or a BLE scanner app). Only one Bluetooth central can connect at a
 time — the PC uses the **serial** cable, not Bluetooth, so it never competes.
 
-**Console shows "Patient: not assigned" and a default pressure.**
-No patient is checked out to the board (the board forgets on every power‑cycle —
-the record lives in RAM only). Go to the web app, **select your patient** (or
-create one). The console updates within a second, and START becomes available.
+**Which patient does the console show if I didn't select one?**
+The pouch is never without a user — it boots checked out to **`NO_USER`**, the
+factory‑default profile (regime {25, 120, 85, 130}). So the console shows
+`NO_USER` and **START works standalone, even with the web app not connected.**
+Select a real patient in the web app to override it; the console updates within
+a second. (You'd only see literally "not assigned" on older firmware — pull the
+latest `main` and reflash.)
+
+**The pouch seems stuck — how do I recover without power‑cycling?**
+On the device (Diagnostics) screen, press **Restart pouch (if stuck)**. It vents
+and re‑initialises the control loop but keeps the current session, patient, and
+regime — it just un‑sticks the pressure loop.
+
+**How do I clear all my test patients / start clean?**
+In **Admin**, press **Factory reset**. It restarts the pouch to `NO_USER` and
+deletes every patient except `NO_USER` (it asks for confirmation first). Your
+clinical settings — pressure ceiling, trim range — are kept. This can't be undone.
 
 **`adb devices` says `unauthorized`.**
 On the phone, tap **Allow** on the "Allow USB debugging?" pop‑up (tick "always

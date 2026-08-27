@@ -8,6 +8,7 @@ view of the database.
 from __future__ import annotations
 
 import sqlite3
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -71,4 +72,30 @@ def init_db() -> None:
                 "INSERT INTO devices (id, label, transport, port) VALUES (?,?,?,?)",
                 ("POUCH-MOCK", "Mock Pouch", "mock", None),
             )
+        _seed_no_user(conn)
         conn.commit()
+
+
+def _seed_no_user(conn: sqlite3.Connection) -> None:
+    """Seed the reserved NO_USER patient — the factory-default profile the pouch is
+    always checked out to unless the app picks a real patient. Idempotent: keyed on
+    is_default, and its id/regime mirror the firmware's NO_USER (see core/zones.py)."""
+    from ..core.zones import DEFAULT_REGIME, NO_USER_ID, NO_USER_NAME, ZONES
+
+    exists = conn.execute(
+        "SELECT 1 FROM patients WHERE is_default = 1"
+    ).fetchone()
+    if exists:
+        return
+    now = time.time()
+    conn.execute(
+        "INSERT INTO patients (id, mrn, full_name, national_id, is_default, created_at)"
+        " VALUES (?,?,?,?,1,?)",
+        (NO_USER_ID, NO_USER_NAME, NO_USER_NAME, None, now),
+    )
+    for zone in ZONES:
+        conn.execute(
+            "INSERT INTO prescriptions (patient_id, zone, prescribed_mmhg, updated_at)"
+            " VALUES (?,?,?,?)",
+            (NO_USER_ID, zone, DEFAULT_REGIME[zone], now),
+        )

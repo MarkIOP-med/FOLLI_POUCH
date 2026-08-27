@@ -127,6 +127,11 @@ class Link:
         """Vent + re-capture the atmospheric baseline (real 'restart' command now)."""
         return self._send(protocol.encode_restart())
 
+    def restart(self) -> str:
+        """Recover a stuck pouch: vent + re-init the control loop (firmware 'restart').
+        Same wire command as rezero; a distinct name for the operator's Restart button."""
+        return self._send(protocol.encode_restart())
+
     def reset_all(self) -> str:
         return self._send(protocol.encode_reset_all())
 

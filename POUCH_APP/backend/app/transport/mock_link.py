@@ -21,9 +21,10 @@ from .base import Link
 
 FRAME_INTERVAL = 0.2   # firmware SERIAL_LOG_INTERVAL_MS = 200ms (5 Hz)
 
-# Mirrors the bench board's systemDefaultPressure {0, 95, 125, 0}: FRONT/BACK zeroed
-# for the physical valve fault, TEMPLE/EAR live.
-DEFAULT_PRESSURES = [0, 95, 125, 0]
+# Mirrors the firmware's systemDefaultPressure / NO_USER regime {25, 120, 85, 130}.
+DEFAULT_PRESSURES = [25, 120, 85, 130]
+# The board boots checked out to NO_USER (see POUCH_ESP_GEN4). id/name/regime match.
+NO_USER_RECORD = {"id": "1", "pressures": "25,120,85,130", "name": "NO_USER"}
 
 
 class MockLink(Link):
@@ -37,6 +38,7 @@ class MockLink(Link):
         self._manifold = 0.0
         self._t0 = time.time()
         self._session_start: float | None = None   # mirrors firmware sessionStartMs
+        self._user: dict = dict(NO_USER_RECORD)     # boots checked out to NO_USER
         self._lines: queue.Queue[str] = queue.Queue()
         self._pump: threading.Thread | None = None
 
@@ -49,6 +51,14 @@ class MockLink(Link):
 
     def _elapsed_s(self) -> int:
         return int(time.time() - self._session_start) if self._session_start else 0
+
+    def _user_pressures(self) -> list[int]:
+        """The checked-out user's saved regime, as a 4-int target list."""
+        try:
+            vals = [int(x) for x in self._user["pressures"].split(",")]
+        except (ValueError, KeyError):
+            return list(DEFAULT_PRESSURES)
+        return (vals + [0, 0, 0, 0])[:4]
 
     def _note_targets_changed(self) -> None:
         if any(self._targets):
@@ -81,7 +91,8 @@ class MockLink(Link):
             self._lines.put("OK:STOP")
             self._lines.put("All PADs relieved to zero.")
         elif word == "start":
-            self._targets = list(DEFAULT_PRESSURES)
+            # Firmware START loads the checked-out user's saved regime.
+            self._targets = self._user_pressures()
             self._session_start = None
             self._note_targets_changed()
             self._lines.put("OK:START")
@@ -90,10 +101,15 @@ class MockLink(Link):
             self._note_targets_changed()
             self._lines.put("OK:RESTART")
         elif word == "resetall":
-            self._targets = list(DEFAULT_PRESSURES)
+            # Factory reset: vent to idle and check back out to NO_USER (see firmware).
+            self._targets = [0, 0, 0, 0]
             self._session_start = None
+            self._user = dict(NO_USER_RECORD)
             self._note_targets_changed()
             self._lines.put("OK:RESETALL")
+            self._lines.put(
+                f"R:USER:{self._user['id']},true,{self._user['pressures']},{self._user['name']}"
+            )
         elif word == "user":
             # user:<id>:<p0..p3>[:<name>] — keep the record so readuser mirrors it
             segments = rest.split(":", 2)
@@ -104,10 +120,9 @@ class MockLink(Link):
             }
             self._lines.put(f"OK:USER:{segments[0]}")
         elif word == "readuser":
-            u = getattr(self, "_user", None)
+            u = self._user  # always set — boots as NO_USER
             self._lines.put(
                 f"R:USER:{u['id']},true,{u['pressures']},{u['name']}"
-                if u else "R:USER:-1,false,0,0,0,0,"
             )
         elif word == "setpressure":
             for part in rest.split(";"):

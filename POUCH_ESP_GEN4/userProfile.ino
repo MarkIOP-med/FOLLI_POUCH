@@ -8,9 +8,12 @@
 // section.
 
 void initUserProfile() {
-  userId   = -1;
-  assigned = false;
-  userName[0] = '\0';
+  // Boot checked out to NO_USER with the factory regime, so the console can start a
+  // session on its own (no app needed). The app overrides this by checking out a patient.
+  userId   = NO_USER_ID;
+  assigned = true;
+  strncpy(userName, NO_USER_NAME, USER_NAME_MAX);
+  userName[USER_NAME_MAX] = '\0';
   for (int i = 0; i < 4; i++) userDefaultPressure[i] = systemDefaultPressure[i];
 }
 

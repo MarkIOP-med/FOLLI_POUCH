@@ -265,6 +265,37 @@ export function AdminScreen() {
           </button>
         </div>
 
+        {/* Factory reset — destructive: restores the pouch to NO_USER and deletes
+            every patient except NO_USER. Self-contained styling + a confirm so it
+            can't be triggered by accident. */}
+        <button
+          type="button"
+          disabled={busy || !snapshot?.connected}
+          onClick={() => {
+            if (
+              window.confirm(
+                'Factory reset the pouch?\n\nThis restarts the pouch to NO_USER and ' +
+                  'DELETES every patient except NO_USER. Clinical settings (pressure ' +
+                  'ceiling, trim range) are kept. This cannot be undone.',
+              )
+            ) {
+              void run('factoryReset', () => api.factoryReset(id));
+            }
+          }}
+          style={{
+            marginTop: 14,
+            padding: '9px 14px',
+            borderRadius: 8,
+            border: '1px solid #b3524a',
+            background: '#3a1b18',
+            color: '#f0b7b0',
+            font: '600 13px/1 inherit',
+            cursor: 'pointer',
+          }}
+        >
+          Factory reset (delete all patients except NO_USER)
+        </button>
+
         {/* ── Device management ─────────────────────────────────────────────
             Absolutely placed into the band between the strip (y≈349) and the
             "Save Changes" label (y≈520) — the side column is a measured layout

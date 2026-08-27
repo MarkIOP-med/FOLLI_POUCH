@@ -120,4 +120,6 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("patients", "treatment_number", "INTEGER"),
     ("sessions", "planned_duration_s", "INTEGER"),
     ("sessions", "console_id", "TEXT"),
+    # NO_USER: the reserved default patient that survives a factory reset.
+    ("patients", "is_default", "INTEGER NOT NULL DEFAULT 0"),
 ]

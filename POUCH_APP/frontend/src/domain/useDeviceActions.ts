@@ -10,6 +10,8 @@ export type BusyKey =
   | 'settingTarget'
   | 'settingVibration'
   | 'resetting'
+  | 'restarting'
+  | 'factoryReset'
   | 'promoting'
   | 'endingSession'
   | 'startingService'

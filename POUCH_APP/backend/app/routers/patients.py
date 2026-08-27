@@ -88,7 +88,10 @@ def update_patient(
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_patient(patient_id: int, db: sqlite3.Connection = Depends(get_db)) -> None:
     before = _load(db, patient_id)
-    repo.delete(db, patient_id)
+    try:
+        repo.delete(db, patient_id)
+    except ValueError as exc:  # the NO_USER default patient is protected
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     audit.record(db, "delete", f"patient:{patient_id}", before, None)
     db.commit()
 

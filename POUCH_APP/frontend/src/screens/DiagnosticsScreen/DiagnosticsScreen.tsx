@@ -228,6 +228,29 @@ export function DiagnosticsScreen() {
             <img src={BUTTONS.stop} alt={t('device.hardware.stopAll')} />
           </button>
 
+          {/* Recover a stuck pouch — vents and re-inits the control loop without
+              losing the session/patient. Self-contained styling so it sits
+              predictably on the measured canvas (pending a visual polish pass). */}
+          <button
+            type="button"
+            className="hw__recover"
+            disabled={!snapshot?.connected || busyKey !== null}
+            onClick={() => run('restarting', () => api.restart(id))}
+            style={{
+              gridColumn: '1 / -1',
+              marginTop: 8,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid #6c8a9c',
+              background: '#173241',
+              color: '#cfe4ef',
+              font: '600 13px/1 inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {t('device.hardware.restart', 'Restart pouch (if stuck)')}
+          </button>
+
           <div className="hw__rule hw__rule--1" />
           <h3 className="hw__title">{t('device.hardware.manifoldDiagnostic')}</h3>
 

@@ -335,3 +335,48 @@ class TestConsoleStartedSessionMirroring:
         closed = client.get(f"/api/devices/{mock_device}").json()
         assert closed["session_id"] is None
         assert closed["session_source"] is None
+
+
+class TestNoUserAndFactoryReset:
+    def test_no_user_is_seeded_and_protected(self, client: TestClient):
+        # NO_USER exists with the factory regime and cannot be deleted.
+        patients = client.get("/api/patients").json()
+        no_user = [p for p in patients if p["full_name"] == "NO_USER"]
+        assert len(no_user) == 1, "NO_USER must be seeded exactly once"
+        nid = no_user[0]["id"]
+        rx = {p["zone"]: p["prescribed_mmhg"] for p in no_user[0]["prescriptions"]}
+        assert rx == {"FRONT": 25, "TEMPLE": 120, "EAR": 85, "BACK": 130}
+
+        r = client.delete(f"/api/patients/{nid}")
+        assert r.status_code == 400
+        assert client.get(f"/api/patients/{nid}").status_code == 200  # still there
+
+    def test_connect_defaults_the_pouch_to_no_user(
+        self, client: TestClient, mock_device: str
+    ):
+        snap = client.get(f"/api/devices/{mock_device}").json()
+        assert snap["checked_out_patient"] is not None
+        assert snap["checked_out_patient"]["full_name"] == "NO_USER"
+
+    def test_restart_is_accepted(self, client: TestClient, mock_device: str):
+        r = client.post(f"/api/devices/{mock_device}/restart")
+        assert r.status_code == 200
+        assert r.json()["sent"]
+
+    def test_factory_reset_wipes_patients_except_no_user(
+        self, client: TestClient, mock_device: str, edna: dict
+    ):
+        # Two real patients plus the seeded NO_USER.
+        client.post("/api/patients", json={"full_name": "SECOND"}).raise_for_status()
+        before = client.get("/api/patients").json()
+        assert len(before) >= 3
+
+        r = client.post(f"/api/devices/{mock_device}/factory-reset")
+        assert r.status_code == 200
+
+        after = client.get("/api/patients").json()
+        assert len(after) == 1
+        assert after[0]["full_name"] == "NO_USER"
+        # The board is checked back out to NO_USER.
+        snap = client.get(f"/api/devices/{mock_device}").json()
+        assert snap["checked_out_patient"]["full_name"] == "NO_USER"
