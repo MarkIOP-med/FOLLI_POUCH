@@ -39,12 +39,17 @@ void printSerialLog() {
   // in sync with what's energized: bit0 pump, bit1 relief, bit2-5 valves 0-3
   // (FRONT/TEMPLE/EAR/BACK). HIGH = energized. Serial-only — the BLE frame is
   // unchanged, so the console needs no update.
-  int act = (digitalRead(PUMP_PIN)    ? 1  : 0)
-          | (digitalRead(RELIEF_PIN)  ? 2  : 0)
-          | (digitalRead(valvePins[0]) ? 4  : 0)
-          | (digitalRead(valvePins[1]) ? 8  : 0)
-          | (digitalRead(valvePins[2]) ? 16 : 0)
-          | (digitalRead(valvePins[3]) ? 32 : 0);
+  //
+  // Read the GPIO OUTPUT latch, NOT digitalRead(): on the ESP32, digitalRead on
+  // a pin set OUTPUT disables the input buffer and returns 0, so the dots would
+  // never light. All our actuator pins are < 32, so GPIO_OUT_REG covers them.
+  uint32_t out = REG_READ(GPIO_OUT_REG);
+  int act = (((out >> PUMP_PIN)     & 1) ? 1  : 0)
+          | (((out >> RELIEF_PIN)   & 1) ? 2  : 0)
+          | (((out >> valvePins[0]) & 1) ? 4  : 0)
+          | (((out >> valvePins[1]) & 1) ? 8  : 0)
+          | (((out >> valvePins[2]) & 1) ? 16 : 0)
+          | (((out >> valvePins[3]) & 1) ? 32 : 0);
   Serial.println(act);
 }
 
