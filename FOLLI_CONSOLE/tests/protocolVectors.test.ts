@@ -87,6 +87,11 @@ describe('protocol conformance — BLE decode vectors', () => {
             vector.expect.vibration_remaining_s,
           );
         }
+        if (vector.expect.vibration_remaining_zone_s !== undefined) {
+          expect(decoded.telemetry.vibrationRemainingZoneS).toEqual(
+            vector.expect.vibration_remaining_zone_s,
+          );
+        }
       }
       if (vector.expect.kind === 'response' && decoded.kind === 'response') {
         expect(decoded.tag).toBe(vector.expect.tag);

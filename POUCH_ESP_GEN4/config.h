@@ -246,8 +246,7 @@ void printSerialLog();
 void initVibration();
 void updateVibration();
 void stopAllVibration();
-int  vibrationRemainingS();       // longest remaining of any zone (BLE console)
-int  vibrationRemainingZoneS(int ch);  // seconds left on one zone (operator app, per-zone)
+int  vibrationRemainingZoneS(int ch);  // seconds left on one zone (per-zone, both transports)
 
 // ble.ino
 void initBLE();

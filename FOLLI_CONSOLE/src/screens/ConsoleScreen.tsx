@@ -216,7 +216,8 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
     return () => clearTimeout(t);
   }, [awaitingStopRelease]);
 
-  // SET pulses while the selected zone holds changes the pouch has not received.
+  // The pressure SET pulses while the selected zone's dialled pressure differs
+  // from what the pouch reports it is driving. (Massage SET never pulses.)
   const setPulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!hasUnappliedChanges) {
@@ -405,12 +406,14 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
         <View style={[styles.panel, styles.massagePanel]}>
           <View style={styles.massageHeaderRow}>
             <Text style={styles.panelTitle}>Massage Levels</Text>
-            {/* The comp shows a per-massage countdown. No duration is sent to
-                the console, so there is nothing to count down from. */}
+            {/* Each zone runs its OWN massage countdown (the pouch reports four,
+                one per zone). Show the SELECTED zone's, mirroring the operator
+                app and the pouch's per-zone timers; a zone that isn't buzzing
+                reads "—". */}
             <Text style={styles.massageRemaining}>
               Time remain:{' '}
-              {liveTelemetry.vibrationRemainingS > 0
-                ? `${liveTelemetry.vibrationRemainingS}s`
+              {liveTelemetry.vibrationRemainingZoneS[activeZone] > 0
+                ? `${liveTelemetry.vibrationRemainingZoneS[activeZone]}s`
                 : '—'}
             </Text>
           </View>
@@ -437,16 +440,16 @@ export default function ConsoleScreen({ onOpenSettings }: Props) {
               ))}
             </View>
 
-            <Animated.View style={{ opacity: setPulse }}>
-              <TouchableOpacity
-                testID="massage-set-button"
-                disabled={locked}
-                activeOpacity={0.7}
-                onPress={triggerMassage}
-              >
-                <DualImage on={BTN.setOn} off={BTN.setOff} showOn={!locked} width={150} height={81} />
-              </TouchableOpacity>
-            </Animated.View>
+            {/* Massage SET is a one-shot trigger — nothing is "pending" on it,
+                so it does NOT share the pressure SET's pulse. */}
+            <TouchableOpacity
+              testID="massage-set-button"
+              disabled={locked}
+              activeOpacity={0.7}
+              onPress={triggerMassage}
+            >
+              <DualImage on={BTN.setOn} off={BTN.setOff} showOn={!locked} width={150} height={81} />
+            </TouchableOpacity>
           </View>
         </View>
 

@@ -69,6 +69,7 @@ const frame = (over: Partial<PouchTelemetry> = {}): PouchTelemetry => ({
   targets: [0, 0, 0, 0],
   battery: 80,
   error: 0,
+  vibrationRemainingZoneS: [0, 0, 0, 0],
   vibrationRemainingS: 0,
   ...over,
 });
@@ -262,21 +263,33 @@ describe('useConsole — device-mirrored session', () => {
     expect(client.requestUser).toHaveBeenCalledTimes(2); // run ended
   });
 
-  it('flags unapplied changes until SET succeeds', async () => {
+  it('flags unapplied changes against the board-reported target', async () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
     act(() => client.emitUser(BENCH_USER));
-    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
-    act(() => result.current.setActiveZone(1));
+    // Board running the prescription; the dial sits on it, so nothing is dirty.
+    act(() =>
+      client.emitTelemetry(frame({ state: 'MAINTENANCE', targets: [0, 25, 60, 0] })),
+    );
+    act(() => result.current.setActiveZone(1)); // TEMPLE, prescribed 25
+    expect(result.current.hasUnappliedChanges).toBe(false);
 
+    // Trim away from what the board reports it is driving → dirty.
     act(() => result.current.updateTargetPressure(27));
     expect(result.current.hasUnappliedChanges).toBe(true);
 
+    // SET pushes it; the board echoes the new target next frame → clean. No
+    // local "sent" mirror is involved — the telemetry is the sole truth.
     await act(async () => result.current.sendCommandToPouch());
+    expect(client.setZonePressure).toHaveBeenLastCalledWith('TEMPLE', 27);
+    act(() =>
+      client.emitTelemetry(frame({ state: 'MAINTENANCE', targets: [0, 27, 60, 0] })),
+    );
     expect(result.current.hasUnappliedChanges).toBe(false);
 
-    // Failed write keeps the zone dirty.
+    // A FAILED write never moves the board's target, so the dial stays dirty on
+    // its own — the board keeps reporting 27 while the dial reads 24.
     client.setZonePressure.mockRejectedValueOnce(new Error('link down'));
     act(() => result.current.updateTargetPressure(24));
     await act(async () => result.current.sendCommandToPouch());

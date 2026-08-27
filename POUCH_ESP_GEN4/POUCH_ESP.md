@@ -275,9 +275,13 @@ lets the serial admin app and the BLE console MIRROR each other's sessions.
   which throttles `loop()` to ~7Hz and makes the pump badly overshoot the manifold
   between pressure checks (bench-measured ~400 mmHg spikes before the fix, 2026-08-20).
 - **BLE** (every `TELEMETRY_INTERVAL_MS`, 250ms):
-  `T:<state>,<elapsed_s>,<a0>,<a1>,<a2>,<a3>,<t0>,<t1>,<t2>,<t3>,<batt>,<err>,<vibRemainingS>`
-  (~55 bytes — the client MUST negotiate a larger MTU, the console requests 185; an
-  un-negotiated 20-byte MTU truncates the line). Battery and error remain stubs. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
+  `T:<state>,<elapsed_s>,<a0>,<a1>,<a2>,<a3>,<t0>,<t1>,<t2>,<t3>,<batt>,<err>,<vibR0>,<vibR1>,<vibR2>,<vibR3>`
+  (16 fields, ~65 bytes — the client MUST negotiate a larger MTU, the console requests 185; an
+  un-negotiated 20-byte MTU truncates the line). `vibR0..R3` are each zone's OWN
+  massage countdown (FRONT/TEMPLE/EAR/BACK), matching the serial per-zone timers;
+  the console shows the selected zone's. A 13-field frame (the pre-per-zone
+  single `vibRemainingS`) is now rejected as malformed — old console + new firmware
+  gets no telemetry, so install the console APK before flashing. Battery and error remain stubs. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
 byte, pushed every `TELEMETRY_INTERVAL_MS`) — anything more detailed is available on
 demand via the `READ` commands instead of being pushed continuously over a
 bandwidth-constrained link.

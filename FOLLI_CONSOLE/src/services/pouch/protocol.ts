@@ -113,7 +113,7 @@ export function encodeRead(what: string): string {
 // ── inbound decoding ─────────────────────────────────────────────────────────
 
 /** Periodic BLE telemetry:
- *  T:<state>,<elapsed>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibRemainingS>. */
+ *  T:<state>,<elapsed>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibR0..vibR3>. */
 export interface BleTelemetry {
   state: DeviceState;
   elapsedSeconds: number;
@@ -123,7 +123,11 @@ export interface BleTelemetry {
   targets: [number, number, number, number];
   battery: number;
   error: number;
-  /** Seconds left on the running massage, 0 when idle — synced from the board. */
+  /** Seconds left on EACH zone's OWN massage (FRONT/TEMPLE/EAR/BACK),
+   *  independent per zone, 0 when that zone is idle — synced from the board. */
+  vibrationRemainingZoneS: [number, number, number, number];
+  /** Longest of the per-zone countdowns — "is any massage running". DERIVED
+   *  here from vibrationRemainingZoneS, not a field on the wire. */
   vibrationRemainingS: number;
 }
 
@@ -158,11 +162,14 @@ export function decodeLine(line: string): DecodedLine {
 export function decodeBleTelemetry(line: string): BleTelemetry | null {
   if (!line.startsWith('T:')) return null;
   const parts = line.slice(2).split(',');
-  if (parts.length !== 13) return null;
+  if (parts.length !== 16) return null;
   const state = STATE_CHARS[parts[0]];
   if (!state) return null;
   const nums = parts.slice(1).map((p) => Number(p));
   if (nums.some((n) => !Number.isFinite(n))) return null;
+  const vibZone: [number, number, number, number] = [
+    nums[11], nums[12], nums[13], nums[14],
+  ];
   return {
     state,
     elapsedSeconds: nums[0],
@@ -170,7 +177,8 @@ export function decodeBleTelemetry(line: string): BleTelemetry | null {
     targets: [nums[5], nums[6], nums[7], nums[8]],
     battery: nums[9],
     error: nums[10],
-    vibrationRemainingS: nums[11],
+    vibrationRemainingZoneS: vibZone,
+    vibrationRemainingS: Math.max(...vibZone),
   };
 }
 

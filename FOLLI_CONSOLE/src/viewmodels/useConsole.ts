@@ -148,8 +148,6 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   // True between a stop issued HERE and the next run — distinguishes the
   // STOPPED banner from plain PENDING on an idle board.
   const [stoppedHere, setStoppedHere] = useState(false);
-  // What each zone's pressure was when last successfully pushed.
-  const [sentPressure, setSentPressure] = useState<Partial<Record<VNode, number>>>({});
 
   // ── device-mirrored session state ─────────────────────────────────────────
   const deviceRunning = hasTelemetry && isDeviceRunning(liveTelemetry.state);
@@ -169,8 +167,16 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   const { min: trimMin, max: trimMax } = trimBounds(zoneSettings[activeZone].prescribed);
   const canTrim = trimMax > trimMin;
 
+  // Dirty when the dialled pressure differs from what the BOARD reports it is
+  // driving (its telemetry `targets`), not a local mirror of what we last sent.
+  // So it clears itself the instant the board confirms the new target — whether
+  // this console pushed it or the operator app did — and a FAILED SET, which
+  // never moves the reported target, keeps the button pulsing honestly. START
+  // loads the whole regime onto `targets`, matching the dial, so it does NOT
+  // blink on start. Gated on canTrim: a zone that is off or clinician-locked
+  // has nothing to push, so a mismatch there is not a real prompt.
   const hasUnappliedChanges =
-    isSessionActive && sentPressure[activeZone] !== targetPressure;
+    isSessionActive && canTrim && targetPressure !== liveTelemetry.targets[activeZone];
 
   const inputsRef = useRef({ activeZone, zoneSettings, deviceRunning, patient });
   inputsRef.current = { activeZone, zoneSettings, deviceRunning, patient };
@@ -281,8 +287,10 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   }, []);
 
   // SET — one zone's live target via the single-pair setpressure form. The
-  // other zones are untouched on the board; a failed write leaves the zone
-  // dirty so the button keeps flickering.
+  // other zones are untouched on the board. Nothing to update locally: the
+  // board echoes the new target in its next telemetry frame, which is what
+  // hasUnappliedChanges compares against — so a failed write, which never moves
+  // that target, leaves the button pulsing on its own.
   const sendCommandToPouch = useCallback(() => {
     const { activeZone: zone, zoneSettings: settings, deviceRunning: running } =
       inputsRef.current;
@@ -292,12 +300,9 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
     const { min, max } = trimBounds(settings[zone].prescribed);
     if (max <= min) return; // off, or clinician-locked — nothing to push
     const pressure = settings[zone].pressure;
-    client
-      .setZonePressure(zoneName(zone), pressure)
-      .then(() => setSentPressure((prev) => ({ ...prev, [zone]: pressure })))
-      .catch((err) => {
-        if (__DEV__) console.log('[FOLLI] setpressure failed:', err);
-      });
+    client.setZonePressure(zoneName(zone), pressure).catch((err) => {
+      if (__DEV__) console.log('[FOLLI] setpressure failed:', err);
+    });
   }, [client]);
 
   // Massage SET — one-shot run for the selected zone at its chosen level; the
@@ -312,7 +317,6 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   // Held STOP — the firmware vents everything; state flips via telemetry.
   const handleEmergencyStop = useCallback(() => {
     setStoppedHere(true);
-    setSentPressure({});
     // Reset dials onto the prescription for the next run; the prescription
     // itself is the clinician's and survives.
     setZoneSettings((prev) => {
@@ -335,7 +339,6 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
     // on an unassigned board (ERR:START:NO_USER_ASSIGNED).
     if (!inputsRef.current.patient.assigned) return;
     setStoppedHere(false);
-    setSentPressure({});
     client.start().catch((err) => {
       if (__DEV__) console.log('[FOLLI] start failed:', err);
     });

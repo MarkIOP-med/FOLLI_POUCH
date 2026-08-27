@@ -31,14 +31,3 @@ int vibrationRemainingZoneS(int ch) {
   if (elapsed >= (unsigned long)VIBRATION_DURATION_MS) return 0;
   return (int)(((unsigned long)VIBRATION_DURATION_MS - elapsed + 999) / 1000);
 }
-
-// The longest remaining of any active zone — the single value the BLE console
-// still shows (the patient triggers one zone at a time).
-int vibrationRemainingS() {
-  int maxS = 0;
-  for (int i = 0; i < 4; i++) {
-    int s = vibrationRemainingZoneS(i);
-    if (s > maxS) maxS = s;
-  }
-  return maxS;
-}

@@ -42,9 +42,14 @@ matter which transport is talking.
   write-WITH-response so commands longer than one ATT packet reassemble.
 * **Telemetry characteristic** `d68a2a54-7f15-4ba5-bc44-59368d400d3b` (notify): one
   text line per notify — the periodic enriched frame
-  `T:<state>,<elapsed_s>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibRemainingS>` every 250 ms (vibRemainingS = massage countdown seconds, synced to both apps), plus the tagged
-  `OK:` / `ERR:` / `R:` responses to commands this client sent.
-* **MTU:** the enriched frame is ~55 bytes — the client MUST negotiate a larger MTU
+  `T:<state>,<elapsed_s>,<a0..a3>,<t0..t3>,<batt>,<err>,<vibR0..vibR3>` every 250 ms
+  (16 fields; `vibR0..vibR3` = each zone's OWN massage countdown in seconds,
+  FRONT/TEMPLE/EAR/BACK, independent per zone — the console shows the selected
+  zone's, matching the operator app's per-zone timers), plus the tagged
+  `OK:` / `ERR:` / `R:` responses to commands this client sent. A 13-field frame
+  (the old single `vibRemainingS`) is rejected as malformed, so a stale console
+  gets no telemetry against new firmware — install the APK before flashing.
+* **MTU:** the enriched frame is ~65 bytes — the client MUST negotiate a larger MTU
   (the console requests 185) or notifies arrive truncated; BLE has no long-notify
   reassembly. Battery and the error flag are firmware stubs today.
 * **State mirroring:** state + session clock in every frame is what lets this console

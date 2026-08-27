@@ -350,7 +350,7 @@
     {
       "_comment": "BLE periodic telemetry — consumed by the console's protocol.ts only (Python never parses BLE lines).",
       "name": "ble_running_frame",
-      "line": "T:M,142,0,93,124,0,0,95,125,0,0,0,18",
+      "line": "T:M,142,0,93,124,0,0,95,125,0,0,0,0,0,18,0",
       "expect": {
         "kind": "telemetry",
         "state": "MAINTENANCE",
@@ -369,12 +369,26 @@
         ],
         "battery": 0,
         "error": 0,
+        "vibration_remaining_zone_s": [
+          0,
+          0,
+          18,
+          0
+        ],
         "vibration_remaining_s": 18
       }
     },
     {
+      "_comment": "A 13-field BLE frame (pre per-zone) must now be rejected — this is exactly what a stale console APK against new firmware produces.",
+      "name": "ble_legacy_13_field_is_invalid",
+      "line": "T:M,142,0,93,124,0,0,95,125,0,0,0,18",
+      "expect": {
+        "kind": "invalid"
+      }
+    },
+    {
       "name": "ble_idle_frame",
-      "line": "T:I,0,0,0,0,0,0,0,0,0,0,0,0",
+      "line": "T:I,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0",
       "expect": {
         "kind": "telemetry",
         "state": "IDLE",
@@ -393,6 +407,12 @@
         ],
         "battery": 0,
         "error": 0,
+        "vibration_remaining_zone_s": [
+          0,
+          0,
+          0,
+          0
+        ],
         "vibration_remaining_s": 0
       }
     },
