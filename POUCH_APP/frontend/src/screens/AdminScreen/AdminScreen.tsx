@@ -87,6 +87,11 @@ export function AdminScreen() {
         trim_range_pct: snapshot?.trim_range_pct ?? 10,
         default_massage_seconds: 30,
         pressure_tolerance_mmhg: 3,
+        actuation_threshold_mmhg: 10,
+        telemetry_interval_ms: 250,
+        vib_pwm_1: 170,
+        vib_pwm_2: 215,
+        vib_pwm_3: 255,
       };
       let settingsChanged = false;
 
@@ -121,6 +126,31 @@ export function AdminScreen() {
           nextSettings = {
             ...nextSettings,
             pressure_tolerance_mmhg: Math.max(1, Math.min(20, Math.round(value))),
+          };
+          settingsChanged = true;
+        } else if (row.kind === 'actuationThreshold') {
+          nextSettings = {
+            ...nextSettings,
+            actuation_threshold_mmhg: Math.max(0, Math.min(50, Math.round(value))),
+          };
+          settingsChanged = true;
+        } else if (row.kind === 'telemetryInterval') {
+          nextSettings = {
+            ...nextSettings,
+            telemetry_interval_ms: Math.max(50, Math.min(2000, Math.round(value))),
+          };
+          settingsChanged = true;
+        } else if (
+          row.kind === 'vibPwm1' ||
+          row.kind === 'vibPwm2' ||
+          row.kind === 'vibPwm3'
+        ) {
+          const field = (
+            { vibPwm1: 'vib_pwm_1', vibPwm2: 'vib_pwm_2', vibPwm3: 'vib_pwm_3' } as const
+          )[row.kind];
+          nextSettings = {
+            ...nextSettings,
+            [field]: Math.max(0, Math.min(255, Math.round(value))),
           };
           settingsChanged = true;
         }

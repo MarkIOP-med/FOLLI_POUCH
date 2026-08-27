@@ -8,6 +8,11 @@ export type AdminRowKind =
   | 'trimRange'
   | 'massageSeconds'
   | 'pressureTolerance'
+  | 'actuationThreshold'
+  | 'telemetryInterval'
+  | 'vibPwm1'
+  | 'vibPwm2'
+  | 'vibPwm3'
   | 'readonly';
 
 export interface AdminAction {
@@ -103,8 +108,48 @@ export function adminActions(
       value: settings?.default_massage_seconds ?? null,
       needsSession: false,
     },
+    {
+      key: 'actuationThreshold',
+      kind: 'actuationThreshold',
+      labelKey: 'diagnostics.admin.rows.actuationThreshold',
+      descriptionKey: 'diagnostics.admin.rows.actuationThresholdDesc',
+      value: settings?.actuation_threshold_mmhg ?? null,
+      needsSession: false,
+    },
+    {
+      key: 'telemetryInterval',
+      kind: 'telemetryInterval',
+      labelKey: 'diagnostics.admin.rows.telemetryInterval',
+      descriptionKey: 'diagnostics.admin.rows.telemetryIntervalDesc',
+      value: settings?.telemetry_interval_ms ?? null,
+      needsSession: false,
+    },
+    {
+      key: 'vibPwm1',
+      kind: 'vibPwm1',
+      labelKey: 'diagnostics.admin.rows.vibPwm1',
+      descriptionKey: 'diagnostics.admin.rows.vibPwmDesc',
+      value: settings?.vib_pwm_1 ?? null,
+      needsSession: false,
+    },
+    {
+      key: 'vibPwm2',
+      kind: 'vibPwm2',
+      labelKey: 'diagnostics.admin.rows.vibPwm2',
+      descriptionKey: 'diagnostics.admin.rows.vibPwmDesc',
+      value: settings?.vib_pwm_2 ?? null,
+      needsSession: false,
+    },
+    {
+      key: 'vibPwm3',
+      kind: 'vibPwm3',
+      labelKey: 'diagnostics.admin.rows.vibPwm3',
+      descriptionKey: 'diagnostics.admin.rows.vibPwmDesc',
+      value: settings?.vib_pwm_3 ?? null,
+      needsSession: false,
+    },
   ];
 }
 
-/** The mockup shows ten rows; the tail is blank. */
+/** Minimum rows drawn; the tail is blank when there are fewer. */
 export const TABLE_ROWS = 10;

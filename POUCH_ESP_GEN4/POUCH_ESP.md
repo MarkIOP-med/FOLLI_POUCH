@@ -168,6 +168,7 @@ belongs to and how long it lives:
 | `PRESSURE_ACTUATION_THRESHOLD_MMHG` | System-wide | `10` | Below this, a zero-target channel is skipped rather than actuated |
 | `VIBRATION_DURATION_MS` | System-wide | `30000` | Vibration auto-off duration (per-user, pushed by the app as the massage countdown) |
 | `TELEMETRY_INTERVAL_MS` | System-wide | `250` | BLE telemetry push cadence |
+| `vibPWM[1..3]` | System-wide | `170` / `215` / `255` | Motor PWM (0-255) for massage levels 1/2/3 — set via `VIB_PWM_1/2/3` |
 
 **Read-only (sensor-derived, reported as telemetry, never written):**
 
@@ -177,7 +178,7 @@ belongs to and how long it lives:
 | `actualManifoldPressure` | Measured manifold pressure — a single scalar, not part of the 4-channel vectors |
 | `fsrData[8]` | Raw force-sensor reads |
 
-The four system-wide tuning constants above are live-settable via `SET VARIABLE` (§7).
+The system-wide tuning constants above are live-settable via `SET VARIABLE` (§7).
 `systemDefaultPressure[4]` and `vibPWM[4]` are arrays and are not — they require a
 reflash to change.
 
@@ -217,7 +218,7 @@ be truncated without a negotiated MTU.
 | **SAVE AS DEFAULT** | `saveasdefault` | Save whatever's currently running as this user's saved default |
 | **SET USER DEFAULT PRESSURE** | `setuserdefaultpressure:<p0>,<p1>,<p2>,<p3>` | Set this user's saved default directly, independent of the live session |
 | **SET VIBRATION** | `setvibration:<L0>,<L1>,<L2>,<L3>` | Set vibration level per channel (0–3); auto-off after `VIBRATION_DURATION_MS`. `-1` leaves that channel unchanged, so one zone can be (re)triggered without stopping the others. |
-| **SET VARIABLE** | `setvariable:<NAME>,<VALUE>` (or `,default`) | Set one system-wide tuning constant, or reset it to its compiled default. Valid names: `PRESSURE_TOLERANCE`, `ACTUATION_THRESHOLD`, `VIBRATION_DURATION`, `TELEMETRY_INTERVAL`. |
+| **SET VARIABLE** | `setvariable:<NAME>,<VALUE>` (or `,default`) | Set one system-wide tuning constant, or reset it to its compiled default. Valid names: `PRESSURE_TOLERANCE`, `ACTUATION_THRESHOLD`, `VIBRATION_DURATION`, `TELEMETRY_INTERVAL`, `VIB_PWM_1`, `VIB_PWM_2`, `VIB_PWM_3`. |
 | **READ PRESSURE** | `readpressure` | Actual pressure (4 channels + manifold) and current target (4 channels) |
 | **READ FSR** | `readfsr` | All 8 raw force-sensor readings |
 | **READ VARIABLES** | `readvariables` | The four `SET VARIABLE` constants and their current values |

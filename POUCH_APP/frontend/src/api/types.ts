@@ -144,6 +144,14 @@ export interface Settings {
   default_massage_seconds: number;
   /** Control-loop deadband (mmHg) pushed to the firmware. */
   pressure_tolerance_mmhg: number;
+  /** Target-0 pad at/below this (mmHg) is treated as off (firmware). */
+  actuation_threshold_mmhg: number;
+  /** Telemetry cadence (ms) pushed to the firmware. */
+  telemetry_interval_ms: number;
+  /** Vibration motor PWM (0-255) for massage levels 1/2/3. */
+  vib_pwm_1: number;
+  vib_pwm_2: number;
+  vib_pwm_3: number;
 }
 
 export interface SerialPort {

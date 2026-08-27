@@ -122,6 +122,12 @@ static bool applySetVariable(const String& name, int value, bool useDefault) {
     VIBRATION_DURATION_MS = useDefault ? 30000 : value;
   } else if (name.equalsIgnoreCase("TELEMETRY_INTERVAL")) {
     TELEMETRY_INTERVAL_MS = useDefault ? 250 : value;
+  } else if (name.equalsIgnoreCase("VIB_PWM_1")) {
+    vibPWM[1] = useDefault ? 170 : constrain(value, 0, 255);
+  } else if (name.equalsIgnoreCase("VIB_PWM_2")) {
+    vibPWM[2] = useDefault ? 215 : constrain(value, 0, 255);
+  } else if (name.equalsIgnoreCase("VIB_PWM_3")) {
+    vibPWM[3] = useDefault ? 255 : constrain(value, 0, 255);
   } else {
     return false;
   }

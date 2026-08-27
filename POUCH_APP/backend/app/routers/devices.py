@@ -156,12 +156,12 @@ def connect_device(
         runtime.checked_out_patient_id = patients_repo.default_patient_id(db)
     if runtime.checked_out_patient_id is not None:
         _push_user_regime(db, runtime, runtime.checked_out_patient_id)
-    # Push the clinician-set control deadband so the loop matches the setting.
+    # Push every clinician-set firmware variable (tolerance, actuation threshold,
+    # telemetry interval, vibration PWM levels) so the board matches the settings.
     if runtime.link is not None:
-        with contextlib.suppress(Exception):
-            runtime.link.set_variable(
-                "PRESSURE_TOLERANCE", app_settings.get(db).pressure_tolerance_mmhg
-            )
+        for name, value in app_settings.firmware_variables(app_settings.get(db)).items():
+            with contextlib.suppress(Exception):
+                runtime.link.set_variable(name, value)
     db.commit()
     return snapshot_service.build(runtime, db)
 

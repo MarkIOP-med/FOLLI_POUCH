@@ -238,11 +238,18 @@ class TestSystem:
                 "trim_range_pct": 5,
                 "default_massage_seconds": 20,
                 "pressure_tolerance_mmhg": 4,
+                "actuation_threshold_mmhg": 8,
+                "telemetry_interval_ms": 300,
+                "vib_pwm_1": 160,
+                "vib_pwm_2": 200,
+                "vib_pwm_3": 250,
             },
         ).raise_for_status()
         got = client.get("/api/settings").json()
         assert got["max_pressure_mmhg"] == 60
         assert got["pressure_tolerance_mmhg"] == 4
+        assert got["vib_pwm_2"] == 200
+        assert got["telemetry_interval_ms"] == 300
 
     def test_unknown_device_is_404(self, client: TestClient):
         assert client.get("/api/devices/NOPE").status_code == 404

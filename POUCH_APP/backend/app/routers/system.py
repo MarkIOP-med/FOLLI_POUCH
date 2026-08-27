@@ -36,18 +36,20 @@ def write_settings(
     audit.record(db, "update", "settings", before.model_dump(), body.model_dump())
     db.commit()
 
-    # The pressure tolerance is a firmware control-loop variable, so a change
-    # takes effect on every connected pouch immediately (not just on next
-    # connect). The others (ceiling, trim) are app-side clamps only.
-    if body.pressure_tolerance_mmhg != before.pressure_tolerance_mmhg:
-        for runtime in registry.all():
-            if runtime.connected and runtime.link is not None:
-                with contextlib.suppress(Exception):
-                    runtime.link.set_variable(
-                        "PRESSURE_TOLERANCE", body.pressure_tolerance_mmhg
-                    )
+    # Firmware control variables (tolerance, actuation threshold, telemetry
+    # interval, vibration PWM levels) take effect on every connected pouch
+    # immediately — not just on next connect. The app-side clamps (ceiling,
+    # trim range) never reach the firmware.
+    after = app_settings.get(db)
+    before_vars = app_settings.firmware_variables(before)
+    for name, value in app_settings.firmware_variables(after).items():
+        if value != before_vars.get(name):
+            for runtime in registry.all():
+                if runtime.connected and runtime.link is not None:
+                    with contextlib.suppress(Exception):
+                        runtime.link.set_variable(name, value)
 
-    return app_settings.get(db)
+    return after
 
 
 @router.get("/serial-ports", response_model=list[SerialPortOut])

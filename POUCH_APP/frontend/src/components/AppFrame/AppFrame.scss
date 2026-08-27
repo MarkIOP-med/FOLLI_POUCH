@@ -93,6 +93,5 @@
   // default handling untouched.
   &[data-fit='pan'] {
     touch-action: pan-x pan-y;
-    cursor: grab;
   }
 }

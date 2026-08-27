@@ -8,18 +8,20 @@
   box-sizing: border-box;
 }
 
-// The app is one fixed, self-scrolling canvas (see AppFrame), so the document
-// itself never scrolls — a second scrollbar here would only ever be the browser
-// disagreeing with the canvas about the viewport height.
-//
 // dvh alongside vh: on a phone `100vh` measures the viewport with the URL bar
-// retracted, which is taller than the space actually on screen. The vh line
-// stays as the fallback for engines that do not know dvh.
+// retracted, which is taller than the space actually on screen, so a canvas
+// fitted to it is cut off by the bar that is really there. The vh line stays as
+// the fallback for engines that do not know dvh.
+//
+// Deliberately no `overflow: hidden` here. The document has nothing to scroll
+// anyway — AppFrame is fixed, covers the viewport and scrolls itself — so the
+// rule would only ever cost something: on a screen too small to contain the
+// canvas, pinch-zoom is the reader's last resort, and a locked document clamps
+// the pan that makes zooming useful.
 html,
 body {
   height: 100vh;
   height: 100dvh;
-  overflow: hidden;
 }
 
 body {

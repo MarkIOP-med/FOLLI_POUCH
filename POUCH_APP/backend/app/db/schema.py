@@ -106,6 +106,11 @@ DEFAULT_SETTINGS = {
     "default_massage_seconds": "30",
     "pressure_tolerance_mmhg": "3",  # control deadband — how far a pad may drift
     #                                  from target before the loop corrects (firmware).
+    "actuation_threshold_mmhg": "10",  # a target-0 pad at/below this is treated as off
+    "telemetry_interval_ms": "250",    # how often the board reports
+    "vib_pwm_1": "170",                # PWM (0-255) for massage level 1
+    "vib_pwm_2": "215",                # level 2
+    "vib_pwm_3": "255",
 }
 
 # Idempotent ALTER TABLE migrations, applied in order on every startup.

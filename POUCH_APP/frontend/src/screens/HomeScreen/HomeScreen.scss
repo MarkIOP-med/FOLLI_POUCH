@@ -31,6 +31,12 @@
     height: 664px;
     overflow-y: auto;
     overflow-x: hidden;
+    // Chains to the canvas when the grid itself has nothing left to scroll,
+    // which is the usual case: it holds six slots and is sized for six. Without
+    // this a wheel or drag that starts over a card is swallowed by the grid, and
+    // on a viewport small enough for the canvas to be panned that reads as the
+    // screen having gone dead under the pointer.
+    overscroll-behavior-y: auto;
 
     // No visible scrollbar: the target is a touch kiosk, where dragging works,
     // and a classic scrollbar would take ~15px out of the row and shrink every
