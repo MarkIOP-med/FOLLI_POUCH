@@ -237,9 +237,12 @@ class TestSystem:
                 "max_pressure_mmhg": 60,
                 "trim_range_pct": 5,
                 "default_massage_seconds": 20,
+                "pressure_tolerance_mmhg": 4,
             },
         ).raise_for_status()
-        assert client.get("/api/settings").json()["max_pressure_mmhg"] == 60
+        got = client.get("/api/settings").json()
+        assert got["max_pressure_mmhg"] == 60
+        assert got["pressure_tolerance_mmhg"] == 4
 
     def test_unknown_device_is_404(self, client: TestClient):
         assert client.get("/api/devices/NOPE").status_code == 404

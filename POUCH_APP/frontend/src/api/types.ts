@@ -142,6 +142,8 @@ export interface Settings {
   max_pressure_mmhg: number;
   trim_range_pct: number;
   default_massage_seconds: number;
+  /** Control-loop deadband (mmHg) pushed to the firmware. */
+  pressure_tolerance_mmhg: number;
 }
 
 export interface SerialPort {

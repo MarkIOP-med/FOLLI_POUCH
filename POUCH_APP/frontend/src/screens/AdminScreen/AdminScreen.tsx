@@ -86,6 +86,7 @@ export function AdminScreen() {
         max_pressure_mmhg: snapshot?.ceiling_mmhg ?? 130,
         trim_range_pct: snapshot?.trim_range_pct ?? 10,
         default_massage_seconds: 30,
+        pressure_tolerance_mmhg: 3,
       };
       let settingsChanged = false;
 
@@ -114,6 +115,12 @@ export function AdminScreen() {
           nextSettings = {
             ...nextSettings,
             default_massage_seconds: Math.round(value),
+          };
+          settingsChanged = true;
+        } else if (row.kind === 'pressureTolerance') {
+          nextSettings = {
+            ...nextSettings,
+            pressure_tolerance_mmhg: Math.max(1, Math.min(20, Math.round(value))),
           };
           settingsChanged = true;
         }

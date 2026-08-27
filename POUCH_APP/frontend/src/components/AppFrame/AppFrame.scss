@@ -1,26 +1,65 @@
+// Scroll container for the design canvas.
+//
+// Sized with dvh rather than vh: on a phone `100vh` is the viewport with the URL
+// bar hidden, so a canvas fitted to it is cut off by the bar that is actually
+// on screen.
 .app-frame {
   position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  background: $page-grad-to;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  // Centred when the canvas fits. `safe` matters once it can overflow: plain
+  // centring pushes the overflowing edges out past *both* sides of the scroll
+  // port, and the leading one is then unreachable — there is no negative scroll
+  // offset. `safe` falls back to start-alignment in exactly that case. Browsers
+  // that cannot parse it drop the line and keep the `center` above, which is the
+  // correct behaviour for them since they also predate the overflow path.
+  align-items: center;
+  justify-content: center;
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
+  // The canvas is the whole app; a pan that runs out of room must not start
+  // scrolling the page behind it or trigger pull-to-refresh.
+  overscroll-behavior: contain;
+  // The margin outside the frame carries a darker copy of the design's ramp.
+  // Painting the letterbox with it too means the space beside a canvas that
+  // cannot fill the viewport reads as part of the same surface, rather than as a
+  // flat void next to a lit panel.
+  background-image: linear-gradient(90deg, $page-grad-from 0%, $page-grad-to 100%);
+  scrollbar-width: thin;
+  scrollbar-color: $border $page-grad-to;
+
+  // Occupies the canvas's scaled footprint. A transform does not affect layout,
+  // so without this box the 1920x1200 canvas would report its unscaled size and
+  // the frame would offer a scroll range for a canvas that fits — or none for
+  // one that does not.
+  &__sizer {
+    position: relative;
+    flex: none;
+    width: calc(#{$canvas-w}px * var(--canvas-scale, 1));
+    height: calc(#{$canvas-h}px * var(--canvas-scale, 1));
+  }
 
   // The canvas is always laid out at design size; only the transform changes.
   // Nothing inside it ever needs a media query.
-  // Absolutely centred then scaled about its own centre. `place-items` alone is
-  // unreliable here: transform does not affect layout size, so the grid centres
-  // the unscaled 1920x1200 box and the scaled result lands off-centre.
+  //
+  // Scaled about its top-left corner, pinned to the sizer's origin. Centring it
+  // with `translate(-50%, -50%)` instead would place the *unscaled* box and let
+  // the scaled result hang off the leading edges — invisible while the frame
+  // clipped, and unreachable now that it scrolls.
   &__canvas {
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 0;
+    left: 0;
     width: #{$canvas-w}px;
     height: #{$canvas-h}px;
-    // The margin outside the frame carries a darker copy of the same ramp.
     background-image: linear-gradient(90deg, $page-grad-from 0%, $page-grad-to 100%);
-    transform: translate(-50%, -50%) scale(var(--canvas-scale, 1));
-    transform-origin: center center;
+    transform: scale(var(--canvas-scale, 1));
+    transform-origin: top left;
   }
 
   // Outer frame: border box x 11 -> 1910, y 11 -> 1190, 3px #4c6470. Measured by
@@ -37,5 +76,23 @@
     border: $bw-frame solid $border;
     border-radius: $radius-md;
     pointer-events: none;
+  }
+
+  // ── touch ───────────────────────────────────────────────────────────────────
+  // On a touch screen the drag itself is the affordance and a scrollbar only
+  // eats canvas, so it is hidden there and kept on pointer devices, where a
+  // hidden one leaves no sign that the canvas can be panned at all.
+  @media (pointer: coarse) {
+    scrollbar-width: none;
+    &::-webkit-scrollbar { display: none; }
+  }
+
+  // ── panning ─────────────────────────────────────────────────────────────────
+  // Set only while the canvas is larger than the viewport, so a contained canvas
+  // — the kiosk tablet and every laptop-sized window — keeps the browser's
+  // default handling untouched.
+  &[data-fit='pan'] {
+    touch-action: pan-x pan-y;
+    cursor: grab;
   }
 }

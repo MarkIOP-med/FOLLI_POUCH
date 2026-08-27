@@ -5,12 +5,14 @@ class SettingsOut(BaseModel):
     max_pressure_mmhg: int
     trim_range_pct: int
     default_massage_seconds: int
+    pressure_tolerance_mmhg: int
 
 
 class SettingsIn(BaseModel):
     max_pressure_mmhg: int = Field(ge=1, le=300)
     trim_range_pct: int = Field(ge=0, le=50)
     default_massage_seconds: int = Field(ge=0, le=600)
+    pressure_tolerance_mmhg: int = Field(ge=1, le=20)
 
 
 class SerialPortOut(BaseModel):

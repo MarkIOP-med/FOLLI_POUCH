@@ -298,6 +298,8 @@
         "vibrationDesc": "One level (0–3) applied to all four zones",
         "collaborative": "Collaborative Functions",
         "collaborativeDesc": "Not implemented in the protocol yet",
+        "pressureTolerance": "Pressure Tolerance",
+        "pressureToleranceDesc": "± mmHg a pad may drift from target before the pump/relief corrects (default 3)",
         "defaults": "Max Pressure Ceiling",
         "defaultsDesc": "Clinical ceiling (mmHg) — clamps every prescription and setpoint",
         "trimRange": "Patient Trim Range",

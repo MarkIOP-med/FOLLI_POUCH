@@ -104,6 +104,8 @@ DEFAULT_SETTINGS = {
     #                                 lower it back to 70 before any human use.
     "trim_range_pct": "10",
     "default_massage_seconds": "30",
+    "pressure_tolerance_mmhg": "3",  # control deadband — how far a pad may drift
+    #                                  from target before the loop corrects (firmware).
 }
 
 # Idempotent ALTER TABLE migrations, applied in order on every startup.

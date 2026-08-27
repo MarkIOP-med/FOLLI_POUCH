@@ -7,6 +7,7 @@ export type AdminRowKind =
   | 'ceiling'
   | 'trimRange'
   | 'massageSeconds'
+  | 'pressureTolerance'
   | 'readonly';
 
 export interface AdminAction {
@@ -68,12 +69,13 @@ export function adminActions(
       needsSession: true,
     },
     {
-      // Listed in the mockup but undefined in the protocol and unimplemented.
-      key: 'collaborative',
-      kind: 'readonly',
-      labelKey: 'diagnostics.admin.rows.collaborative',
-      descriptionKey: 'diagnostics.admin.rows.collaborativeDesc',
-      value: null,
+      // Control-loop deadband — how far a pad may drift from target before the
+      // loop corrects. Pushed to the firmware (setvariable PRESSURE_TOLERANCE).
+      key: 'pressureTolerance',
+      kind: 'pressureTolerance',
+      labelKey: 'diagnostics.admin.rows.pressureTolerance',
+      descriptionKey: 'diagnostics.admin.rows.pressureToleranceDesc',
+      value: settings?.pressure_tolerance_mmhg ?? null,
       needsSession: false,
     },
     {
