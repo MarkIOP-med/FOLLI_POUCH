@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover so the canvas reaches under a notch/rounded corners.
+         No user-scalable=no: on a screen too small to contain the 1920x1200
+         canvas, pinch-zoom is the reader's only recovery. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
     <title>FOLLI — Pouch Console</title>
   </head>
   <body>
