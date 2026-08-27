@@ -269,22 +269,34 @@ export function AdminScreen() {
           </button>
         </div>
 
-        {/* Critical pouch actions, side by side. Both are password-gated so a
-            mis-press can't restart a live treatment or wipe the patient list.
-            Self-contained styling (visual polish pass still owed). */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+        {/* Critical pouch actions, side by side, pinned just below RESET ALL.
+            The side panel is a measured absolute layout (overflow:hidden, all
+            children absolutely placed), so these must be absolutely positioned
+            too or they render at the panel's top-left, hidden behind the data
+            block. Coordinates are panel-padding-box relative, like the pills
+            (RESET ALL ends at y=856; panel is 901 tall). Both password-gated. */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 861,
+            left: 20,
+            right: 20,
+            display: 'flex',
+            gap: 10,
+          }}
+        >
           <button
             type="button"
             disabled={busy || !snapshot?.connected}
             onClick={() => setPendingRestart(true)}
             style={{
               flex: 1,
-              padding: '10px 12px',
+              padding: '8px 10px',
               borderRadius: 8,
               border: '1px solid #6c8a9c',
               background: '#173241',
               color: '#cfe4ef',
-              font: '600 13px/1.2 inherit',
+              font: '600 13px/1.1 inherit',
               cursor: 'pointer',
             }}
           >
@@ -296,12 +308,12 @@ export function AdminScreen() {
             onClick={() => setPendingFactoryReset(true)}
             style={{
               flex: 1,
-              padding: '10px 12px',
+              padding: '8px 10px',
               borderRadius: 8,
               border: '1px solid #b3524a',
               background: '#3a1b18',
               color: '#f0b7b0',
-              font: '600 13px/1.2 inherit',
+              font: '600 13px/1.1 inherit',
               cursor: 'pointer',
             }}
           >
