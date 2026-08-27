@@ -1,142 +1,139 @@
-// PAGE_01 — User Overview grid. Coordinates recovered by edge-detecting
-// diagnostics_ui_04_PAGE_01.jpeg (1600x1000, so canvas = source x 1.2):
-//
-//   card columns   x 113..695 / 713..1294 / 1312..1894  — 582 wide on an 18px gap
-//   card rows      y 276..599 and y 617..940            — 323 tall on an 18px gap
-//   caption bar    49 tall, rule at y=325, text ink centred on y=298
-//   fields         labels x 140, values x 363, ink centres y 357.5 on a 48.3 pitch
-//   ENTER pill     132x43, centred, ink centre y=564
-//   ACTIVE USERS   ink x 137, centre y=987.5
-//
-// The mockup draws six fixed slots; per the product decision this is a dynamic
-// grid over the device registry that happens to lay out on the same rhythm,
-// including the empty-slot styling from slot 06.
+// Home — a fluid, responsive grid of pouch cards. Reflows from one column on a
+// narrow tablet to many across a 34" monitor; type scales with the shell tokens.
 
-.home-screen {
-  // The design draws exactly six slots and puts ACTIVE USERS immediately below
-  // them, so the grid is boxed to those two rows (276 -> 940) and scrolls. A
-  // seventh pouch would otherwise start a third row that runs off the canvas and
-  // through the count — which is what happened the first time the registry held
-  // more than six.
-  &__grid {
-    position: absolute;
-    left: 113px;
-    top: 276px;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: 323px;
-    align-content: start;
-    gap: 18px;
-    width: 1781px;
-    height: 664px;
-    overflow-y: auto;
-    overflow-x: hidden;
-
-    // No visible scrollbar: the target is a touch kiosk, where dragging works,
-    // and a classic scrollbar would take ~15px out of the row and shrink every
-    // card off its measured width the moment a seventh pouch is registered.
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
-  }
-
-  &__count {
-    position: absolute;
-    left: 135px;
-    top: 967.5px;
-    color: $text;
-    font-size: $fs-heading;
-    line-height: 40px;
-  }
-
-  // Inline feedback for ENTER's connect-then-navigate step, on the count line.
-  &__connecting { opacity: 0.7; }
-  &__connect-error { color: $alert-red; }
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  max-width: 2200px;
 }
 
-.user-card {
-  position: relative;
-  @include framed;
+.home__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
 
-  &--empty { opacity: 0.55; }
+.home__heading {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: $fw-label;
+}
 
-  // ── caption bar ───────────────────────────────────────────────────────────
-  &__head {
-    position: absolute;
-    inset: 0 0 auto;
-    display: flex;
+.home__count {
+  color: $text-muted;
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.home__error {
+  margin: 0;
+  padding: var(--space-sm) var(--space);
+  border: 1px solid $alert-red;
+  border-radius: var(--radius);
+  color: #ffb4b6;
+  background: rgba(248, 58, 48, 0.08);
+  font-size: var(--fs-sm);
+}
+
+.home__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: var(--space);
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: clamp(14px, 1vw, 26px);
+  background: linear-gradient(135deg, $grad-from 0%, $grad-to 100%);
+  border: 2px solid $border;
+  border-radius: var(--radius);
+
+  &.is-active {
+    border-color: $select-bg;
+    box-shadow: 0 0 0 1px $select-bg;
+  }
+
+  &--empty {
+    color: $text-muted;
     align-items: center;
-    justify-content: space-between;
-    height: 49px;
-    // The extra bottom padding lifts the centred text 4px, which is where the
-    // mockup's ink sits — above the middle of the bar, not on it.
-    padding: 0 17px 8px 20px;
-    background: $panel-title-bg;
-    border-bottom: $bw-frame solid $border;
-    color: $text;
-    font-size: $fs-body;
-    font-weight: $fw-label;
-    line-height: 32px;
+    justify-content: center;
+    text-align: center;
+    min-height: clamp(140px, 12vw, 220px);
   }
+}
 
-  // ── fields ────────────────────────────────────────────────────────────────
-  &__body {
-    position: absolute;
-    left: 24px;
-    top: 58px;
-    display: grid;
-    grid-template-columns: 223px auto;
-    color: $text;
-    font-size: $fs-body;
-    line-height: 48.3px;
-    white-space: nowrap;
+.home-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid $border;
+  font-size: var(--fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $text-dim;
+}
+
+.home-card__num {
+  font-variant-numeric: tabular-nums;
+  color: $select-bg;
+  font-weight: 600;
+}
+
+.home-card__body {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-sm) var(--space);
+  margin: 0;
+  align-items: baseline;
+
+  dt {
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: var(--fs-xs);
   }
-
-  &__label { color: $text-dim; }
-
-  // Overlaps the field rows on the card's right edge, so it is placed against
-  // the card rather than threaded through the grid.
-  &__profile {
-    position: absolute;
-    right: 6px;
-    top: 100px;
-    width: 104px;
-    height: 140px;
-    object-fit: contain;
-    pointer-events: none;
+  dd {
+    margin: 0;
+    font-size: var(--fs-base);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5ch;
+    min-width: 0;
   }
+}
 
-  // ── enter ─────────────────────────────────────────────────────────────────
-  // The designer's own pill artwork, with the label baked in.
-  &__enter {
-    position: absolute;
-    left: 50%;
-    top: 263px;            // pill at y=542, card padding box starts at y=279
-    width: 132px;
-    height: 43px;
-    padding: 0;
-    border: none;
-    background: none;
-    transform: translateX(-50%);
-    cursor: pointer;
+.home-card__dot {
+  width: 0.65em;
+  height: 0.65em;
+  border-radius: 50%;
+  flex: none;
+  &.is-on { background: $ok-green; }
+  &.is-off { background: $alert-red; }
+}
 
-    img {
-      display: block;
-      width: 100%;
-      height: 100%;
-    }
+.home-card__enter {
+  margin-top: auto;
+  align-self: flex-start;
+  padding: clamp(8px, 0.7vw, 14px) clamp(18px, 1.4vw, 34px);
+  border: 1px solid $select-bg;
+  border-radius: var(--radius);
+  background: rgba(79, 137, 173, 0.18);
+  color: $text;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
 
-    &:disabled { opacity: 0.4; cursor: not-allowed; }
-  }
-
-  // ── selected slot ─────────────────────────────────────────────────────────
-  // Card 01 in the mockup: a #bee7ea outline, the same colour on the caption
-  // rule, and — unlike every other card — no fill behind the caption at all.
-  &--active {
-    border-color: $art-pale;
-
-    .user-card__head {
-      background: none;
-      border-bottom-color: $art-pale;
-    }
-  }
+  &:hover:not(:disabled) { background: rgba(79, 137, 173, 0.32); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:focus-visible { outline: 2px solid $select-bg; outline-offset: 2px; }
 }
