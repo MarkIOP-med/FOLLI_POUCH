@@ -459,12 +459,23 @@ def vibrate_zone(
     Deliberately transient: nothing is stored, and vibration is never started
     implicitly (START does not buzz — an operator triggers it per zone, as many
     times as the client wants). The firmware auto-stops the motor after its
-    VIBRATION_DURATION_MS (20s default); re-triggering restarts the window.
+    VIBRATION_DURATION_MS (30s default); re-triggering restarts the window.
     Other zones are sent -1 ("leave unchanged"), so zones run simultaneously —
     triggering one never stops another mid-run.
     """
     zone = validate_zone(body.zone)
     assert runtime.link is not None
+
+    # Set this zone's configured duration first, so the countdown runs the
+    # patient's massage_seconds (30s default) rather than the firmware default.
+    # A connect-time push can be lost to the ~6s boot reset, so we assert it
+    # here, right before the trigger.
+    if runtime.effective_patient_id is not None:
+        rx = patients_repo.prescriptions_by_zone(db, runtime.effective_patient_id)
+        seconds = int(rx.get(zone, {}).get("massage_seconds") or 30)
+        with contextlib.suppress(Exception):
+            runtime.link.set_variable("VIBRATION_DURATION", seconds * 1000)
+
     vector = [body.level if z == zone else -1 for z in ZONES]
     sent = send_or_502(lambda: runtime.link.set_vibration(vector))
     audit.log_event(
@@ -504,6 +515,9 @@ def set_vibration(
     # commanded zones[] would read 0).
     if runtime.connected and runtime.link is not None:
         rx = patients_repo.prescriptions_by_zone(db, patient_id)
+        # Push the edited duration too, so the countdown honours the new time.
+        with contextlib.suppress(Exception):
+            runtime.link.set_variable("VIBRATION_DURATION", int(body.massage_seconds) * 1000)
         sent = send_or_502(
             lambda: runtime.link.set_vibration(
                 [rx.get(z, {}).get("massage_level", 0) for z in ZONES]

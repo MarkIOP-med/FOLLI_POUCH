@@ -166,7 +166,7 @@ belongs to and how long it lives:
 | `vibPWM[4]` | System-wide | `{0,85,170,255}` | PWM output per vibration level 0–3 |
 | `PRESSURE_TOLERANCE_MMHG` | System-wide | `3` | ± dead-band for "at target" |
 | `PRESSURE_ACTUATION_THRESHOLD_MMHG` | System-wide | `10` | Below this, a zero-target channel is skipped rather than actuated |
-| `VIBRATION_DURATION_MS` | System-wide | `20000` | Vibration auto-off duration |
+| `VIBRATION_DURATION_MS` | System-wide | `30000` | Vibration auto-off duration (per-user, pushed by the app as the massage countdown) |
 | `TELEMETRY_INTERVAL_MS` | System-wide | `250` | BLE telemetry push cadence |
 
 **Read-only (sensor-derived, reported as telemetry, never written):**

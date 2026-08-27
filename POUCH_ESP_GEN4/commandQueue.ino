@@ -119,7 +119,7 @@ static bool applySetVariable(const String& name, int value, bool useDefault) {
   } else if (name.equalsIgnoreCase("ACTUATION_THRESHOLD")) {
     PRESSURE_ACTUATION_THRESHOLD_MMHG = useDefault ? 10 : value;
   } else if (name.equalsIgnoreCase("VIBRATION_DURATION")) {
-    VIBRATION_DURATION_MS = useDefault ? 20000 : value;
+    VIBRATION_DURATION_MS = useDefault ? 30000 : value;
   } else if (name.equalsIgnoreCase("TELEMETRY_INTERVAL")) {
     TELEMETRY_INTERVAL_MS = useDefault ? 250 : value;
   } else {

@@ -84,7 +84,7 @@ int  userId   = NO_USER_ID;  // checked-out user's id — RAM only; boots as NO_
 bool assigned = true;   // always true — the board boots checked out to NO_USER — RAM only
 char userName[USER_NAME_MAX + 1] = "";  // display name for the patient console — RAM only, may be empty
 
-int VIBRATION_DURATION_MS = 20000;  // ms vibration runs before auto-off — SET VARIABLE
+int VIBRATION_DURATION_MS = 30000;  // ms vibration runs before auto-off — SET VARIABLE (per-user, pushed by the app)
 int vibPWM[4]             = {0, 170, 215, 255};  // PWM output for vibration levels 0-3.
 // Not a linear ramp: these motors have a dead zone below ~50% PWM — the old
 // {0,85,170,255} made level 1 invisible and level 2 barely perceptible (bench,
