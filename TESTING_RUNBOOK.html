@@ -446,10 +446,22 @@
       scanner app). Only one Bluetooth central can connect at a time — the PC uses the <strong>serial</strong>
       cable, not Bluetooth, so it never competes.</p></div></details>
 
-    <details><summary>Console shows "Patient: not assigned" and a default pressure</summary><div class="body">
-      <p>No patient is checked out — the board forgets on every power‑cycle (the record lives in RAM only).
-      In the web app, <strong>select your patient</strong> (or create one). The console updates within a
-      second and START becomes available.</p></div></details>
+    <details><summary>Which patient does the console show if I didn't select one?</summary><div class="body">
+      <p>The pouch is never without a user — it boots checked out to <strong><code>NO_USER</code></strong>,
+      the factory-default profile (regime 25 / 120 / 85 / 130). So the console shows <code>NO_USER</code> and
+      <strong>START works standalone, even with the web app not connected.</strong> Select a real patient in
+      the web app to override it; the console updates within a second. (You'd only see literally "not assigned"
+      on older firmware — pull the latest <code>main</code> and reflash.)</p></div></details>
+
+    <details><summary>The pouch seems stuck — how do I recover without power-cycling?</summary><div class="body">
+      <p>On the device (Diagnostics) screen, press <strong>Restart pouch (if stuck)</strong>. It vents and
+      re-initialises the control loop but keeps the current session, patient, and regime — it just un-sticks
+      the pressure loop.</p></div></details>
+
+    <details><summary>How do I clear all my test patients / start clean?</summary><div class="body">
+      <p>In <strong>Admin</strong>, press <strong>Factory reset</strong>. It restarts the pouch to
+      <code>NO_USER</code> and deletes every patient except <code>NO_USER</code> (it asks to confirm first).
+      Your clinical settings — pressure ceiling, trim range — are kept. This can't be undone.</p></div></details>
 
     <details><summary><code>adb devices</code> says <code>unauthorized</code></summary><div class="body">
       <p>On the phone, tap <strong>Allow</strong> on the "Allow USB debugging?" pop‑up (tick "always allow
