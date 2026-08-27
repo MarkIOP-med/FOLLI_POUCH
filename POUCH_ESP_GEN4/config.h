@@ -246,7 +246,8 @@ void printSerialLog();
 void initVibration();
 void updateVibration();
 void stopAllVibration();
-int  vibrationRemainingS();       // seconds left on the running massage, 0 when idle
+int  vibrationRemainingS();       // longest remaining of any zone (BLE console)
+int  vibrationRemainingZoneS(int ch);  // seconds left on one zone (operator app, per-zone)
 
 // ble.ino
 void initBLE();

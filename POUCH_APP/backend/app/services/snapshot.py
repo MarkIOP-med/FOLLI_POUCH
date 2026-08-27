@@ -93,6 +93,9 @@ def _zone_view(
         "status": status,
         "massage_level": rx.get("massage_level", 0),
         "massage_seconds": rx.get("massage_seconds", 30),
+        # This zone's own live massage countdown (seconds), independent of the
+        # other zones — 0 when this zone isn't buzzing, None before any frame.
+        "vibration_remaining_s": live.get("vibration_remaining_s") if live else None,
         # Gen4 firmware reads all 8 FSR channels (the Gen3 EAR stub is gone). The
         # channel→zone/side mapping is still unconfirmed against the harness, and one
         # FLOW_LINK side is physically dead on the bench — those read flat 0, which is

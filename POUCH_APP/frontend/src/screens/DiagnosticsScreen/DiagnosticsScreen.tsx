@@ -463,20 +463,16 @@ export function DiagnosticsScreen() {
           {/* A grid of positioned rows, not a table: the mockup sets each row on
               its own measured centre (59.3px pitch) and the level discs on a
               54px pitch, neither of which falls out of table layout. */}
-          {/* The per-zone column holds the configured duration; the live
-              countdown while a massage runs is shown once, synced from the
-              board's telemetry (the same value the patient console displays). */}
+          {/* The per-zone column holds the configured duration; each zone's own
+              live countdown while its massage runs is shown in that zone's
+              trigger below (independent per zone, synced from board telemetry). */}
           <div className="vib-panel__head">
             <span>{t('device.vibration.zonePair')}</span>
             <span>{t('device.vibration.levels')}</span>
             <span className="vib-panel__duration">
               {t('device.vibration.duration')}
             </span>
-            <span>
-              {(snapshot?.vibration_remaining_s ?? 0) > 0
-                ? `▶ ${snapshot?.vibration_remaining_s}s left`
-                : ''}
-            </span>
+            <span />
           </div>
 
           {zones.map((zone, i) => (
@@ -566,19 +562,26 @@ export function DiagnosticsScreen() {
                 const level = previewing
                   ? stagedRx.get(zone.zone)?.massage_level ?? 0
                   : zone.massage_level;
+                // This zone's own countdown ticks down in its trigger; the button
+                // stays live so pressing it re-starts this zone's massage.
+                const remain = zone.vibration_remaining_s ?? 0;
                 return (
                   <button
                     type="button"
-                    className="vib-panel__go"
+                    className={`vib-panel__go${remain > 0 ? ' is-running' : ''}`}
                     disabled={!snapshot?.connected || busyKey !== null || level === 0}
-                    title={t('device.vibration.trigger')}
+                    title={
+                      remain > 0
+                        ? t('device.vibration.secondsLeft', { value: remain })
+                        : t('device.vibration.trigger')
+                    }
                     onClick={() =>
                       run('settingVibration', () =>
                         api.vibrateZone(id, zone.zone as Zone, level),
                       )
                     }
                   >
-                    ▶
+                    {remain > 0 ? remain : '▶'}
                   </button>
                 );
               })()}

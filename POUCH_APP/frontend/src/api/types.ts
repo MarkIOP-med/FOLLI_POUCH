@@ -23,6 +23,9 @@ export interface ZoneView {
   status: ZoneStatus;
   massage_level: number;
   massage_seconds: number;
+  /** This zone's OWN live massage countdown (seconds) — independent of the other
+      zones, 0 when this zone isn't buzzing, null before the first frame. */
+  vibration_remaining_s: number | null;
   fsr_l: FsrReading | null;
   fsr_r: FsrReading | null;
 }

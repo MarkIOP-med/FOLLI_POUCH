@@ -16,7 +16,8 @@ void printSerialLog() {
   static bool headerPrinted = false;
   if (!headerPrinted) {
     Serial.println("T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN,ACT");
+                   "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,"
+                   "VIB_R0,VIB_R1,VIB_R2,VIB_R3,ACT");
     headerPrinted = true;
   }
 
@@ -34,7 +35,12 @@ void printSerialLog() {
   // than silently misreading shifted columns.
   Serial.print(stateChar());                     Serial.print(',');
   Serial.print((unsigned long)sessionElapsedS()); Serial.print(',');
-  Serial.print(vibrationRemainingS());           Serial.print(',');
+  // Per-zone massage countdowns (FRONT/TEMPLE/EAR/BACK), each independent so the
+  // operator app runs a separate timer per zone. The BLE frame keeps the single
+  // vibrationRemainingS() (longest running) — the console shows one countdown.
+  for (int i = 0; i < 4; i++) {
+    Serial.print(vibrationRemainingZoneS(i));    Serial.print(',');
+  }
   // Actuator state bitmask, so the operator app's Manifold Diagnostic dots light
   // in sync with what's energized: bit0 pump, bit1 relief, bit2-5 valves 0-3
   // (FRONT/TEMPLE/EAR/BACK). HIGH = energized. Serial-only — the BLE frame is

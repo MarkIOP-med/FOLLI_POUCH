@@ -22,21 +22,23 @@ void stopAllVibration() {
   for (int i = 0; i < 4; i++) vibrationLevel[i] = 0;
 }
 
-// Seconds left on the running massage — the longest remaining of any active
-// zone, 0 when nothing is buzzing. Both apps show this as a countdown, so the
-// firmware is the single synced source (like the session clock). Ceils to the
-// second so the display ticks 30..29..1..0 rather than showing 0 early.
+// Seconds left on ONE zone's massage, 0 when that zone isn't buzzing. Ceils to
+// the second so the display ticks 30..29..1..0 rather than showing 0 early.
+// The operator app shows one of these per zone (independent countdowns).
+int vibrationRemainingZoneS(int ch) {
+  if (ch < 0 || ch > 3 || vibrationLevel[ch] <= 0) return 0;
+  unsigned long elapsed = millis() - vibStartTime[ch];
+  if (elapsed >= (unsigned long)VIBRATION_DURATION_MS) return 0;
+  return (int)(((unsigned long)VIBRATION_DURATION_MS - elapsed + 999) / 1000);
+}
+
+// The longest remaining of any active zone — the single value the BLE console
+// still shows (the patient triggers one zone at a time).
 int vibrationRemainingS() {
-  unsigned long now = millis();
-  unsigned long maxRemainMs = 0;
+  int maxS = 0;
   for (int i = 0; i < 4; i++) {
-    if (vibrationLevel[i] > 0) {
-      unsigned long elapsed = now - vibStartTime[i];
-      if (elapsed < (unsigned long)VIBRATION_DURATION_MS) {
-        unsigned long remain = (unsigned long)VIBRATION_DURATION_MS - elapsed;
-        if (remain > maxRemainMs) maxRemainMs = remain;
-      }
-    }
+    int s = vibrationRemainingZoneS(i);
+    if (s > maxS) maxS = s;
   }
-  return (int)((maxRemainMs + 999) / 1000);
+  return maxS;
 }

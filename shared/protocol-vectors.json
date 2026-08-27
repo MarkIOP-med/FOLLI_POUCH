@@ -221,7 +221,7 @@
     {
       "name": "bench_captured_running_frame",
       "comment": "Real frame captured from the pouch on COM6, 2026-08-21 (TEMPLE target 15, PRESSURIZING).",
-      "line": "T:2408,0,0,15,1,0,0,0,0,66,0,0,0,0,0,0,0,0,P,0,0,5",
+      "line": "T:2408,0,0,15,1,0,0,0,0,66,0,0,0,0,0,0,0,0,P,0,0,0,0,0,5",
       "expect": {
         "kind": "telemetry",
         "device_ms": 2408,
@@ -252,7 +252,7 @@
     },
     {
       "name": "maintenance_frame_with_elapsed",
-      "line": "T:96123,0,0,95,93,125,124,0,0,12,0,0,0,0,11,6,9,4,M,142,18,0",
+      "line": "T:96123,0,0,95,93,125,124,0,0,12,0,0,0,0,11,6,9,4,M,142,0,0,18,0,0",
       "expect": {
         "kind": "telemetry",
         "device_ms": 96123,
@@ -270,11 +270,13 @@
           },
           "EAR": {
             "target": 125,
-            "actual": 124
+            "actual": 124,
+            "vibration_remaining_s": 18
           },
           "BACK": {
             "target": 0,
-            "actual": 0
+            "actual": 0,
+            "vibration_remaining_s": 0
           }
         },
         "vibration_remaining_s": 18,
@@ -297,7 +299,7 @@
     },
     {
       "name": "unknown_state_is_log",
-      "line": "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0",
+      "line": "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0,0,0,0,0,0",
       "expect": {
         "kind": "log"
       }

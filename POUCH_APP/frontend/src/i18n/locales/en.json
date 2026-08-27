@@ -150,6 +150,7 @@
       "levels": "Levels",
       "duration": "Duration",
       "trigger": "Vibrate this zone now",
+      "secondsLeft": "{{value}}s left on this zone — press to restart",
       "note": "Levels and duration are stored with the prescription; nothing buzzes until ▶ triggers that zone. The firmware auto-stops after its vibration window — press ▶ again to repeat."
     },
 

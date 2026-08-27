@@ -10,7 +10,7 @@ import pytest
 
 from app.transport.base import parse_telemetry
 
-REAL_LINE = "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,M,37,12,0"
+REAL_LINE = "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4,M,37,0,0,12,0,0"
 
 
 def test_parses_a_real_frame():
@@ -27,6 +27,9 @@ def test_parses_a_real_frame():
     assert frame["device_state"] == "MAINTENANCE"
     assert frame["device_elapsed_s"] == 37
     assert frame["vibration_remaining_s"] == 12
+    # Per-zone: EAR is the one buzzing (12s), the others idle at 0.
+    assert frame["zones"]["EAR"]["vibration_remaining_s"] == 12
+    assert frame["zones"]["FRONT"]["vibration_remaining_s"] == 0
     assert frame["actuators"] == 0
 
 
@@ -35,11 +38,12 @@ def test_parses_a_real_frame():
     [
         # the CSV header carries the T: prefix but is not a frame
         "T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,"
-        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,VIB_REMAIN,ACT",
+        "FSR0,FSR1,FSR2,FSR3,FSR4,FSR5,FSR6,FSR7,STATE,ELAPSED,"
+        "VIB_R0,VIB_R1,VIB_R2,VIB_R3,ACT",
         # a pre-2026-08-21 18-field frame must fail on field count, loudly
         "T:14287,0,0,80,76,80,78,0,0,138,0,0,0,0,12,7,9,4",
-        # unknown state char
-        "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0,0,0",
+        # unknown state char (full 25-field frame, so it's the state that fails)
+        "T:100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,X,0,0,0,0,0,0",
         # boot banners / state prints
         "Venting system to atmosphere...",
         "Ready. No pressure applied.",

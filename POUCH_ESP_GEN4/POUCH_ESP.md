@@ -269,8 +269,8 @@ transition into PRESSURIZING from any transport, stops on a full vent) — this 
 lets the serial admin app and the BLE console MIRROR each other's sessions.
 
 - **Serial** (every `SERIAL_LOG_INTERVAL_MS`, 200ms):
-  `T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0..FSR7,STATE,ELAPSED,VIB_REMAIN`
-  (21 fields; STATE/ELAPSED/VIB_REMAIN appended last so old parsers fail loudly on field count). VIB_REMAIN = seconds left on the running massage, 0 when idle.
+  `T:time,FRN_T,FRN_A,TMP_T,TMP_A,EAR_T,EAR_A,BCK_T,BCK_A,MAN,FSR0..FSR7,STATE,ELAPSED,VIB_R0,VIB_R1,VIB_R2,VIB_R3,ACT`
+  (25 fields; everything from STATE on is appended last so old parsers fail loudly on field count). VIB_R0..R3 = seconds left on each zone's OWN massage (FRONT/TEMPLE/EAR/BACK), independent per zone and 0 when that zone is idle — the operator app runs a separate countdown per zone. ACT = actuator bitmask (bit0 pump, bit1 relief, bit2-5 valves FRONT/TEMPLE/EAR/BACK; HIGH = energized), read from the GPIO output latch so the Manifold Diagnostic dots track what is actually driven. The BLE frame instead carries a single `vibRemainingS` (the longest-running zone) — the console shows one countdown.
   It must never be printed every loop: at 9600 baud one CSV line takes ~130ms to ship,
   which throttles `loop()` to ~7Hz and makes the pump badly overshoot the manifold
   between pressure checks (bench-measured ~400 mmHg spikes before the fix, 2026-08-20).

@@ -28,8 +28,14 @@ TELEMETRY_FIELDS = [
     "MAN",
     "FSR_FRN_L", "FSR_FRN_R", "FSR_TMP_L", "FSR_TMP_R",
     "FSR_EAR_L", "FSR_EAR_R", "FSR_BCK_L", "FSR_BCK_R",
-    "STATE", "ELAPSED", "VIB_REMAIN", "ACT",
+    "STATE", "ELAPSED",
+    # Per-zone massage countdowns (independent), FRONT/TEMPLE/EAR/BACK.
+    "VIB_R0", "VIB_R1", "VIB_R2", "VIB_R3",
+    "ACT",
 ]
+
+#: telemetry per-zone vibration-countdown columns, one per zone
+VIB_REMAIN_COLUMNS = {"FRONT": "VIB_R0", "TEMPLE": "VIB_R1", "EAR": "VIB_R2", "BACK": "VIB_R3"}
 
 #: telemetry STATE char → the state-machine name used across the app
 DEVICE_STATES = {
@@ -84,6 +90,8 @@ def parse_telemetry(line: str) -> dict | None:
             "actual": raw[ACTUAL_COLUMNS[zone]],
             "fsr_l": raw[left],
             "fsr_r": raw[right],
+            # This zone's own massage countdown, independent of the others.
+            "vibration_remaining_s": raw[VIB_REMAIN_COLUMNS[zone]],
         }
     return {
         "device_ms": raw["time"],
@@ -91,7 +99,11 @@ def parse_telemetry(line: str) -> dict | None:
         "zones": zones,
         "device_state": state,
         "device_elapsed_s": raw["ELAPSED"],
-        "vibration_remaining_s": raw["VIB_REMAIN"],
+        # Longest of the per-zone countdowns — kept for the header/BLE-parity
+        # display; each zone's own value lives in zones[zone].
+        "vibration_remaining_s": max(
+            raw[col] for col in VIB_REMAIN_COLUMNS.values()
+        ),
         # Actuator bitmask: bit0 pump, bit1 relief, bit2-5 valves FRONT/TEMPLE/EAR/BACK.
         "actuators": raw["ACT"],
     }
