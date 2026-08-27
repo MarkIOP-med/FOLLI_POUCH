@@ -39,16 +39,16 @@
     // rule to land the rule itself on the measured x=148.5 / y=357.
     left: 147.3px;
     top: 355.5px;
-    width: 1282px;
+    // Widened by the scrollbar, with the table left at its measured 1282px, so
+    // the bar sits beside the right rule instead of taking width out of the
+    // columns and pulling every one of them off its measured x. It lands in the
+    // gap the mockup leaves between that rule (x=1429.3) and the side panel
+    // (x=1444.5).
+    width: 1282px + $scrollbar-w;
     height: 777.5px;   // the header's 55 plus ten rows at 72.25
     overflow-y: auto;
     overflow-x: hidden;
-
-    // No visible scrollbar, for the reason the Home grid gives: the target is a
-    // touch kiosk where dragging works, and a classic scrollbar would take ~15px
-    // out of the measured 1282px and pull every column off its rule.
-    scrollbar-width: none;
-    &::-webkit-scrollbar { display: none; }
+    @include scrollbar;
 
     // Chains to the canvas at either end, so a wheel or drag over the table
     // still pans a canvas that is too big for its viewport.
@@ -65,24 +65,20 @@
     font-size: $fs-body;
     table-layout: fixed;
 
+    // The header row deliberately scrolls with the body rather than pinning.
+    // Chrome paints a collapsed-border table's rows over a sticky thead, which
+    // leaves a sliver of the row underneath sitting on top of the caption bar,
+    // and every workaround costs more than the pin is worth: separated borders
+    // would double every rule and break the 72.25px pitch the geometry below is
+    // measured to. The Home screen's card grid scrolls the same way.
+
     th {
-      // Held at the top of the scroll box: the column headings are the only key
-      // to which number is which, and scrolling them away leaves four unlabelled
-      // columns.
-      position: sticky;
-      top: 0;
-      z-index: 1;
       height: 55px;
       // 4px more below than above: middle-aligned header text otherwise lands
       // 2px low of where the mockup sets it.
       padding: 0 28px 4px;
       background: $panel-title-bg;
       border: $bw-frame solid $border;
-      // A collapsed border belongs to the table's own border grid, which does
-      // not travel with a sticky cell — the caption bar's rule drops out the
-      // moment it lifts off. The shadow redraws the same 3px rule on the cell
-      // itself, so the bar keeps its outline while stuck.
-      box-shadow: inset 0 0 0 $bw-frame $border;
       font-weight: 400;
       text-align: left;
       white-space: nowrap;
@@ -213,33 +209,30 @@
     border-bottom: $bw-frame solid $border;
   }
 
-  // Ink centres: "Save Changes" y=813, SAVE y=888.5, "Reset to default modal"
-  // y=1007.5, RESET ALL y=1086.
+  // SAVE / RESET ALL, on the heading row rather than down the side panel.
+  //
+  // The mockup gives each pill a caption and stacks them in the right column at
+  // y=563.5 and y=761. Moved here they share the band between the header band's
+  // bottom rule (y=264) and the table (y=355.5) — 91.5px — so the captions are
+  // dropped (each pill's artwork carries its own label) and the pills are set to
+  // the height that band takes. The ~500px they gave back in the panel goes to
+  // the device list.
+  //
+  // Right edge lands on the table's own right rule at x=1430.5, so the toolbar
+  // and the table below it share an edge.
   &__actions {
     position: absolute;
-    inset: 0;
-    color: $text;
-    font-size: $fs-body;
-    line-height: 32px;
+    top: 274px;            // 62px tall, centred on the heading's ink at y=305
+    right: #{$canvas-w - 1430.5}px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
   }
-
-  &__save-label,
-  &__reset-label {
-    position: absolute;
-    left: 0;
-    width: 100%;
-    text-align: center;
-  }
-
-  &__save-label  { top: 520.5px; }
-  &__reset-label { top: 717px; }
 
   // Uses the designer's own button artwork rather than a CSS approximation —
   // the supplied PNGs are dark gradient pills with the label baked in, which no
   // flat background/colour pair was ever going to match.
   &__pill {
-    position: absolute;
-    left: 76.3px;          // 292px wide, centred on x=1669.5
     padding: 0;
     border: none;
     background: none;
@@ -247,15 +240,14 @@
 
     img {
       display: block;
-      width: 292px;
-      height: 95px;
+      // Supplied at 292x95; scaled on height alone so the aspect is the
+      // designer's, not a re-drawn one.
+      height: 62px;
+      width: auto;
     }
 
     &:disabled { opacity: 0.45; cursor: not-allowed; }
   }
-
-  &__pill--save  { top: 563.5px; }
-  &__pill--reset { top: 761px; }
 }
 
 // Command / settings errors, under the table.
@@ -266,7 +258,7 @@
   background: none;
   border: none;
   font: inherit;
-  font-size: 15px;
+  font-size: $fs-tiny;   // canvas scale, as everywhere else on the canvas
   color: $alert-red;
   cursor: pointer;
 }
@@ -274,32 +266,74 @@
 // Device management block — absolutely placed into the empty band between the
 // #27475a strip (ends y≈349) and the "Save Changes" label (y≈520.5). The side
 // column is a measured absolute layout; flow content overlays General Data.
+//
+// Everything here is sized off the canvas type scale, not web px. The whole
+// 1920x1200 canvas is drawn through a transform, so a 15px label written as if
+// for a normal page lands at roughly half the size of the 32px body text beside
+// it — which is what made this block read as a widget dropped into the panel
+// rather than part of it. It is a secondary utility list, so it sits at the
+// bottom of the scale — $fs-small for the caption, $fs-tiny for a pouch's id,
+// $fs-status for its meta and the controls — rather than at the panel's own
+// $fs-body, since it is a utility list and not the panel's subject.
+//
+// With SAVE / RESET ALL moved to the heading row this band runs 360 -> 833
+// instead of 360 -> 505, so a row no longer has to fit its id and both buttons
+// on one 409.5px line: the id takes a line and the buttons wrap under it.
 .admin-screen__devices {
   position: absolute;
   top: 360px;
   left: 17.5px;
   right: 17.5px;
-  max-height: 150px;
+  // Runs to 24px above the critical-actions row at y=857, so the list grows into
+  // the column rather than being capped at a band. Six or so pouches fit before
+  // it scrolls, which is what the scrollbar is there to show.
+  bottom: 62px;
   overflow-y: auto;
+  // A vertical list has nothing to scroll sideways to, and letting it try would
+  // spend 12px of the band on a bar for a fraction of a pixel of overflow.
+  overflow-x: hidden;
+  @include scrollbar;
+
+  // Spaced by one gap rather than per-child margins: adjacent margins collapse,
+  // so the 8px under a row and the 10px over the add block resolved to 10, not
+  // 18, and the box ended up 8px shorter than its own scrollHeight believed —
+  // a scrollbar for content that was already fully visible.
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   color: $text;
 }
 
+// Every control below is held to one 32px height and the gaps are counted, so
+// the block totals ~152px against the band's 160.5 rather than being left to the
+// sum of four different intrinsic line boxes — which came to 171 and pushed the
+// add row under the "Save Changes" label.
 .admin-screen__devices-title {
-  margin: 0 0 8px;
-  font-size: 16px;
+  flex: none;
+  margin: 0;
+  font-size: $fs-small;
+  line-height: 30px;
   font-weight: $fw-label;
 }
 
+// Two lines: the id on its own, its actions right-aligned beneath. Wrapped
+// rather than given a wrapper element — the id below is the only flex item that
+// claims a full line, so the buttons fall to the next one on their own.
 .admin-screen__device-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+  flex: none;
   gap: 8px;
-  margin-bottom: 8px;
-  font-size: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba($border, 0.5);
+  font-size: $fs-tiny;
 }
 
 .admin-screen__device-id {
-  flex: 1;
+  flex: 1 0 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -307,27 +341,35 @@
 
 .admin-screen__device-meta {
   opacity: 0.6;
-  font-size: 13px;
+  font-size: $fs-status;
 }
 
-// Critical pouch actions, pinned just below RESET ALL (panel is 901 tall,
-// RESET ALL ends at 856). Canvas-px sizing like the rest of the panel, not the
-// web-px I first used — the whole canvas scales, so these track everything else.
+// Critical pouch actions, in the strip left between RESET ALL (ends at 855.4)
+// and the bottom of the panel's padding box (895) — 39.6px, so the row is given
+// an explicit height inside it rather than being left to size itself. Left to
+// its own intrinsic height it came out 50.6px and was silently cropped by the
+// panel's `overflow: hidden`, which is what clipped these two buttons in half.
 .admin-screen__critical {
   position: absolute;
-  top: 862px;
+  top: 857px;
   left: 20px;
   right: 20px;
+  height: 35px;
   display: flex;
   gap: 12px;
 }
 
 .admin-screen__critical-btn {
   flex: 1;
+  // Centred in the fixed height above, rather than padded to it: padding would
+  // put the row's total back at the mercy of the font's line box.
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
-  font-size: $fs-small;
+  font-size: $fs-tiny;
   font-weight: 600;
-  padding: 5px 12px;
+  padding: 0 12px;
   border-radius: $radius-md;
   cursor: pointer;
   white-space: nowrap;
@@ -347,39 +389,58 @@
 }
 
 .admin-screen__device-btn {
+  // Never squeezed: the id beside them is the elastic part of the row.
+  flex: none;
   font: inherit;
-  font-size: 12px;
+  font-size: $fs-status;
   color: $text;
   background: $btn-face-dark;
-  border: 1px solid $btn-edge;
-  border-radius: 10px;
-  padding: 2px 10px;
+  border: 2px solid $btn-edge;
+  border-radius: $radius-md;
+  height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
   cursor: pointer;
 
   &:disabled { opacity: 0.4; cursor: not-allowed; }
   &--danger { color: $alert-red; }
 }
 
+// Two lines, not one. Four controls across a 409.5px column left the two selects
+// about 40px each — "se…" and "C…" — so the id, which is the field that has to
+// be typed into, gets a line of its own and the rest share the second.
 .admin-screen__device-add {
-  display: flex;
+  flex: none;
+  // Follows the last pouch rather than being pinned to the foot with an auto
+  // margin: inside a scroll container that margin is resolved against the free
+  // space and then counted again in scrollHeight, so the box reported 2px of
+  // overflow it did not have and showed a scrollbar for a list of one.
+  margin-top: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
   gap: 6px;
-  margin-top: 10px;
+
+  > :first-child { grid-column: 1 / -1; }
 }
 
+// The design specifies exactly one entry-field treatment — $input-bg behind a
+// 2px $input-edge outline — so these use it rather than the ad-hoc dark wash
+// they were given.
 .admin-screen__device-input {
   font: inherit;
-  font-size: 13px;
+  font-size: $fs-status;
   color: $text;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid $btn-edge;
-  border-radius: 6px;
-  padding: 3px 8px;
+  background: $input-bg;
+  border: 2px solid $input-edge;
+  border-radius: $radius-sm;
+  width: 100%;   // an <input> keeps its intrinsic `size` width without this,
+                 // so it would sit at ~90px in a column it is told to span
+  height: 32px;
+  padding: 0 10px;
   min-width: 0;
-  flex: 1;
 
-  // Dropdown variant: the menu anchors to the flex item.
+  // Dropdown variant: the menu anchors to the grid item.
   &--select {
     position: relative;
-    height: 26px;
   }
 }

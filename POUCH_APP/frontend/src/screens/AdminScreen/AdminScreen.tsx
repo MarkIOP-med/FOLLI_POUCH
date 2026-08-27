@@ -196,6 +196,31 @@ export function AdminScreen() {
     >
       <h2 className="admin-screen__heading">{t('diagnostics.admin.heading')}</h2>
 
+      {/* SAVE / RESET ALL sit on the heading row, ending on the table's own right
+          rule. The mockup stacks them down the side panel with a caption over
+          each; moved here the captions go, since the artwork carries its label
+          and the band is 91.5px tall. What they free up in the panel goes to the
+          device list. */}
+      <div className="admin-screen__actions">
+        {/* SAVE commits every filled Set Value draft above. */}
+        <button
+          type="button"
+          className="admin-screen__pill"
+          disabled={busy || Object.values(drafts).every((v) => v.trim() === '')}
+          onClick={saveDrafts}
+        >
+          <img src={BUTTONS.save} alt={t('diagnostics.admin.save')} />
+        </button>
+        <button
+          type="button"
+          className="admin-screen__pill"
+          disabled={busy || !snapshot?.connected || !snapshot?.patient}
+          onClick={() => run('resetting', () => api.resetDefaults(id))}
+        >
+          <img src={BUTTONS.resetAll} alt={t('diagnostics.admin.resetAll')} />
+        </button>
+      </div>
+
       {/* Boxed to the design's ten-row height and scrolled, rather than left to
           run off the canvas — see AdminScreen.scss. */}
       <div className="admin-screen__table-scroll">
@@ -286,33 +311,6 @@ export function AdminScreen() {
 
         {/* An empty #27475a strip closes the data block, exactly as drawn. */}
         <div className="admin-screen__strip" />
-
-        <div className="admin-screen__actions">
-          <span className="admin-screen__save-label">
-            {t('diagnostics.admin.saveChanges')}
-          </span>
-          {/* SAVE commits every filled Set Value draft above. */}
-          <button
-            type="button"
-            className="admin-screen__pill admin-screen__pill--save"
-            disabled={busy || Object.values(drafts).every((v) => v.trim() === '')}
-            onClick={saveDrafts}
-          >
-            <img src={BUTTONS.save} alt={t('diagnostics.admin.save')} />
-          </button>
-
-          <span className="admin-screen__reset-label">
-            {t('diagnostics.admin.resetToDefault')}
-          </span>
-          <button
-            type="button"
-            className="admin-screen__pill admin-screen__pill--reset"
-            disabled={busy || !snapshot?.connected || !snapshot?.patient}
-            onClick={() => run('resetting', () => api.resetDefaults(id))}
-          >
-            <img src={BUTTONS.resetAll} alt={t('diagnostics.admin.resetAll')} />
-          </button>
-        </div>
 
         {/* Critical pouch actions, side by side, pinned just below RESET ALL.
             Absolutely positioned (the side panel places all children absolutely)
