@@ -183,6 +183,16 @@ def build(
             if runtime.checked_out_patient_id is not None
             else None
         ),
+        # The checked-out patient's STORED regime per zone (prescribed_mmhg,
+        # massage_level, massage_seconds) — what the admin shows and edits at
+        # idle. Distinct from zones[] above, which is what the pouch is actually
+        # driving right now (0 when idle); mixing them would raise false
+        # out-of-band alarms.
+        "checked_out_regime": (
+            patients_repo.prescriptions_by_zone(conn, runtime.effective_patient_id)
+            if runtime.effective_patient_id is not None
+            else {}
+        ),
         "zones": zones,
         "ceiling_mmhg": ceiling,
         "trim_range_pct": trim_range,

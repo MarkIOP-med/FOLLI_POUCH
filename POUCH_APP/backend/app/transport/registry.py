@@ -117,6 +117,13 @@ class DeviceRuntime:
         self._reset_faults()
 
     @property
+    def effective_patient_id(self) -> int | None:
+        """Who admin edits apply to: the session patient if one is running, else
+        the checked-out patient (NO_USER by default). Lets the admin screen show
+        and edit the loaded regime at idle, not just during a session."""
+        return self.patient_id if self.patient_id is not None else self.checked_out_patient_id
+
+    @property
     def connected(self) -> bool:
         return bool(self.link and self.link.connected)
 

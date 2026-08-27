@@ -67,14 +67,18 @@ export function AdminScreen() {
   const rows = adminActions(snapshot, settings);
   const blanks = Math.max(0, TABLE_ROWS - rows.length);
   const noData = t('diagnostics.noData');
-  const sessionActive = snapshot?.session_id != null;
   const busy = busyKey !== null;
-  // Zone/vibration rows need a connected pouch with a session; app-settings rows
-  // need neither, so the table is never wholesale-disabled anymore.
-  const sessionRowsDisabled = !snapshot?.connected || !sessionActive || busy;
+  // Zone/vibration rows edit the CHECKED-OUT patient's regime, so they need a
+  // connected pouch with a patient checked out (NO_USER by default) — NOT a
+  // running session. App-settings rows need neither.
+  const patientRowsDisabled =
+    !snapshot?.connected || !snapshot?.checked_out_patient || busy;
 
   const rowDisabled = (needsSession: boolean) =>
-    needsSession ? sessionRowsDisabled : busy;
+    needsSession ? patientRowsDisabled : busy;
+  // The identity/regime shown at idle is the checked-out patient (NO_USER);
+  // during a session it is the session patient (they are the same once running).
+  const shownPatient = snapshot?.patient ?? snapshot?.checked_out_patient ?? null;
 
   const saveDrafts = () =>
     run('promoting', async () => {
@@ -225,18 +229,18 @@ export function AdminScreen() {
 
         <div className="admin-screen__general">
           <span>{t('diagnostics.users.name')}</span>
-          <span>{snapshot?.patient?.full_name ?? noData}</span>
+          <span>{shownPatient?.full_name ?? noData}</span>
           <span>{t('diagnostics.users.id')}</span>
-          <span>{snapshot?.patient?.national_id_masked ?? noData}</span>
+          <span>{shownPatient?.national_id_masked ?? noData}</span>
           <span>{t('diagnostics.users.age')}</span>
-          <span>{snapshot?.patient?.age ?? noData}</span>
+          <span>{shownPatient?.age ?? noData}</span>
         </div>
 
         <div className="admin-screen__divider" />
 
         <div className="admin-screen__protocol">
           <span>{t('diagnostics.users.protocol')}</span>
-          <span>{snapshot?.patient?.protocol ?? noData}</span>
+          <span>{shownPatient?.protocol ?? noData}</span>
         </div>
 
         {/* An empty #27475a strip closes the data block, exactly as drawn. */}
@@ -262,7 +266,7 @@ export function AdminScreen() {
           <button
             type="button"
             className="admin-screen__pill admin-screen__pill--reset"
-            disabled={sessionRowsDisabled || !snapshot?.patient}
+            disabled={busy || !snapshot?.connected || !snapshot?.patient}
             onClick={() => run('resetting', () => api.resetDefaults(id))}
           >
             <img src={BUTTONS.resetAll} alt={t('diagnostics.admin.resetAll')} />

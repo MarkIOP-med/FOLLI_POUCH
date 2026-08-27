@@ -27,8 +27,10 @@ export function adminActions(
   snapshot: DeviceSnapshot | null,
   settings: Settings | null,
 ): AdminAction[] {
+  // Read the CHECKED-OUT patient's stored regime (shown/edited at idle), not
+  // zones[] (what the pouch is commanding right now, 0 when idle).
   const zone = (name: string) =>
-    snapshot?.zones.find((z) => z.zone === name)?.prescribed_mmhg ?? null;
+    snapshot?.checked_out_regime?.[name]?.prescribed_mmhg ?? null;
 
   const zoneRow = (key: string, name: Zone): AdminAction => ({
     key,
@@ -62,7 +64,7 @@ export function adminActions(
       kind: 'vibration',
       labelKey: 'diagnostics.admin.rows.vibration',
       descriptionKey: 'diagnostics.admin.rows.vibrationDesc',
-      value: snapshot?.zones[0]?.massage_level ?? null,
+      value: snapshot?.checked_out_regime?.FRONT?.massage_level ?? null,
       needsSession: true,
     },
     {

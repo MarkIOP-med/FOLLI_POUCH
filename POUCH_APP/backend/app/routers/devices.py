@@ -385,19 +385,20 @@ def set_zone_rx(
     Writes prescribed_mmhg only. patient_trim_pct is untouched — the trim belongs to
     the patient and is never overwritten by a clinician edit.
     """
-    if runtime.service_mode or runtime.patient_id is None:
+    patient_id = runtime.effective_patient_id
+    if runtime.service_mode or patient_id is None:
         raise HTTPException(
             status.HTTP_409_CONFLICT, "no patient loaded; use the setpoint endpoint"
         )
 
     ceiling = app_settings.get(db).max_pressure_mmhg
     mmhg = int(clamp(body.mmhg, 0, ceiling))
-    before = patients_repo.set_zone_pressure(db, runtime.patient_id, zone, mmhg)
+    before = patients_repo.set_zone_pressure(db, patient_id, zone, mmhg)
 
     audit.record(
         db,
         "set_rx",
-        f"patient:{runtime.patient_id}:{zone}",
+        f"patient:{patient_id}:{zone}",
         {"prescribed_mmhg": before},
         {"prescribed_mmhg": mmhg},
     )
@@ -406,7 +407,7 @@ def set_zone_rx(
     # Keep the device-side user record current, so a console START after this
     # edit applies the edited regime, not a stale copy.
     if runtime.connected and runtime.link is not None:
-        _push_user_regime(db, runtime, runtime.patient_id)
+        _push_user_regime(db, runtime, patient_id)
         db.commit()
 
     return snapshot_service.build(runtime, db)
@@ -423,16 +424,17 @@ def set_trim(
     Written to patient_trim_pct only — NEVER folded into prescribed_mmhg, which
     would compound across sessions and walk past the ceiling.
     """
-    if runtime.patient_id is None:
+    patient_id = runtime.effective_patient_id
+    if patient_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "no patient loaded")
     zone = validate_zone(body.zone)
 
     trim_range = app_settings.get(db).trim_range_pct
     trim = int(clamp(body.trim_pct, -trim_range, trim_range))
-    patients_repo.set_trim(db, runtime.patient_id, zone, trim)
+    patients_repo.set_trim(db, patient_id, zone, trim)
 
     audit.record(
-        db, "trim", f"patient:{runtime.patient_id}:{zone}", None, {"trim_pct": trim}
+        db, "trim", f"patient:{patient_id}:{zone}", None, {"trim_pct": trim}
     )
     db.commit()
     return snapshot_service.build(runtime, db)
@@ -471,17 +473,18 @@ def set_vibration(
     runtime: DeviceRuntime = Depends(get_runtime),
     db: sqlite3.Connection = Depends(get_db),
 ) -> dict:
-    if runtime.patient_id is None:
+    patient_id = runtime.effective_patient_id
+    if patient_id is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "no patient loaded")
     zone = validate_zone(body.zone)
 
     # Store first but commit only after the device push: committing before a
     # failed push would leave the record claiming a level the device never got.
     patients_repo.set_vibration(
-        db, runtime.patient_id, zone, body.massage_level, body.massage_seconds
+        db, patient_id, zone, body.massage_level, body.massage_seconds
     )
     audit.record(
-        db, "set_vibration", f"patient:{runtime.patient_id}:{zone}", None,
+        db, "set_vibration", f"patient:{patient_id}:{zone}", None,
         body.model_dump(),
     )
 
@@ -489,10 +492,14 @@ def set_vibration(
 
     # Push to the device too — the firmware's setvibration is positional and
     # full-vector only, so send every zone's stored level, not just the edited one.
+    # Read levels from the edited patient's own record (works at idle, where the
+    # commanded zones[] would read 0).
     if runtime.connected and runtime.link is not None:
-        by_zone = {z["zone"]: z.get("massage_level", 0) for z in payload["zones"]}
+        rx = patients_repo.prescriptions_by_zone(db, patient_id)
         sent = send_or_502(
-            lambda: runtime.link.set_vibration([by_zone.get(z, 0) for z in ZONES])
+            lambda: runtime.link.set_vibration(
+                [rx.get(z, {}).get("massage_level", 0) for z in ZONES]
+            )
         )
         audit.log_event(
             db, runtime.device_id, "info", "set_vibration", sent, runtime.session_id
