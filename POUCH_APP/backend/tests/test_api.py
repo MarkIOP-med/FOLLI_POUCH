@@ -193,10 +193,11 @@ class TestSafetyCommands:
 
         assert client.get(f"/api/devices/{mock_device}").json()["session_id"] is not None
 
-    def test_commands_rejected_when_disconnected(self, client: TestClient):
-        client.post("/api/devices/POUCH-MOCK/connect").raise_for_status()
-        client.delete("/api/devices/POUCH-MOCK/connect").raise_for_status()
-        assert client.post("/api/devices/POUCH-MOCK/stop").status_code == 409
+    def test_commands_rejected_when_disconnected(
+        self, client: TestClient, mock_device: str
+    ):
+        client.delete(f"/api/devices/{mock_device}/connect").raise_for_status()
+        assert client.post(f"/api/devices/{mock_device}/stop").status_code == 409
 
 
 class TestServiceMode:

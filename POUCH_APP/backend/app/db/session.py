@@ -62,16 +62,9 @@ def init_db() -> None:
             conn.execute(
                 "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value)
             )
-        # First run only: seed a mock pouch so the app is usable with no hardware
-        # attached. Guarded on an empty roster — not INSERT OR IGNORE — so deleting
-        # the mock once real hardware is registered is a decision that sticks across
-        # restarts instead of quietly reappearing every boot.
-        count = conn.execute("SELECT COUNT(*) AS n FROM devices").fetchone()["n"]
-        if count == 0:
-            conn.execute(
-                "INSERT INTO devices (id, label, transport, port) VALUES (?,?,?,?)",
-                ("POUCH-MOCK", "Mock Pouch", "mock", None),
-            )
+        # No mock pouch is seeded — real hardware is registered from the Admin
+        # screen. The mock transport still exists for the test suite, just not as
+        # a device that shows up in the UI.
         _seed_no_user(conn)
         conn.commit()
 

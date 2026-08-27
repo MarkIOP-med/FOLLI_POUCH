@@ -41,7 +41,7 @@ export function AdminScreen() {
   // Critical actions awaiting the admin password before they fire.
   const [pendingRestart, setPendingRestart] = useState(false);
   const [pendingFactoryReset, setPendingFactoryReset] = useState(false);
-  const [newTransport, setNewTransport] = useState<'serial' | 'mock' | 'ble'>('serial');
+  const [newTransport, setNewTransport] = useState<'serial' | 'ble'>('serial');
   const [newPort, setNewPort] = useState('');
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
@@ -129,7 +129,7 @@ export function AdminScreen() {
         id: newId.trim(),
         label: newId.trim(),
         transport: newTransport,
-        port: newTransport === 'mock' ? null : newPort || null,
+        port: newPort || null,
       });
       setNewId('');
       await refreshRoster();
@@ -274,52 +274,23 @@ export function AdminScreen() {
         </div>
 
         {/* Critical pouch actions, side by side, pinned just below RESET ALL.
-            The side panel is a measured absolute layout (overflow:hidden, all
-            children absolutely placed), so these must be absolutely positioned
-            too or they render at the panel's top-left, hidden behind the data
-            block. Coordinates are panel-padding-box relative, like the pills
-            (RESET ALL ends at y=856; panel is 901 tall). Both password-gated. */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 861,
-            left: 20,
-            right: 20,
-            display: 'flex',
-            gap: 10,
-          }}
-        >
+            Absolutely positioned (the side panel places all children absolutely)
+            with canvas-px sizing — see admin-screen__critical in the SCSS. Both
+            password-gated. */}
+        <div className="admin-screen__critical">
           <button
             type="button"
+            className="admin-screen__critical-btn admin-screen__critical-btn--restart"
             disabled={busy || !snapshot?.connected}
             onClick={() => setPendingRestart(true)}
-            style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: 8,
-              border: '1px solid #6c8a9c',
-              background: '#173241',
-              color: '#cfe4ef',
-              font: '600 13px/1.1 inherit',
-              cursor: 'pointer',
-            }}
           >
             Restart pouch
           </button>
           <button
             type="button"
+            className="admin-screen__critical-btn admin-screen__critical-btn--danger"
             disabled={busy || !snapshot?.connected}
             onClick={() => setPendingFactoryReset(true)}
-            style={{
-              flex: 1,
-              padding: '8px 10px',
-              borderRadius: 8,
-              border: '1px solid #b3524a',
-              background: '#3a1b18',
-              color: '#f0b7b0',
-              font: '600 13px/1.1 inherit',
-              cursor: 'pointer',
-            }}
           >
             Factory reset
           </button>
@@ -388,27 +359,24 @@ export function AdminScreen() {
               ariaLabel="transport"
               options={[
                 { value: 'serial', label: 'serial' },
-                { value: 'mock', label: 'mock' },
                 { value: 'ble', label: 'ble' },
               ]}
               onChange={(v) =>
-                setNewTransport((v || 'serial') as 'serial' | 'mock' | 'ble')
+                setNewTransport((v || 'serial') as 'serial' | 'ble')
               }
             />
-            {newTransport !== 'mock' && (
-              <CanvasSelect
-                className="admin-screen__device-input admin-screen__device-input--select"
-                value={newPort}
-                disabled={busy}
-                placeholder={t('diagnostics.admin.devices.portPlaceholder')}
-                ariaLabel="port"
-                options={ports.map((p) => ({
-                  value: p.port,
-                  label: `${p.port}${p.likely_pouch ? ` ${t('diagnostics.admin.devices.likelyPouch')}` : ''}`,
-                }))}
-                onChange={setNewPort}
-              />
-            )}
+            <CanvasSelect
+              className="admin-screen__device-input admin-screen__device-input--select"
+              value={newPort}
+              disabled={busy}
+              placeholder={t('diagnostics.admin.devices.portPlaceholder')}
+              ariaLabel="port"
+              options={ports.map((p) => ({
+                value: p.port,
+                label: `${p.port}${p.likely_pouch ? ` ${t('diagnostics.admin.devices.likelyPouch')}` : ''}`,
+              }))}
+              onChange={setNewPort}
+            />
             <button
               type="button"
               className="admin-screen__device-btn"

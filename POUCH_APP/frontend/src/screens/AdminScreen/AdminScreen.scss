@@ -272,6 +272,42 @@
   font-size: 13px;
 }
 
+// Critical pouch actions, pinned just below RESET ALL (panel is 901 tall,
+// RESET ALL ends at 856). Canvas-px sizing like the rest of the panel, not the
+// web-px I first used — the whole canvas scales, so these track everything else.
+.admin-screen__critical {
+  position: absolute;
+  top: 862px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  gap: 12px;
+}
+
+.admin-screen__critical-btn {
+  flex: 1;
+  font: inherit;
+  font-size: $fs-small;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: $radius-md;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  &--restart {
+    color: #cfe4ef;
+    background: #173241;
+    border: 1px solid #6c8a9c;
+  }
+  &--danger {
+    color: #f0b7b0;
+    background: #3a1b18;
+    border: 1px solid $alert-red;
+  }
+}
+
 .admin-screen__device-btn {
   font: inherit;
   font-size: 12px;

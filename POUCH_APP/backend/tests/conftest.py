@@ -39,8 +39,12 @@ def client() -> Iterator[TestClient]:
 
 @pytest.fixture()
 def mock_device(client: TestClient) -> str:
-    """The always-present mock pouch, connected."""
+    """A mock pouch registered and connected for the test (no longer seeded)."""
     device_id = "POUCH-MOCK"
+    client.post(
+        "/api/devices",
+        json={"id": device_id, "label": "Mock Pouch", "transport": "mock", "port": None},
+    ).raise_for_status()
     client.post(f"/api/devices/{device_id}/connect").raise_for_status()
     return device_id
 
