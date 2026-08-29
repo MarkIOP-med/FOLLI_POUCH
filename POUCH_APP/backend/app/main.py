@@ -26,6 +26,7 @@ from .db import init_db
 from .db.session import session_scope
 from .repositories import devices as devices_repo
 from .routers import devices, patients, system
+from .services.provisioning import provision_detected_pouches
 from .transport.registry import registry
 
 
@@ -35,6 +36,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     init_db()
     with session_scope() as conn:
         registry.load(devices_repo.list_all(conn))
+        # First run with no roster: adopt any pouch already on a serial port, so
+        # the operator app is never a dead end waiting for a device it gives no
+        # way to add. No-op once any device exists.
+        provision_detected_pouches(conn)
 
     yield
 
