@@ -97,7 +97,10 @@ void updateBLE() {
   line += (unsigned long)sessionElapsedS();
   for (int i = 0; i < 4; i++) {
     line += ",";
-    line += (int)constrain((int)actualPressure[i], 0, 255);  // FRONT, TEMPLE, EAR, BACK
+    // FRONT, TEMPLE, EAR, BACK. Decimal text, not a byte — the old 0..255
+    // constrain here was a leftover from the retired binary frame and silently
+    // capped the reported actual once targets went above 255.
+    line += (int)actualPressure[i];
   }
   for (int i = 0; i < 4; i++) {
     line += ",";

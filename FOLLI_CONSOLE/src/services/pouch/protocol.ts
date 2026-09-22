@@ -19,8 +19,25 @@ export type Channel = 0 | 1 | 2 | 3;
 export const channelOf = (zone: Zone): Channel =>
   CHANNELS.indexOf(zone) as Channel;
 
+/**
+ * The highest target the DEVICE may be told to hold — a transport bound, not a
+ * clinical dose limit. It matches the operator API's own bound on the same
+ * quantity (`max_pressure_mmhg`, `Field(ge=1, le=300)`).
+ *
+ * The patient-facing safety gate is NOT this constant: it is the admin-editable
+ * `max_pressure_mmhg` in the operator DB, which clamps every prescription before
+ * it can reach a board. This one only says what the console is willing to encode.
+ */
+export const PRESSURE_CEILING_MMHG = 300;
+
+/**
+ * The factory profile the board boots into (firmware `config.h` NO_USER_ID). It
+ * is a bench convenience rather than a clinician's order, which is why the
+ * console lets it be dialled freely — see `trimBounds()` in useConsole.ts.
+ */
+export const NO_USER_ID = 1;
+
 /** Shared clinical constants — asserted against shared/protocol-vectors.json. */
-export const PRESSURE_CEILING_MMHG = 130;
 export const CONTROLLER_TOLERANCE_MMHG = 3;
 export const TRIM_RANGE_PCT = 10;
 /** setvibration level meaning "leave this channel as it is". */

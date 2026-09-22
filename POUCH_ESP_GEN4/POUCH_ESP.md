@@ -279,7 +279,10 @@ lets the serial admin app and the BLE console MIRROR each other's sessions.
   (16 fields, ~65 bytes — the client MUST negotiate a larger MTU, the console requests 185; an
   un-negotiated 20-byte MTU truncates the line). `vibR0..R3` are each zone's OWN
   massage countdown (FRONT/TEMPLE/EAR/BACK), matching the serial per-zone timers;
-  the console shows the selected zone's. A 13-field frame (the pre-per-zone
+  the console shows the selected zone's. `a0..a3` and `t0..t3` are plain decimal
+  mmHg with no upper bound — the old `constrain(..., 0, 255)` on the actuals was a
+  leftover from the retired binary frame and silently capped the reported value
+  once targets went above 255 (removed 2026-09-22). A 13-field frame (the pre-per-zone
   single `vibRemainingS`) is now rejected as malformed — old console + new firmware
   gets no telemetry, so install the console APK before flashing. Battery and error remain stubs. BLE's periodic `T:` line is lighter (4 actual pressures + battery + error
 byte, pushed every `TELEMETRY_INTERVAL_MS`) — anything more detailed is available on

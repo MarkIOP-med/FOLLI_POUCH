@@ -14,12 +14,13 @@ import {
   CHANNELS,
   Channel,
   DeviceState,
+  NO_USER_ID,
   PRESSURE_CEILING_MMHG,
   Zone,
 } from '../services/pouch/protocol';
 
 export type { BleTelemetry as PouchTelemetry, DeviceState, Zone };
-export { CHANNELS, PRESSURE_CEILING_MMHG };
+export { CHANNELS, NO_USER_ID, PRESSURE_CEILING_MMHG };
 
 /** Zone identifier used across screens — a firmware channel index. */
 export type VNode = Channel;

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 
 import { useConsole } from '../src/viewmodels/useConsole';
+import { NO_USER_ID, PRESSURE_CEILING_MMHG } from '../src/models/telemetry';
 import type { PouchTelemetry } from '../src/models/telemetry';
 import type {
   ConnectionListener,
@@ -79,6 +80,14 @@ const BENCH_USER: DeviceUser = {
   assigned: true,
   pressures: [0, 25, 60, 0],
   name: 'Edna Levi',
+};
+
+/** What the board reports on a fresh boot: its own factory regime, nobody's order. */
+const FACTORY_USER: DeviceUser = {
+  userId: NO_USER_ID,
+  assigned: true,
+  pressures: [25, 120, 85, 130],
+  name: 'NO_USER',
 };
 
 describe('useConsole — device-mirrored session', () => {
@@ -210,16 +219,52 @@ describe('useConsole — device-mirrored session', () => {
     expect(result.current.targetPressure).toBe(0);
   });
 
-  it('never exceeds the 130 mmHg ceiling, even at the top of a band', () => {
+  it('never exceeds the ceiling, even at the top of a band', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // Prescribed 125: 10% is 12.5 → band 112..138, clamped to the 130 ceiling.
-    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 125, 0, 0] }));
+    // Prescribed just under the ceiling, so the band's top lands above it and
+    // gets clipped. Expressed against the constant, not a literal, so raising
+    // the ceiling does not silently retire this case.
+    const prescribed = PRESSURE_CEILING_MMHG - 5;
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, prescribed, 0, 0] }));
     act(() => result.current.setActiveZone(1));
-    expect(result.current.trimMax).toBe(130);
-    act(() => result.current.updateTargetPressure(999));
-    expect(result.current.targetPressure).toBe(130);
+    expect(result.current.trimMax).toBe(PRESSURE_CEILING_MMHG);
+    act(() => result.current.updateTargetPressure(9999));
+    expect(result.current.targetPressure).toBe(PRESSURE_CEILING_MMHG);
+  });
+
+  it('dials the factory regime freely, up to the ceiling', async () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // A fresh board on NO_USER: no clinician ordered these numbers, so there is
+    // no prescription to trim around — the whole range is the bench's to use.
+    act(() => client.emitUser(FACTORY_USER));
+    act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
+    act(() => result.current.setActiveZone(3));
+
+    expect(result.current.targetPressure).toBe(130); // starts on the factory value
+    expect(result.current.trimMin).toBe(0);
+    expect(result.current.trimMax).toBe(PRESSURE_CEILING_MMHG);
+
+    act(() => result.current.updateTargetPressure(PRESSURE_CEILING_MMHG));
+    expect(result.current.targetPressure).toBe(PRESSURE_CEILING_MMHG);
+    await act(async () => result.current.sendCommandToPouch());
+    expect(client.setZonePressure).toHaveBeenCalledWith('BACK', PRESSURE_CEILING_MMHG);
+  });
+
+  it('still holds a real patient to their prescription band', () => {
+    const client = makeFakeClient();
+    const { result } = renderHook(() => useConsole(client));
+
+    // The same dial that is free on NO_USER stays trimmed once a patient is on.
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 0, 0, 100] }));
+    act(() => result.current.setActiveZone(3));
+
+    expect(result.current.trimMax).toBe(110);
+    act(() => result.current.updateTargetPressure(PRESSURE_CEILING_MMHG));
+    expect(result.current.targetPressure).toBe(110);
   });
 
   it('held STOP sends stop; STOPPED shows once the board reports idle', () => {
@@ -361,15 +406,16 @@ describe('useConsole — patient assignment (the board user record)', () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, 140, 0, 0] }));
+    const prescribed = PRESSURE_CEILING_MMHG + 10;
+    act(() => client.emitUser({ ...BENCH_USER, pressures: [0, prescribed, 0, 0] }));
     act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
     act(() => result.current.setActiveZone(1));
 
-    // Not silently clamped to 130 — that would make SET lower the clinician's regime.
-    expect(result.current.targetPressure).toBe(140);
+    // Not silently clamped down — that would make SET lower the clinician's regime.
+    expect(result.current.targetPressure).toBe(prescribed);
     expect(result.current.canTrim).toBe(false);
     act(() => result.current.updateTargetPressure(60));
-    expect(result.current.targetPressure).toBe(140);
+    expect(result.current.targetPressure).toBe(prescribed);
     await act(async () => result.current.sendCommandToPouch());
     expect(client.setZonePressure).not.toHaveBeenCalled();
   });
