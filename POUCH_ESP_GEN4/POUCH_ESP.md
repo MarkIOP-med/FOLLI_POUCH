@@ -162,7 +162,7 @@ belongs to and how long it lives:
 | `userId` | Per-user | `-1` | Opaque id of the checked-out user; `-1` = none |
 | `assigned` | Per-user | `false` | Whether this pouch currently has a live user record |
 | `userDefaultPressure[4]` | Per-user | — | This user's saved pressure regime |
-| `systemDefaultPressure[4]` | System-wide | `{25,120,85,130}` | Factory default pressure, all users |
+| `systemDefaultPressure[4]` | System-wide | `{300,300,300,300}` | Factory default pressure, all users — **bench/demo values since 2026-09-22**, product regime is `{25,120,85,130}`; see `config.h` |
 | `vibPWM[4]` | System-wide | `{0,85,170,255}` | PWM output per vibration level 0–3 |
 | `PRESSURE_TOLERANCE_MMHG` | System-wide | `3` | ± dead-band for "at target" |
 | `PRESSURE_ACTUATION_THRESHOLD_MMHG` | System-wide | `10` | Below this, a zero-target channel is skipped rather than actuated |
@@ -247,7 +247,7 @@ single tagged line:
 
 **The pouch always has a user — NO_USER.** On boot (and after `resetall`) the board is
 checked out to **NO_USER** (id 1, name `NO_USER`, regime = `systemDefaultPressure`
-`{25,120,85,130}`). So `start` from the console works with no app connected — it runs the
+`{300,300,300,300}` — bench values, see `config.h`). So `start` from the console works with no app connected — it runs the
 NO_USER factory regime. The operator app overrides it by checking a real patient out
 (`user:…`); selecting nobody leaves NO_USER. There is no "unassigned" state and no
 START gate — the earlier `ERR:START:NO_USER_ASSIGNED` refusal is gone.

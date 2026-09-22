@@ -82,11 +82,11 @@ const BENCH_USER: DeviceUser = {
   name: 'Edna Levi',
 };
 
-/** What the board reports on a fresh boot: its own factory regime, nobody's order. */
+/** What the board reports on a fresh boot — mirrors config.h systemDefaultPressure. */
 const FACTORY_USER: DeviceUser = {
   userId: NO_USER_ID,
   assigned: true,
-  pressures: [25, 120, 85, 130],
+  pressures: [300, 300, 300, 300],
   name: 'NO_USER',
 };
 
@@ -234,24 +234,25 @@ describe('useConsole — device-mirrored session', () => {
     expect(result.current.targetPressure).toBe(PRESSURE_CEILING_MMHG);
   });
 
-  it('dials the factory regime freely, up to the ceiling', async () => {
+  it('holds the factory regime to the same +/-10% band', async () => {
     const client = makeFakeClient();
     const { result } = renderHook(() => useConsole(client));
 
-    // A fresh board on NO_USER: no clinician ordered these numbers, so there is
-    // no prescription to trim around — the whole range is the bench's to use.
+    // NO_USER is trimmed like any other regime — the dial is never a free
+    // setpoint entry. A higher target comes from the firmware's own default
+    // (config.h systemDefaultPressure), not from opening this control up.
     act(() => client.emitUser(FACTORY_USER));
     act(() => client.emitTelemetry(frame({ state: 'MAINTENANCE' })));
     act(() => result.current.setActiveZone(3));
 
-    expect(result.current.targetPressure).toBe(130); // starts on the factory value
-    expect(result.current.trimMin).toBe(0);
-    expect(result.current.trimMax).toBe(PRESSURE_CEILING_MMHG);
+    expect(result.current.targetPressure).toBe(300); // starts on the factory value
+    expect(result.current.trimMin).toBe(270);
+    expect(result.current.trimMax).toBe(PRESSURE_CEILING_MMHG); // 330, clipped to 300
 
-    act(() => result.current.updateTargetPressure(PRESSURE_CEILING_MMHG));
-    expect(result.current.targetPressure).toBe(PRESSURE_CEILING_MMHG);
+    act(() => result.current.updateTargetPressure(0));
+    expect(result.current.targetPressure).toBe(270); // held inside the band
     await act(async () => result.current.sendCommandToPouch());
-    expect(client.setZonePressure).toHaveBeenCalledWith('BACK', PRESSURE_CEILING_MMHG);
+    expect(client.setZonePressure).toHaveBeenCalledWith('BACK', 270);
   });
 
   it('still holds a real patient to their prescription band', () => {

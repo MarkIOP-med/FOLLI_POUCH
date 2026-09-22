@@ -4,7 +4,6 @@ import {
   ALL_ZONES,
   EMPTY_TELEMETRY,
   MassageLevel,
-  NO_USER_ID,
   PRESSURE_MAX,
   PouchTelemetry,
   VNode,
@@ -42,7 +41,8 @@ export type ZoneSettingsMap = Record<VNode, ZoneSettings>;
  * The board's user record is RAM-only: every power-cycle comes back on NO_USER
  * with the FACTORY regime loaded (assigned, but to the factory profile, not a
  * patient — firmware initUserProfile()). That is a bench convenience for the
- * operator and never a treatment, which is what regimeOf() below keys off.
+ * operator and never a treatment, but it is still trimmed like any other
+ * regime: the dial is a trim control everywhere, with no free-range mode.
  * Genuinely unassigned means: no prescription, no START.
  */
 export type PatientRecord =
@@ -62,30 +62,17 @@ export const TRIM_RANGE_PCT = 10;
 export const CONTROLLER_TOLERANCE_MMHG = 3;
 
 /**
- * Where the zone's numbers came from, which is what decides how far the dial
- * may travel. A prescription is a clinician's order and is trimmed around;
- * the factory regime is nobody's order and is dialled freely.
- */
-export type Regime = 'prescribed' | 'factory';
-
-/** The board is running its own factory profile, not a checked-out patient. */
-export function regimeOf(patient: PatientRecord): Regime {
-  return patient.assigned && patient.userId === NO_USER_ID ? 'factory' : 'prescribed';
-}
-
-/**
  * The range this zone may be trimmed to, inside the transport's 0..PRESSURE_MAX.
  *
- * On the FACTORY regime there is no clinician and no treatment — the board is
- * on its bench profile, so the whole range is open. This is the bench/demo
- * path: it is what makes a target above the factory default reachable from the
- * console alone, with no operator app and no reflash.
+ * The same band applies to every regime, the factory profile included: the dial
+ * is always a trim control, never a free setpoint entry. A target above the
+ * factory default is reached by changing that default in firmware
+ * (`config.h` systemDefaultPressure), not by opening this control up.
  *
- * On a PRESCRIBED regime the margin is 10% of the prescription or 3 mmHg,
- * whichever is larger. Plain 10% collapses below the controller's deadband on
- * small prescriptions — at 25 mmHg it is +/-2.5, so the whole travel of the
- * control sits inside the error the controller already has, and the patient
- * gets a slider that does nothing.
+ * The margin is 10% of the prescription or 3 mmHg, whichever is larger. Plain
+ * 10% collapses below the controller's deadband on small prescriptions — at 25
+ * mmHg it is +/-2.5, so the whole travel of the control sits inside the error
+ * the controller already has, and the patient gets a slider that does nothing.
  *
  * A zone prescribed 0 is switched off, and stays off — the patient can trim a
  * treatment the clinician ordered, not start one they did not.
@@ -96,10 +83,8 @@ export function regimeOf(patient: PatientRecord): Regime {
  */
 export function trimBounds(
   prescribed: number,
-  regime: Regime = 'prescribed',
   trimRangePct: number = TRIM_RANGE_PCT,
 ): { min: number; max: number } {
-  if (regime === 'factory') return { min: 0, max: PRESSURE_MAX };
   if (prescribed <= 0) return { min: 0, max: 0 };
   if (prescribed > PRESSURE_MAX) return { min: prescribed, max: prescribed };
   const margin = Math.max((prescribed * trimRangePct) / 100, CONTROLLER_TOLERANCE_MMHG);
@@ -186,10 +171,7 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   const targetPressure = zoneSettings[activeZone].pressure;
   const massageLevel = zoneSettings[activeZone].massage;
 
-  const { min: trimMin, max: trimMax } = trimBounds(
-    zoneSettings[activeZone].prescribed,
-    regimeOf(patient),
-  );
+  const { min: trimMin, max: trimMax } = trimBounds(zoneSettings[activeZone].prescribed);
   const canTrim = trimMax > trimMin;
 
   // Dirty when the dialled pressure differs from what the BOARD reports it is
@@ -295,11 +277,10 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
 
   const updateTargetPressure = useCallback((value: number) => {
     setZoneSettings((prev) => {
-      const { activeZone: zone, patient: who } = inputsRef.current;
+      const zone = inputsRef.current.activeZone;
       const current = prev[zone];
-      // Held inside the prescription's trim band, not merely inside the ceiling
-      // — unless the board is on its factory regime, which is trimmed by nobody.
-      const { min, max } = trimBounds(current.prescribed, regimeOf(who));
+      // Held inside the prescription's trim band, not merely inside the ceiling.
+      const { min, max } = trimBounds(current.prescribed);
       const trimmed = Math.max(min, Math.min(max, clampPressure(value)));
       return { ...prev, [zone]: { ...current, pressure: trimmed } };
     });
@@ -318,16 +299,12 @@ export function useConsole(injectedClient?: PouchClient): ConsoleController {
   // hasUnappliedChanges compares against — so a failed write, which never moves
   // that target, leaves the button pulsing on its own.
   const sendCommandToPouch = useCallback(() => {
-    const {
-      activeZone: zone,
-      zoneSettings: settings,
-      deviceRunning: running,
-      patient: who,
-    } = inputsRef.current;
+    const { activeZone: zone, zoneSettings: settings, deviceRunning: running } =
+      inputsRef.current;
     // Trimming adjusts a RUNNING treatment. On an idle board a nonzero target
     // would start one — that is START's job, and only START re-zeros first.
     if (!running) return;
-    const { min, max } = trimBounds(settings[zone].prescribed, regimeOf(who));
+    const { min, max } = trimBounds(settings[zone].prescribed);
     if (max <= min) return; // off, or clinician-locked — nothing to push
     const pressure = settings[zone].pressure;
     client.setZonePressure(zoneName(zone), pressure).catch((err) => {

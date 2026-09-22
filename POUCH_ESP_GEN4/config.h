@@ -62,11 +62,18 @@ int  vibrationLevel[4]        = {0, 0, 0, 0};  // live vibration level per chann
 // Per-user record — PERIPHERAL, RAM only (userProfile.ino). Not durable across a
 // power-cycle/reflash by choice; every boot comes back unassigned. Order: FRONT=0,
 // TEMPLE=1, EAR=2, BACK=3.
-int systemDefaultPressure[4] = {25, 120, 85, 130};  // NO_USER / factory regime — the default
-//                                                     every user starts from before the app
-//                                                     edits it (FRONT/TEMPLE/EAR/BACK). Restored
-//                                                     to the real product values 2026-08-27 once
-//                                                     the FRONT/BACK valves were repaired.
+int systemDefaultPressure[4] = {300, 300, 300, 300};  // NO_USER / factory regime — the default
+//                                                      every user starts from before the app
+//                                                      edits it (FRONT/TEMPLE/EAR/BACK).
+//
+// BENCH/DEMO VALUES, NOT PRODUCT VALUES (set 2026-09-22). The board boots straight
+// into these, so `start` alone drives every zone to 300 mmHg with nothing else
+// connected — that is the point: the console's dial is a +/-10% trim control and
+// cannot reach a target its regime does not already carry.
+//
+// 300 mmHg is far above anything a head may wear. RESTORE BEFORE HUMAN USE:
+//   product regime  {25, 120, 85, 130}
+//   human-safe      {25,  70, 70,  70}   (70 was the ceiling before 2026-08-25)
 // Longest display name the user record carries (bytes, UTF-8; the pusher truncates on a
 // character boundary). Sized for a first + last name, not a biography.
 #define USER_NAME_MAX 31
